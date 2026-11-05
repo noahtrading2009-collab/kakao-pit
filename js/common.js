@@ -26,21 +26,34 @@ const CFG = {
     maxPrice: 7000,
 };
 
+function roleRules(R) {
+    return `<ul class="rules"><li class="can-h">Darf</li>${R.can.map(x => `<li class="can">${x}</li>`).join('')}<li class="can-h">Darf nicht</li>${R.cannot.map(x => `<li class="cannot">${x}</li>`).join('')}</ul>`;
+}
+
 const ROLES = {
     producer: {
         name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 80000, limit: 15,
         mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b> und verkauft sie zum dann gültigen Preis. Fällt der Preis, bricht euer Umsatz ein. Und: Dürre oder Krankheit können eure <b>Erntemenge</b> schrumpfen lassen.',
         hint: 'Absichern = Futures <b>verkaufen</b> (Short). Aber Vorsicht: Wer 100 t verkauft und nur 80 t erntet, ist überabgesichert. Pflanzenschutz halbiert Ernteverluste.',
+        job: 'Short-Hedger', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
+        can: ['Ernte auf Termin verkaufen (Short) – höchstens so viel, wie du erntest', 'Pflanzenschutz kaufen', 'Absicherung wieder auflösen'],
+        cannot: ['Futures kaufen (Long)', 'Mehr verkaufen, als du erntest', 'Research-Berichte'],
     },
     processor: {
         name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 80000, limit: 15,
         mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Laufend bestellen Detailhändler Schokolade zu einem <b>festen Verkaufspreis</b>. Jeder Auftrag bringt Marge – aber nur, solange Kakao nicht teurer wird.',
         hint: 'Absichern = Futures <b>kaufen</b> (Long). Nimmst du einen Auftrag an, steigt dein Bedarf – sichere ihn sofort ab, dann ist deine Marge fix.',
+        job: 'Long-Hedger', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',
+        can: ['Kakao auf Termin kaufen (Long) – höchstens deinen Bedarf', 'Kundenaufträge annehmen oder ablehnen', 'Absicherung wieder auflösen'],
+        cannot: ['Futures verkaufen (Short)', 'Mehr kaufen, als du brauchst', 'Research-Berichte'],
     },
     spec: {
         name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a78bfa', physical: 0, cash: 120000, limit: 20,
         mission: 'Ihr habt keinen Kakao und braucht keinen. Ihr handelt nur auf Kursbewegungen – und übernehmt damit das Risiko der anderen. Euer Vorteil: <b>Research</b> über Gerüchte und ein grösseres Positionslimit.',
         hint: 'Kauft Research-Berichte (meistens richtig, nicht immer) und handelt, bevor die News bestätigt wird. Hoher Hebel, Margin Calls und Konkurs sind real.',
+        job: 'Spekulant', tagline: 'Übernimm das Risiko der anderen – und verdiene daran.',
+        can: ['Long und Short handeln – bis 20 Kontrakte', 'Research-Berichte kaufen', 'Als Gegenpartei der Hedger auftreten'],
+        cannot: ['Kakao ernten oder verarbeiten', 'Kundenaufträge', 'Hedge-Bonus'],
     },
 };
 

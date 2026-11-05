@@ -11,13 +11,24 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="bg-aurora"><i></i><i></i><i></i></div>
     <div class="bg-grid"></div>
+    <div class="bg-noise"></div>
 
     <!-- ===== START ===== -->
     <section id="v-start" class="view active">
+        <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
         <div class="start-wrap">
+            <div class="hero-emblem">
+                <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="gb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffcf8a"/><stop offset=".45" stop-color="#c47a4a"/><stop offset="1" stop-color="#5a2e14"/></linearGradient></defs>
+                    <circle cx="60" cy="60" r="56" fill="none" stroke="rgba(255,181,71,.35)" stroke-width="1.5" stroke-dasharray="4 6"/>
+                    <ellipse cx="60" cy="60" rx="26" ry="40" fill="url(#gb)" transform="rotate(28 60 60)"/>
+                    <path d="M48 30 C 64 52, 56 70, 72 90" stroke="#3a1a08" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
+                    <path d="M14 78 L34 66 L48 72 L66 50 L82 58 L106 30" stroke="#22e58a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="106" cy="30" r="4.5" fill="#22e58a"/></svg>
+            </div>
             <div class="logo"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
-            <p class="tagline">Das Multiplayer-Spiel um Kakao-Futures. Hedger gegen Spekulanten. Live.</p>
+            <p class="tagline">Das Multiplayer-Börsenspiel um Kakao-Futures.<br><b>Bauern. Fabriken. Hedgefonds.</b> Jeder mit eigenem Auftrag – live gegeneinander.</p>
             <div class="start-cards">
                 <div class="card start-card">
                     <h2>📱 Mitspielen</h2>
@@ -25,7 +36,12 @@
                     <label>Raumcode<input id="in-code" maxlength="5" autocomplete="off" placeholder="z. B. K7Q2M" spellcheck="false"></label>
                     <label>Dein Name<input id="in-name" maxlength="16" autocomplete="off" placeholder="Trader-Name"></label>
                     <label>Deine Rolle
-                        <div class="seg role-seg" id="seg-role"><button data-role="" class="active">🎲 Zufall</button><button data-role="producer">🌱 Kooperative</button><button data-role="processor">🏭 Fabrik</button><button data-role="spec">🦈 Fonds</button></div>
+                        <div class="role-pick" id="seg-role">
+                            <button data-role="producer" style="--rc:#4ade80"><i>🌱</i><b>Kooperative</b><small>Ernte absichern</small></button>
+                            <button data-role="processor" style="--rc:#f59e0b"><i>🏭</i><b>Fabrik</b><small>Einkauf sichern</small></button>
+                            <button data-role="spec" style="--rc:#a78bfa"><i>🦈</i><b>Hedgefonds</b><small>Spekulieren</small></button>
+                            <button data-role="" class="active" style="--rc:#ffb547"><i>🎲</i><b>Zufall</b><small>Host verteilt</small></button>
+                        </div>
                     </label>
                     <button class="btn btn-primary btn-big" id="btn-join">Beitreten</button>
                     <p class="err" id="join-err"></p>
@@ -64,7 +80,7 @@
                     <div class="bot-ctl"><span>KI-Trader</span><button class="btn btn-ghost btn-sm" id="bot-minus">−</button><b id="bot-count">0</b><button class="btn btn-ghost btn-sm" id="bot-plus">+</button></div>
                     <button class="btn btn-primary btn-big" id="btn-start" disabled>🔔 Börse eröffnen</button>
                 </div>
-                <p class="dim small">Rollen werden automatisch verteilt: Kooperativen (verkaufen Kakao), Schokoladenfabriken (kaufen Kakao) und Hedgefonds (spekulieren).</p>
+                <p class="dim small">Jede Rolle hat ihr eigenes Mandat: Kooperativen dürfen nur ihre Ernte verkaufen, Fabriken nur ihren Bedarf kaufen – spekulieren dürfen nur Hedgefonds.</p>
             </div>
         </div>
     </section>
@@ -97,10 +113,12 @@
 
     <!-- ===== PLAYER ===== -->
     <section id="v-wait" class="view">
-        <div class="wait card">
+        <div class="wait card role-card" id="w-card">
+            <div class="rc-emblem" id="w-icon"></div>
             <div class="role-badge" id="w-role"></div>
             <h2 id="w-title">Du bist drin!</h2>
             <div class="mission" id="w-mission"></div>
+            <div id="w-rules"></div>
             <div class="hint" id="w-hint"></div>
             <div class="w-switch"><div class="dim small">Andere Rolle wählen (bis die Börse öffnet):</div>
                 <div class="seg role-seg" id="w-roles"><button data-role="producer">🌱 Kooperative</button><button data-role="processor">🏭 Fabrik</button><button data-role="spec">🦈 Fonds</button></div></div>
@@ -121,6 +139,15 @@
             </div>
             <div class="p-news" id="p-news"></div>
             <div class="card p-rolepanel" id="p-rolepanel"></div>
+            <div class="card p-trade">
+                <div class="tr-head"><span id="p-trade-title">Handel</span><span class="dim small" id="p-trade-sub"></span></div>
+                <div class="hmeter" id="p-hmeter"></div>
+                <div class="qty" id="p-qty"><button data-q="1" class="active">1</button><button data-q="2">2</button><button data-q="5">5</button><button data-q="10">10</button><span class="dim small">Kontrakte à 10 t</span></div>
+                <div class="trade-btns" id="p-tbtns">
+                    <button class="tbtn buy" id="p-buy"><span id="p-buy-l">KAUFEN</span><b id="p-ask">2'404</b><small id="p-buy-s">Long</small></button>
+                    <button class="tbtn sell" id="p-sell"><span id="p-sell-l">VERKAUFEN</span><b id="p-bid">2'396</b><small id="p-sell-s">Short</small></button>
+                </div>
+            </div>
             <div class="card p-risk">
                 <div class="row"><span class="dim small">Dein Kakao-Risiko</span><b id="p-exp">+100 t</b></div>
                 <div class="gauge"><div class="gauge-zero"></div><div class="gauge-bar" id="p-gauge"></div></div>
@@ -133,13 +160,6 @@
                 <div class="mbar"><div id="p-mbar"></div><div class="mbar-line"></div></div>
                 <div class="kv"><span>Freies Geld</span><b id="p-cash">0</b></div>
                 <div class="kv big"><span>Ergebnis vs. Plan</span><b id="p-result">0</b></div>
-            </div>
-            <div class="card p-trade">
-                <div class="qty" id="p-qty"><button data-q="1" class="active">1</button><button data-q="2">2</button><button data-q="5">5</button><button data-q="10">10</button><span class="dim small">Kontrakte à 10 t</span></div>
-                <div class="trade-btns">
-                    <button class="tbtn buy" id="p-buy"><span>KAUFEN</span><b id="p-ask">2'404</b><small>Long</small></button>
-                    <button class="tbtn sell" id="p-sell"><span>VERKAUFEN</span><b id="p-bid">2'396</b><small>Short</small></button>
-                </div>
             </div>
             <div class="tabs"><button class="active" data-tab="board">🤝 Board</button><button data-tab="info">📖 Info</button></div>
             <div class="card tab" id="tab-board">

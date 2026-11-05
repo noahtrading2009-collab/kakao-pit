@@ -134,9 +134,13 @@ const Player = (() => {
 
     function showWait() {
         const R = ROLES[role];
-        $('w-role').innerHTML = `<span style="color:${R.color}">${R.icon} ${R.name}</span>`;
+        document.body.dataset.role = role;
+        $('w-card').style.setProperty('--rc', R.color);
+        $('w-icon').textContent = R.icon;
+        $('w-role').innerHTML = `<span style="color:${R.color}">${R.name}</span><small>${R.job}</small>`;
         $('w-title').textContent = `Willkommen, ${name}!`;
         $('w-mission').innerHTML = R.mission;
+        $('w-rules').innerHTML = roleRules(R);
         $('w-hint').innerHTML = `💡 ${R.hint}`;
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.classList.toggle('active', b.dataset.role === role));
         App.show('v-wait');
@@ -151,7 +155,8 @@ const Player = (() => {
     function render() {
         if (!me || !pub) return;
         const R = ROLES[me.role];
-        $('p-role').innerHTML = `<span style="color:${R.color}">${R.icon}</span> ${esc(me.name)}`;
+        document.body.dataset.role = me.role;
+        $('p-role').innerHTML = `<span class="p-emb">${R.icon}</span><span><b>${esc(me.name)}</b><small>${R.job}</small></span>`;
         $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `Monat ${pub.month}/${pub.months}`;
         $('p-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('p-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
@@ -201,14 +206,81 @@ const Player = (() => {
         $('p-ask').textContent = fmt(ask);
         $('p-bid').textContent = fmt(bid);
         const closed = pub.phase !== 'trading' || me.bankrupt;
-        $('p-buy').disabled = closed;
-        $('p-sell').disabled = closed;
+        renderTrade(closed);
         if (ofPrice === null) ofPrice = pub.price;
         $('of-qty').textContent = ofQty;
         $('of-price').textContent = fmt(ofPrice);
         renderOffers();
         renderRolePanel();
         renderCall();
+    }
+
+    // ===== Handels-Karte: jede Rolle hat ihr eigenes Mandat =====
+
+    // Erlaubte Menge für Kauf (q>0) bzw. Verkauf (q<0) gemäss Mandat.
+    function room(dir) {
+        const b = me.bounds;
+        if (dir > 0) return me.pos < b.max ? b.max - me.pos : (me.pos < 0 ? -me.pos : 0);
+        return me.pos > b.min ? me.pos - b.min : (me.pos > 0 ? me.pos : 0);
+    }
+
+    function setBtn(id, label, sub) {
+        $(`${id}-l`).textContent = label;
+        $(`${id}-s`).textContent = sub;
+    }
+
+    function renderTrade(closed) {
+        const b = me.bounds;
+        const tb = $('p-tbtns');
+        let hedged;
+        let need;
+        if (me.role === 'producer') {
+            need = Math.max(0, me.physical);
+            hedged = Math.max(0, -me.pos * CFG.size);
+            $('p-trade-title').textContent = '🔒 Ernte auf Termin verkaufen';
+            $('p-trade-sub').textContent = 'Nur Short · max. deine Ernte';
+            setBtn('p-sell', 'ABSICHERN', 'Ernte verkaufen');
+            setBtn('p-buy', 'AUFLÖSEN', 'Rückkauf');
+            tb.classList.add('rev');
+        } else if (me.role === 'processor') {
+            need = Math.max(0, -me.physical);
+            hedged = Math.max(0, me.pos * CFG.size);
+            $('p-trade-title').textContent = '🔒 Einkauf auf Termin sichern';
+            $('p-trade-sub').textContent = 'Nur Long · max. dein Bedarf';
+            setBtn('p-buy', 'ABSICHERN', 'Kakao kaufen');
+            setBtn('p-sell', 'AUFLÖSEN', 'Verkauf');
+            tb.classList.remove('rev');
+        } else {
+            $('p-trade-title').textContent = '⚡ Trading-Desk';
+            $('p-trade-sub').textContent = `Long & Short · Limit ±${b.max}`;
+            setBtn('p-buy', 'KAUFEN', 'Long');
+            setBtn('p-sell', 'VERKAUFEN', 'Short');
+            tb.classList.remove('rev');
+        }
+        const hedger = me.role !== 'spec';
+        $('p-buy').classList.toggle('primary', hedger && me.role === 'processor');
+        $('p-buy').classList.toggle('secondary', hedger && me.role === 'producer');
+        $('p-sell').classList.toggle('primary', hedger && me.role === 'producer');
+        $('p-sell').classList.toggle('secondary', hedger && me.role === 'processor');
+        $('p-buy').disabled = closed || room(1) <= 0;
+        $('p-sell').disabled = closed || room(-1) <= 0;
+        // Absicherungs-Meter bzw. Positions-Meter
+        let html;
+        if (me.role === 'spec') {
+            const w = (Math.abs(me.pos) / b.max) * 50;
+            html = `<div class="hm-row"><span>Short ${b.max}</span><b class="${me.pos > 0 ? 'up' : me.pos < 0 ? 'down' : ''}">${me.pos > 0 ? 'Long ' : me.pos < 0 ? 'Short ' : ''}${Math.abs(me.pos)}</b><span>Long ${b.max}</span></div>
+                <div class="hm-bar mid"><i class="${me.pos >= 0 ? 'long' : 'short'}" style="left:${me.pos >= 0 ? 50 : 50 - w}%;width:${w}%"></i></div>`;
+        } else {
+            const q = need ? hedged / need : 0;
+            const over = hedged > need;
+            html = `<div class="hm-row"><span>Abgesichert</span><b class="${over ? 'bad' : q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
+                <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em style="left:70%"></em><em style="left:100%"></em></div>
+                ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}`;
+        }
+        if ($('p-hmeter').dataset.h !== html) {
+            $('p-hmeter').dataset.h = html;
+            $('p-hmeter').innerHTML = html;
+        }
     }
 
     // ===== Rollen-Panel: jede Rolle hat eigene Entscheidungen =====
@@ -259,13 +331,23 @@ const Player = (() => {
     }
 
     function renderOffers() {
+        // Board-Formular: Hedger dürfen nur in ihre Richtung anbieten.
+        const sides = me.role === 'producer' ? ['sell'] : me.role === 'processor' ? ['buy'] : ['sell', 'buy'];
+        if (!sides.includes(ofSide)) ofSide = sides[0];
+        $('of-side').querySelectorAll('[data-side]').forEach(x => {
+            x.classList.toggle('hidden', !sides.includes(x.dataset.side));
+            x.classList.toggle('active', x.dataset.side === ofSide);
+        });
         const list = pub.offers.map(o => {
             const mine = o.by === me.id;
             const takerBuys = o.side === 'sell';
+            const allowed = room(takerBuys ? 1 : -1) >= o.qty;
             return `<div class="p-offer ${o.side}">
                 <div><b>${ROLES[o.role].icon} ${esc(o.byName)}</b> <span class="${o.side === 'sell' ? 'down' : 'up'}">${o.side === 'sell' ? 'verkauft' : 'kauft'}</span> ${o.qty} @ <b>${fmt(o.price)}</b>
                 <div class="obar"><span style="width:${(o.left / CFG.offerSec) * 100}%"></span></div></div>
-                ${mine ? `<button class="btn btn-ghost btn-sm" data-cancel="${o.id}">Zurückziehen</button>` : `<button class="btn btn-sm ${takerBuys ? 'btn-buy' : 'btn-sell'}" data-accept="${o.id}">${takerBuys ? 'Kaufen' : 'Verkaufen'}</button>`}</div>`;
+                ${mine ? `<button class="btn btn-ghost btn-sm" data-cancel="${o.id}">Zurückziehen</button>`
+                    : allowed ? `<button class="btn btn-sm ${takerBuys ? 'btn-buy' : 'btn-sell'}" data-accept="${o.id}">${takerBuys ? 'Kaufen' : 'Verkaufen'}</button>`
+                    : '<span class="locked">🔒 nicht dein Mandat</span>'}</div>`;
         }).join('');
         $('p-offers').innerHTML = list || '<div class="dim small">Keine Angebote. Stell selbst eines aufs Board – andere Trader können es annehmen.</div>';
         $('p-offers').querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => send({ t: 'accept', id: Number(b.dataset.accept) })));
@@ -318,9 +400,21 @@ const Player = (() => {
             const y = H - 4 - ((v - lo) / span) * (H - 8);
             i ? c.lineTo(x, y) : c.moveTo(x, y);
         });
-        c.strokeStyle = up ? '#22e58a' : '#ff4d6a';
+        const col = up ? '34,229,138' : '255,77,106';
+        c.strokeStyle = `rgb(${col})`;
         c.lineWidth = 2;
+        c.shadowColor = `rgba(${col},.6)`;
+        c.shadowBlur = 8;
         c.stroke();
+        c.shadowBlur = 0;
+        c.lineTo(W - 2, H);
+        c.lineTo(2, H);
+        c.closePath();
+        const gr = c.createLinearGradient(0, 0, 0, H);
+        gr.addColorStop(0, `rgba(${col},.28)`);
+        gr.addColorStop(1, `rgba(${col},0)`);
+        c.fillStyle = gr;
+        c.fill();
     }
 
     function newsFlash(it) {
@@ -345,7 +439,7 @@ const Player = (() => {
 
     function renderInfo() {
         const R = ROLES[role];
-        $('tab-info').innerHTML = `<h3>${R.icon} Deine Mission</h3><p>${R.mission}</p><p>💡 ${R.hint}</p>
+        $('tab-info').innerHTML = `<h3>${R.icon} Deine Mission · ${R.job}</h3><p>${R.mission}</p>${roleRules(R)}<p>💡 ${R.hint}</p>
             <h3>So läuft's</h3><ul class="info-list">
                 <li>1 Kontrakt = <b>${CFG.size} t</b> Kakao, Lieferung Dezember. Einschuss ${Math.round(CFG.marginRate * 100)} % des Werts.</li>
                 <li><b>Kaufen</b> = Long (gewinnt, wenn Kakao steigt). <b>Verkaufen</b> = Short (gewinnt, wenn Kakao fällt).</li>
@@ -386,8 +480,9 @@ const Player = (() => {
             qty = Number(b.dataset.q);
             $('p-qty').querySelectorAll('[data-q]').forEach(x => x.classList.toggle('active', x === b));
         }));
-        $('p-buy').addEventListener('click', () => send({ t: 'trade', q: qty }));
-        $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -qty }));
+        // Menge automatisch aufs Mandat begrenzen (z. B. nur noch 3 Kontrakte bis zur vollen Absicherung).
+        $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
+        $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
         $('of-side').querySelectorAll('[data-side]').forEach(b => b.addEventListener('click', () => {
             ofSide = b.dataset.side;
             $('of-side').querySelectorAll('[data-side]').forEach(x => x.classList.toggle('active', x === b));

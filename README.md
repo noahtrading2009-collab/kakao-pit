@@ -21,6 +21,8 @@ Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirt
 | 🏭 Schokoladenfabrik | Braucht 100 t, Risiko steigende Preise. **Eigene Mechanik:** Kunden bestellen laufend Schokolade zu einem **festen Verkaufspreis**. Jeder angenommene Auftrag erhöht den Bedarf. | **Long-Hedge**: Marge eines Auftrags mit Futures fixieren |
 | 🦈 Hedgefonds | Kein Kakao, nur Kapital, grösseres Limit. **Eigene Mechanik:** **Research-Berichte** über laufende Gerüchte (ca. 80 % Trefferquote, kostet Geld). | **Spekulation**, Informationsvorsprung, Hebel, Liquiditätsrisiko |
 
+**Mandate – wie in der Realität:** Die Rollen können nicht dasselbe tun. Die Kooperative darf nur Futures **verkaufen**, und zwar höchstens so viel, wie sie erntet. Die Fabrik darf nur **kaufen**, höchstens ihren Bedarf (der mit jedem Auftrag wächst). Beide dürfen ihre Absicherung wieder auflösen, aber nie auf die andere Seite wechseln. Nur Hedgefonds dürfen in beide Richtungen spekulieren. Das gilt auch für das Board: Hedger sehen nur Angebote, die zu ihrem Mandat passen.
+
 Jeder Spieler wählt beim Beitreten seine Rolle (oder «Zufall») und kann sie im Warteraum bis zum Start wechseln. KI-Trader füllen die Rollen auf, die am wenigsten besetzt sind.
 
 ## Regeln

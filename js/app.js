@@ -16,7 +16,8 @@ const App = (() => {
     function howTo() {
         modal(`<h2>So funktioniert KAKAO PIT</h2>
             <p>Ihr handelt <b>Kakao-Futures</b> mit Lieferung im Dezember. Ein grosser Bildschirm ist die Börse: Live-Kurs, News und Rangliste. Alle anderen spielen auf dem Handy.</p>
-            <div class="how-roles">${Object.values(ROLES).map(R => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><p>${R.mission}</p><p class="dim">${R.hint}</p></div>`).join('')}</div>
+            <div class="how-roles">${Object.values(ROLES).map(R => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${roleRules(R)}</div>`).join('')}</div>
+            <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
                 <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>
@@ -28,7 +29,18 @@ const App = (() => {
             <p class="dim small">Technik: Die Geräte verbinden sich direkt über WebRTC. Zum Finden dient ein öffentlicher Vermittler (PeerJS) – dafür braucht es Internet.</p>`);
     }
 
+    // Laufband auf der Startseite (Deko)
+    function ticker() {
+        const items = [['KAKAO DEZ', 2400], ['KAKAO MÄR', 2436], ['ZUCKER', 512], ['KAFFEE', 3890], ['WEIZEN', 238], ['MILCHPULVER', 3120], ['HASELNUSS', 7450], ['CHF/USD', 1.13]];
+        const html = items.map(([n, v]) => {
+            const ch = (Math.random() - 0.45) * 4;
+            return `<span><b>${n}</b> ${v < 10 ? v.toFixed(2) : fmt(v * (1 + ch / 100))} <i class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch).toFixed(2)}%</i></span>`;
+        }).join('');
+        $('ticker').innerHTML = html + html;
+    }
+
     function init() {
+        ticker();
         Player.bind();
         const params = new URLSearchParams(location.search);
         const joinCode = params.get('join');

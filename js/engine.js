@@ -114,11 +114,36 @@ const Engine = (() => {
         }
     }
 
+    // Jede Rolle hat ihren eigenen erlaubten Bereich (Mandat):
+    // Kooperative nur Short bis zur Erntemenge, Fabrik nur Long bis zum Bedarf, Fonds frei.
+    function bounds(p) {
+        if (p.role === 'producer') return { min: -Math.floor(Math.max(0, p.physical) / CFG.size), max: 0 };
+        if (p.role === 'processor') return { min: 0, max: Math.floor(Math.max(0, -p.physical) / CFG.size) };
+        const lim = ROLES[p.role].limit;
+        return { min: -lim, max: lim };
+    }
+
+    function mandate(p, newPos) {
+        const b = bounds(p);
+        if (newPos >= b.min && newPos <= b.max) return null;
+        // Bestehende Überabsicherung abbauen ist immer erlaubt.
+        if (Math.abs(newPos) < Math.abs(p.pos) && Math.sign(newPos) !== -Math.sign(p.pos)) return null;
+        if (p.role === 'producer') {
+            if (newPos > 0) return 'Als Kooperative darfst du keine Futures kaufen – du sicherst nur deine Ernte ab. Spekulieren ist Sache der Hedgefonds.';
+            return `Mandat: Du darfst höchstens deine Ernte absichern – ${p.physical} t = ${-b.min} Kontrakte.`;
+        }
+        if (p.role === 'processor') {
+            if (newPos < 0) return 'Als Fabrik darfst du keine Futures verkaufen – du sicherst nur deinen Einkauf ab. Spekulieren ist Sache der Hedgefonds.';
+            return `Mandat: Du darfst höchstens deinen Bedarf absichern – ${-p.physical} t = ${b.max} Kontrakte. Mehr Aufträge = mehr Bedarf.`;
+        }
+        return `Positionslimit: höchstens ${b.max} Kontrakte.`;
+    }
+
     function check(p, newPos, fee) {
         if (!p || p.bankrupt) return 'Dein Konto ist gesperrt (Konkurs).';
         if (G.phase !== 'trading') return 'Die Börse ist gerade geschlossen.';
-        const lim = ROLES[p.role].limit;
-        if (Math.abs(newPos) > lim) return `Positionslimit: höchstens ${lim} Kontrakte.`;
+        const m = mandate(p, newPos);
+        if (m) return m;
         if (Math.abs(newPos) > Math.abs(p.pos) && p.cash + futEq(p) - fee < req(p, newPos)) {
             return `Zu wenig Geld für den Einschuss (${fmt(req(p, newPos))} CHF nötig).`;
         }
@@ -508,7 +533,7 @@ const Engine = (() => {
             eq: Math.round(futEq(p)), unreal: Math.round(unreal(p)), req: Math.round(req(p)), exposure: exposure(p),
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
             result: Math.round(liveResult(p)), bonus: bonus(p), hedgeQuote: hedgeQuote(p), rank, bankrupt: p.bankrupt,
-            limit: ROLES[p.role].limit, notes: p.notes.slice(-3), liquidations: p.liquidations,
+            limit: ROLES[p.role].limit, bounds: bounds(p), notes: p.notes.slice(-3), liquidations: p.liquidations,
             physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
