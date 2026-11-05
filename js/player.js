@@ -136,7 +136,7 @@ const Player = (() => {
         const R = ROLES[role];
         document.body.dataset.role = role;
         $('w-card').style.setProperty('--rc', R.color);
-        $('w-icon').textContent = R.icon;
+        $('w-icon').innerHTML = roleIcon(role, 64);
         $('w-role').innerHTML = `<span style="color:${R.color}">${R.name}</span><small>${R.job}</small>`;
         $('w-title').textContent = `Willkommen, ${name}!`;
         $('w-mission').innerHTML = R.mission;
@@ -153,18 +153,34 @@ const Player = (() => {
 
     const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+    // Zahlen gleiten weich zum neuen Wert (statt zu springen)
+    function tween(el, to, ms = 700) {
+        const from = Number(el.dataset.tv || to);
+        el.dataset.tv = to;
+        if (from === to) { el.textContent = fmt(to); return; }
+        const t0 = performance.now();
+        const step = now => {
+            if (Number(el.dataset.tv) !== to) return;
+            const k = Math.min(1, (now - t0) / ms);
+            const e = 1 - Math.pow(1 - k, 3);
+            el.textContent = fmt(from + (to - from) * e);
+            if (k < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
+
     function render() {
         if (!me || !pub) return;
         const R = ROLES[me.role];
         document.body.dataset.role = me.role;
-        $('p-role').innerHTML = `<span class="p-emb">${R.icon}</span><span><b>${esc(me.name)}</b><small>${R.job}</small></span>`;
+        if ($('p-role').dataset.k !== me.role + me.name) $('p-role').dataset.k = me.role + me.name, $('p-role').innerHTML = `<span class="p-emb">${roleIcon(me.role, 26)}</span><span><b>${esc(me.name)}</b><small>${R.job}</small></span>`;
         $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `Monat ${pub.month}/${pub.months}`;
         $('p-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('p-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
         $('p-rank').textContent = `#${me.rank}/${me.roleCount}`;
 
         const prev = Number($('p-price').dataset.v || pub.price);
-        $('p-price').textContent = fmt(pub.price);
+        tween($('p-price'), pub.price);
         $('p-price').dataset.v = pub.price;
         $('p-price').className = `big-price ${pub.price > prev ? 'up' : pub.price < prev ? 'down' : ''}`;
         const ch = pub.price / pub.p0 - 1;
@@ -304,6 +320,14 @@ const Player = (() => {
     // ===== Rollen-Panel: jede Rolle hat eigene Entscheidungen =====
 
     let panelKey = '';
+    const seenCards = new Set();
+    function freshCard(x) {
+        const k = `${x.client}|${x.t}|${x.price}`;
+        if (seenCards.has(k)) return '';
+        seenCards.add(k);
+        return ' fresh';
+    }
+
     function renderRolePanel() {
         const el = $('p-rolepanel');
         let html = '';
@@ -313,38 +337,53 @@ const Player = (() => {
             const soldT = me.sales.reduce((s, x) => s + x.t, 0);
             const pricey = me.protectPrice > CFG.protectLow;
             html = `<div class="rp-head"><span>🌱 Deine Plantage</span><b>${me.physical} t</b></div>
-                ${b ? `<div class="order-card buyer"><div class="oc-top"><b>🤝 ${esc(b.client)}</b><span class="oc-left">${b.left}s</span></div>
+                ${b ? `<div class="order-card buyer${freshCard(b)}"><div class="oc-top"><b>🤝 ${esc(b.client)}</b><span class="oc-left" data-left="${b.left}"></span></div>
                     <div>Will <b>${b.t} t</b> zum festen Preis von <b>${fmt(b.price)} CHF/t</b> kaufen.</div>
-                    <div class="small">Börse gerade ${fmt(pub.price)} → das Angebot ist <b class="${b.price >= pub.price ? 'up' : 'down'}">${b.price >= pub.price ? `${fmt(b.price - pub.price)} besser` : `${fmt(pub.price - b.price)} schlechter`}</b> als die Börse. Wer weiss, wo der Preis im Dezember steht?</div>
+                    <div class="small live">Börse gerade ${fmt(pub.price)} → das Angebot ist <b class="${b.price >= pub.price ? 'up' : 'down'}">${b.price >= pub.price ? `${fmt(b.price - pub.price)} besser` : `${fmt(pub.price - b.price)} schlechter`}</b> als die Börse. Wer weiss, wo der Preis im Dezember steht?</div>
                     <div class="oc-btns"><button class="btn btn-primary" data-rp="buyer-yes">Verkaufen</button><button class="btn btn-ghost" data-rp="buyer-no">Ablehnen</button></div></div>`
                     : '<div class="small dim">Warte auf das nächste Händler-Angebot …</div>'}
                 <div class="small">Noch nicht verkaufte Ernte: <b>${me.physical} t</b>${soldT ? ` · direkt verkauft: ${soldT} t` : ''}. Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b>${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert! Löse einen Teil auf.</span>' : ''}</div>
                 ${me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('')}
-                ${me.sales.map(s => `<div class="rp-log">✔ ${esc(s.client)} · ${s.t} t zu ${fmt(s.price)} · heute <b class="${s.price >= pub.price ? 'up' : 'down'}">${signed((s.price - pub.price) * s.t)}</b></div>`).join('')}
+                ${me.sales.map(s => `<div class="rp-log live">✔ ${esc(s.client)} · ${s.t} t zu ${fmt(s.price)} · heute <b class="${s.price >= pub.price ? 'up' : 'down'}">${signed((s.price - pub.price) * s.t)}</b></div>`).join('')}
                 ${me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
                     : `<button class="btn btn-ghost full ${pricey ? 'pricey' : ''}" data-rp="protect">🛡️ Pflanzenschutz (Versicherung) · ${fmt(me.protectPrice)} CHF<small>${pricey ? '⚠️ Ein Gerücht läuft – die Versicherung ist jetzt teuer!' : 'Jetzt günstig. Läuft ein Dürre-Gerücht, kostet sie ' + fmt(CFG.protectHigh) + ' CHF.'} Halbiert Ernteverluste.</small></button>`}`;
         } else if (me.role === 'processor') {
             const o = me.orderOffer;
             const orderT = me.orders.reduce((s, x) => s + x.t, 0);
             html = `<div class="rp-head"><span>🏭 Deine Aufträge</span><b>${-me.physical} t Bedarf</b></div>
-                ${o ? `<div class="order-card"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left">${o.left}s</span></div>
+                ${o ? `<div class="order-card${freshCard(o)}"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left" data-left="${o.left}"></span></div>
                     <div>Bestellt Schokolade aus <b>${o.t} t Kakao</b> zum festen Erlös von <b>${fmt(o.price)} CHF/t</b>.</div>
-                    <div class="small">Heute kostet Kakao ${fmt(pub.price)} → Marge <b class="up">${fmt(o.price - pub.price)} CHF/t</b> (= ${fmt((o.price - pub.price) * o.t)} CHF) – aber nur, wenn du den Einkauf absicherst.</div>
+                    <div class="small live">Heute kostet Kakao ${fmt(pub.price)} → Marge <b class="up">${fmt(o.price - pub.price)} CHF/t</b> (= ${fmt((o.price - pub.price) * o.t)} CHF) – aber nur, wenn du den Einkauf absicherst.</div>
                     <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`
                     : '<div class="small dim">Warte auf den nächsten Kundenauftrag …</div>'}
                 <div class="small">Grundbedarf 100 t${orderT ? ` + ${orderT} t aus ${me.orders.length} Aufträgen` : ''}. Abgesichert: <b>${Math.max(0, me.pos * CFG.size)} t</b> von ${-me.physical} t.</div>
-                ${me.orders.slice(-3).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)} · Marge heute <b class="${x.price - pub.price >= 0 ? 'up' : 'down'}">${signed((x.price - pub.price) * x.t)}</b></div>`).join('')}`;
+                ${me.orders.slice(-3).map(x => `<div class="rp-log live">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)} · Marge heute <b class="${x.price - pub.price >= 0 ? 'up' : 'down'}">${signed((x.price - pub.price) * x.t)}</b></div>`).join('')}`;
         } else {
             const last = me.reports[me.reports.length - 1];
             html = `<div class="rp-head"><span>🦈 Research-Abteilung</span><b>${me.rumorActive ? '🔥 Gerücht läuft' : 'ruhig'}</b></div>
                 ${last ? `<div class="report">🕵️ ${esc(last.text)}</div>` : '<div class="small dim">Noch kein Bericht. Research lohnt sich, solange ein Gerücht läuft: Wer früher weiss, ob es stimmt, kann vor allen anderen handeln.</div>'}
                 <button class="btn btn-ghost full" data-rp="research" ${me.researchReady ? 'disabled' : ''}>🕵️ Research-Bericht kaufen (${fmt(me.rumorActive ? CFG.researchCost : CFG.researchCost / 2)} CHF)${me.researchReady ? ` · bereit in ${me.researchReady}s` : ''}<small>Trefferquote ca. ${Math.round(CFG.researchHit * 100)} % – nicht immer richtig!</small></button>`;
         }
-        const key = html;
-        if (key === panelKey) return;
+        // Countdown und «neu»-Markierung gehören nicht zum Vergleich – sonst würde die Karte jede Sekunde neu gebaut.
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        tmp.querySelectorAll('.live').forEach(n => { n.innerHTML = ''; });
+        const key = tmp.innerHTML.replace(/ data-left="\d+"/g, '').replace(/ fresh/g, '');
+        const tickLeft = () => el.querySelectorAll('[data-left]').forEach(s => { s.textContent = `${s.dataset.left}s`; });
+        if (key === panelKey) {
+            // Nur die veränderlichen Teile aktualisieren – die Karte selbst bleibt stehen.
+            const fresh = document.createElement('div');
+            fresh.innerHTML = html;
+            const lefts = [...fresh.querySelectorAll('[data-left]')].map(s => s.dataset.left);
+            el.querySelectorAll('[data-left]').forEach((s, i) => { if (lefts[i] !== undefined) s.textContent = `${lefts[i]}s`; });
+            const lives = [...fresh.querySelectorAll('.live')].map(n => n.innerHTML);
+            el.querySelectorAll('.live').forEach((n, i) => { if (lives[i] !== undefined && n.innerHTML !== lives[i]) n.innerHTML = lives[i]; });
+            return;
+        }
         panelKey = key;
         el.className = `card p-rolepanel ${me.role}`;
         el.innerHTML = html;
+        tickLeft();
         el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
             const a = b.dataset.rp;
             if (a === 'protect') send({ t: 'protect' });
@@ -480,6 +519,7 @@ const Player = (() => {
 
     function showEnd(msg) {
         App.show('v-pend');
+        if (msg.rank === 1 || (msg.star && msg.star.id === msg.row.id)) setTimeout(() => confetti(4000), 400);
         const r = msg.row;
         const R = ROLES[r.role];
         Sound.play('end');

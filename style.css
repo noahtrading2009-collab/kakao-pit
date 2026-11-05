@@ -91,7 +91,8 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 .role-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
 .role-col { background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--rc); border-radius: var(--r); padding: 14px; min-height: 200px; }
 .role-col h4 { color: var(--rc); margin-bottom: 10px; font-size: 15px; }
-.lobby-player { background: rgba(255, 255, 255, .05); border-radius: 8px; padding: 7px 10px; margin-bottom: 6px; font-weight: 700; animation: pop .35s; }
+.lobby-player { background: rgba(255, 255, 255, .05); border-radius: 8px; padding: 7px 10px; margin-bottom: 6px; font-weight: 700; }
+.lobby-player.fresh { animation: pop .35s; }
 .lobby-player.bot { color: var(--dim); font-weight: 500; }
 .lobby-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
 .bot-ctl { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; }
@@ -230,7 +231,8 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 .rp-ok { font-size: 13px; color: var(--up); }
 .p-rolepanel .btn.full { width: 100%; display: grid; gap: 2px; text-align: center; }
 .p-rolepanel .btn small { font-weight: 400; color: var(--dim); font-size: 11.5px; }
-.order-card { border: 1px solid rgba(245, 158, 11, .6); background: rgba(245, 158, 11, .08); border-radius: 12px; padding: 10px; display: grid; gap: 6px; font-size: 14px; animation: pop .3s; }
+.order-card { border: 1px solid rgba(245, 158, 11, .6); background: rgba(245, 158, 11, .08); border-radius: 12px; padding: 10px; display: grid; gap: 6px; font-size: 14px; }
+.order-card.fresh { animation: pop .3s; }
 .oc-top { display: flex; justify-content: space-between; }
 .oc-left { font-family: var(--mono); color: var(--amber); font-weight: 800; }
 .oc-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -512,7 +514,7 @@ body[data-role] .bg-aurora i:nth-child(1) { background: radial-gradient(circle, 
 .sack { position: relative; aspect-ratio: 1; border-radius: 12px 12px 8px 8px; display: grid; place-items: center; background: radial-gradient(circle at 40% 30%, #d9b27c, #9b7343 70%); box-shadow: 0 3px 0 #5e4325, 0 6px 12px rgba(0, 0, 0, .35); transition: transform .3s; }
 .sack i { font-style: normal; font-size: 18px; }
 .sack em { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%) rotate(-12deg); font: 800 7px var(--mono); letter-spacing: .5px; color: #fff; background: #c8283c; padding: 2px 3px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .5); }
-.sack.sold { animation: stamp .35s; }
+.sack.stamp { animation: stamp .35s; }
 @keyframes stamp { 50% { transform: scale(1.15) rotate(-4deg); } }
 .sack.missing { background: transparent; border: 2px dashed #ff4d6a; box-shadow: none; color: #ff4d6a; }
 .sack.missing i { font-weight: 800; }
@@ -647,3 +649,59 @@ body[data-role="spec"] .rp-head { align-items: center; }
 .hedge-effect.good b { color: var(--up); }
 .hedge-effect.bad { background: rgba(255, 77, 106, .1); }
 .hedge-effect.bad b { color: var(--down); }
+
+/* ===== Performance: keine teuren Live-Filter (verhinderte flüssiges Tippen auf Handys) ===== */
+.bg-aurora { filter: none; inset: -10%; opacity: .7; }
+.bg-aurora i { will-change: transform; }
+.bg-aurora i:nth-child(1) { background: radial-gradient(circle, rgba(255, 140, 60, .30), rgba(255, 140, 60, .08) 35%, transparent 65%); }
+.bg-aurora i:nth-child(2) { background: radial-gradient(circle, rgba(120, 90, 255, .24), rgba(120, 90, 255, .06) 35%, transparent 65%); }
+.bg-aurora i:nth-child(3) { background: radial-gradient(circle, rgba(34, 229, 138, .16), rgba(34, 229, 138, .04) 35%, transparent 65%); }
+.bg-noise { display: none; }
+.card, .ticker, .p-top, .sc-chip { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.ticker { background: rgba(5, 8, 15, .92); }
+input { touch-action: manipulation; }
+body.typing .bg-aurora i, body.typing .ticker-track, body.typing .hero-emblem, body.typing .logo-p, body.typing .btn-primary::after { animation-play-state: paused; }
+@media (max-width: 720px) {
+    .bg-aurora i { animation: none; }
+    .btn-primary::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ===== SVG-Embleme ===== */
+.role-ico { display: inline-block; vertical-align: middle; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .45)); flex: none; }
+.role-pick i { display: grid; place-items: center; height: 38px; }
+.role-pick i .role-ico { transition: transform .25s cubic-bezier(.2, 1.4, .4, 1); }
+.role-pick button.active i .role-ico { transform: scale(1.18) rotate(-6deg); }
+.rc-emblem .role-ico { width: 62px; height: 62px; }
+.p-emb .role-ico { width: 26px; height: 26px; }
+.rk-head b { display: inline-flex; align-items: center; gap: 6px; }
+.pod-emb { margin: 4px 0; }
+.pod-emb .role-ico { filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5)); }
+.star-n { display: flex; align-items: center; gap: 10px; }
+.how-role b { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ===== Kino-Effekte ===== */
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+.flash { overflow: hidden; }
+.flash::before { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; left: -40%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .22), transparent); animation: sweep 1.4s .2s ease-out; }
+@keyframes sweep { to { left: 120%; } }
+.flash .fl-label { display: inline-block; padding: 3px 12px; border-radius: 6px; background: rgba(0, 0, 0, .35); }
+.flash.yes .fl-label { color: var(--up); }
+.flash.no .fl-label { color: var(--violet); }
+.flash.rumor .fl-label { color: var(--amber); }
+.flash.flash .fl-label, .flash.alert .fl-label { color: var(--down); }
+.flash .fl-text { animation: rise .6s cubic-bezier(.2, 1.3, .4, 1) both .1s; }
+.h-price b { font-variant-numeric: tabular-nums; }
+#h-price { display: inline-block; min-width: 4.2ch; text-align: right; }
+.big-price { font-variant-numeric: tabular-nums; }
+.settle-card { animation: rise .6s cubic-bezier(.2, 1.3, .4, 1) both; border: 1px solid rgba(255, 181, 71, .4); box-shadow: 0 0 80px rgba(255, 181, 71, .18), 0 40px 80px rgba(0, 0, 0, .6); }
+.settle-price { background: linear-gradient(180deg, #fff, #ffcf8a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pod { position: relative; overflow: hidden; }
+.pod::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .12) 50%, transparent 70%); transform: translateX(-100%); animation: podshine 3s 1.4s ease-in-out infinite; }
+@keyframes podshine { 40%, 100% { transform: translateX(100%); } }
+.pod-score { font-size: 30px; }
+.tbtn { -webkit-tap-highlight-color: transparent; }
+.tbtn::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(255, 255, 255, .35), transparent 60%); opacity: 0; transition: opacity .4s; }
+.tbtn:active:not(:disabled)::after { opacity: 1; transition: none; }

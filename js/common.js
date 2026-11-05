@@ -31,6 +31,87 @@ const CFG = {
     maxPrice: 7000,
 };
 
+// ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
+function confetti(ms = 3500, colors = ['#ffb547', '#22e58a', '#a78bfa', '#60a5fa', '#f472b6', '#fde047']) {
+    const cv = document.createElement('canvas');
+    cv.className = 'confetti';
+    document.body.appendChild(cv);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = innerWidth;
+    const H = innerHeight;
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    const c = cv.getContext('2d');
+    c.scale(dpr, dpr);
+    const n = Math.min(220, Math.round(W / 6));
+    const ps = Array.from({ length: n }, () => ({
+        x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.35,
+        vx: (Math.random() - 0.5) * 16, vy: -6 - Math.random() * 12,
+        r: 4 + Math.random() * 6, a: Math.random() * 6, va: (Math.random() - 0.5) * 0.4,
+        col: colors[Math.floor(Math.random() * colors.length)], shape: Math.random() < 0.5,
+    }));
+    const t0 = performance.now();
+    const step = now => {
+        const t = now - t0;
+        c.clearRect(0, 0, W, H);
+        for (const p of ps) {
+            p.vy += 0.32;
+            p.vx *= 0.99;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.a += p.va;
+            c.save();
+            c.globalAlpha = Math.max(0, 1 - Math.max(0, t - ms + 800) / 800);
+            c.translate(p.x, p.y);
+            c.rotate(p.a);
+            c.fillStyle = p.col;
+            if (p.shape) c.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2);
+            else {
+                c.beginPath();
+                c.arc(0, 0, p.r / 2.4, 0, Math.PI * 2);
+                c.fill();
+            }
+            c.restore();
+        }
+        if (t < ms) requestAnimationFrame(step);
+        else cv.remove();
+    };
+    requestAnimationFrame(step);
+}
+
+// ===== Eigene Rollen-Embleme (SVG statt Emoji) =====
+let iconSeq = 0;
+function roleIcon(role, size = 32) {
+    const u = `ri${iconSeq++}`;
+    const s = `width="${size}" height="${size}" viewBox="0 0 64 64" class="role-ico" aria-hidden="true"`;
+    if (role === 'producer') {
+        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#e0822f"/><stop offset="1" stop-color="#7a3a12"/></linearGradient>
+            <linearGradient id="${u}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#86efac"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs>
+            <path d="M44 8 C 56 4, 60 14, 52 20 C 48 14, 46 12, 44 8Z" fill="url(#${u}b)"/>
+            <ellipse cx="30" cy="36" rx="16" ry="24" transform="rotate(-28 30 36)" fill="url(#${u}a)"/>
+            <path d="M20 22 C 30 32, 30 44, 40 54 M26 16 C 36 28, 38 40, 46 48 M16 30 C 22 40, 24 48, 32 58" stroke="#5a2a0c" stroke-width="2" fill="none" opacity=".45" stroke-linecap="round"/>
+            <ellipse cx="24" cy="26" rx="4" ry="8" transform="rotate(-28 24 26)" fill="#fff" opacity=".3"/>
+            <path d="M42 14 L46 10" stroke="#3f6212" stroke-width="3" stroke-linecap="round"/></svg>`;
+    }
+    if (role === 'processor') {
+        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#b45309"/></linearGradient>
+            <linearGradient id="${u}c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b4a22"/><stop offset="1" stop-color="#3b1a08"/></linearGradient></defs>
+            <circle cx="46" cy="12" r="5" fill="#cbd5e1" opacity=".5"/><circle cx="52" cy="6" r="4" fill="#cbd5e1" opacity=".35"/>
+            <rect x="40" y="14" width="8" height="20" rx="1.5" fill="#94a3b8"/>
+            <path d="M6 58 V30 L18 22 V30 L30 22 V30 L42 22 V30 L58 30 V58 Z" fill="url(#${u}a)"/>
+            <rect x="12" y="38" width="40" height="16" rx="3" fill="url(#${u}c)"/>
+            <path d="M22 38 V54 M32 38 V54 M42 38 V54 M12 46 H52" stroke="#c98a4b" stroke-width="1.6" opacity=".7"/>
+            <path d="M46 38 a6 6 0 0 0 6 6 V38Z" fill="#b45309"/></svg>`;
+    }
+    return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ddd6fe"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+        <linearGradient id="${u}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs>
+        <path d="M14 44 C 22 40, 30 16, 46 8 C 42 22, 44 34, 52 44 Z" fill="url(#${u}a)"/>
+        <path d="M30 22 C 36 16, 40 13, 46 8" stroke="#fff" stroke-width="2" opacity=".5" fill="none" stroke-linecap="round"/>
+        <path d="M4 46 Q 12 40 20 46 T 36 46 T 52 46 T 64 44 V60 H4 Z" fill="url(#${u}w)"/>
+        <path d="M4 50 Q 12 44 20 50 T 36 50 T 52 50 T 64 48" stroke="#bfdbfe" stroke-width="2" fill="none" opacity=".7"/>
+        <path d="M44 30 L50 24 L54 28 L60 20" stroke="#22e58a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
 // ===== Einfache Erklärung: Was ist ein Future und wie verdient meine Rolle Geld? =====
 const FUTURE_INTRO = '<b>Ein Future ist ein Vertrag:</b> Du machst <b>heute</b> einen Preis ab, geliefert und bezahlt wird erst <b>im Dezember</b>. 1 Kontrakt = 10 t Kakao.';
 

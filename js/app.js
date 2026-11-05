@@ -17,7 +17,7 @@ const App = (() => {
         modal(`<h2>So funktioniert KAKAO PIT</h2>
             <p>Ihr handelt <b>Kakao-Futures</b> mit Lieferung im Dezember. Ein grosser Bildschirm ist die Börse: Live-Kurs, News und Rangliste. Alle anderen spielen auf dem Handy.</p>
             <p class="future-intro">📜 ${FUTURE_INTRO}</p>
-            <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
+            <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
@@ -60,6 +60,7 @@ const App = (() => {
             len = b.dataset.len;
             $('seg-len').querySelectorAll('[data-len]').forEach(x => x.classList.toggle('active', x === b));
         }));
+        $('seg-role').querySelectorAll('[data-role]').forEach(b => { if (b.dataset.role) b.querySelector('i').innerHTML = roleIcon(b.dataset.role, 34); });
         $('seg-role').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
             $('seg-role').querySelectorAll('[data-role]').forEach(x => x.classList.toggle('active', x === b));
         }));
@@ -73,6 +74,16 @@ const App = (() => {
             Player.join(code, name, active ? active.dataset.role : '');
         });
         $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
+        // Während des Tippens Deko-Animationen pausieren – das Eingabefeld reagiert dann sofort.
+        ['in-code', 'in-name'].forEach(id => {
+            $(id).addEventListener('focus', () => document.body.classList.add('typing'));
+            $(id).addEventListener('blur', () => document.body.classList.remove('typing'));
+        });
+        $('in-code').addEventListener('input', e => {
+            const el = e.target;
+            const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+            if (v !== el.value) el.value = v;
+        });
         $('btn-host').addEventListener('click', () => {
             Sound.init();
             Host.create(len);

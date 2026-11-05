@@ -154,15 +154,27 @@ const Host = (() => {
 
     // ===== Lobby =====
 
+    // Nur neu hinzugekommene Namen werden animiert – sonst würde alles bei jedem Update blinken.
+    const seenInLobby = new Set();
+    let lobbyHtml = '';
+
     function renderLobby() {
         const G = Engine.G;
         if (!G || G.phase !== 'lobby') return;
-        const cols = Object.keys(ROLES).map(k => {
-            const ps = G.players.filter(p => p.role === k);
-            return `<div class="role-col" style="--rc:${ROLES[k].color}"><h4>${ROLES[k].icon} ${ROLES[k].name} <span class="dim">${ps.length}</span></h4>
-                ${ps.map(p => `<div class="lobby-player ${p.bot ? 'bot' : ''}">${p.bot ? '🤖 ' : ''}${esc(p.name)}</div>`).join('') || '<div class="dim small">–</div>'}</div>`;
-        }).join('');
-        $('lobby-roles').innerHTML = cols;
+        const key = G.players.map(p => `${p.id}:${p.role}:${p.name}`).join('|');
+        if (key !== lobbyHtml) {
+            lobbyHtml = key;
+            const cols = Object.keys(ROLES).map(k => {
+                const ps = G.players.filter(p => p.role === k);
+                return `<div class="role-col" style="--rc:${ROLES[k].color}"><h4>${roleIcon(k, 22)} ${ROLES[k].name} <span class="dim">${ps.length}</span></h4>
+                    ${ps.map(p => {
+                        const fresh = !seenInLobby.has(`${p.id}:${p.role}`);
+                        seenInLobby.add(`${p.id}:${p.role}`);
+                        return `<div class="lobby-player ${p.bot ? 'bot' : ''} ${fresh ? 'fresh' : ''}">${p.bot ? '🤖 ' : ''}${esc(p.name)}</div>`;
+                    }).join('') || '<div class="dim small">–</div>'}</div>`;
+            }).join('');
+            $('lobby-roles').innerHTML = cols;
+        }
         $('lobby-count').textContent = G.players.length;
         $('bot-count').textContent = botCount;
         $('btn-start').disabled = G.players.length < 2;
@@ -220,17 +232,40 @@ const Host = (() => {
         $('h-timer').textContent = S.phase === 'settle' ? 'ABRECHNUNG' : mmss(S.secLeft);
         $('h-timer').classList.toggle('urgent', S.phase === 'trading' && S.secLeft <= 10);
         const pe = $('h-price');
-        pe.textContent = fmt(S.price);
         pe.className = S.price > lastPrice ? 'up flashup' : S.price < lastPrice ? 'down flashdown' : '';
         lastPrice = S.price;
         const ch = S.price / S.p0 - 1;
         $('h-change').textContent = pct(ch);
         $('h-change').className = `chg ${ch > 0 ? 'up' : ch < 0 ? 'down' : ''}`;
-        drawChart(S);
+        // Chart und Preis werden flüssig (60 fps) zum neuen Wert animiert.
+        anim.from = anim.cur === null ? S.price : anim.cur;
+        anim.to = S.price;
+        anim.t0 = performance.now();
+        anim.S = S;
+        if (!anim.running) {
+            anim.running = true;
+            requestAnimationFrame(frame);
+        }
         renderRank(S);
         renderNews(S);
         renderHedges(S);
         renderTape(S);
+    }
+
+    const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
+
+    function frame(now) {
+        const G = Engine.G;
+        if (!G || G.phase === 'end' || G.phase === 'lobby' || !anim.S) {
+            anim.running = false;
+            return;
+        }
+        const k = Math.min(1, (now - anim.t0) / 900);
+        const e = 1 - Math.pow(1 - k, 3);
+        anim.cur = anim.from + (anim.to - anim.from) * e;
+        $('h-price').textContent = fmt(anim.cur);
+        drawChart(anim.S, null, anim.cur, now);
+        requestAnimationFrame(frame);
     }
 
     // Jede Rolle hat ihre eigene Rangliste: Bauern um den besten Verkaufspreis,
@@ -246,7 +281,7 @@ const Host = (() => {
             const R = ROLES[B.role];
             const list = S.ranking.filter(r => r.role === B.role).sort(B.sort);
             if (!list.length) return '';
-            return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head">${R.icon} ${R.short} <span>${B.title}</span></div>
+            return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
                 ${list.slice(0, 5).map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
                     <span class="rn">${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
                     <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}</div>`;
@@ -303,7 +338,7 @@ const Host = (() => {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    function drawChart(S, target = null) {
+    function drawChart(S, target = null, live = null, now = 0) {
         const c = target || ctx;
         const el = target ? target.canvas : cv;
         if (!c) return;
@@ -311,7 +346,11 @@ const Host = (() => {
         const W = el.width / dpr;
         const H = el.height / dpr;
         const total = S.months * S.monthSec;
-        const h = S.history;
+        let h = S.history;
+        if (live !== null && h.length) {
+            h = h.slice();
+            h[h.length - 1] = { ...h[h.length - 1], p: live };
+        }
         const prices = h.map(x => x.p);
         let lo = Math.min(...prices, S.p0) * 0.97;
         let hi = Math.max(...prices, S.p0) * 1.03;
@@ -327,6 +366,17 @@ const Host = (() => {
         const x = s => L + (s / total) * (W - L - R);
         const y = p => T + ((hi - p) / (hi - lo)) * (H - T - B);
         c.clearRect(0, 0, W, H);
+        // Monate als abwechselnde Bänder, aktueller Monat hervorgehoben
+        for (let m = 0; m < S.months; m++) {
+            const x0 = x(m * S.monthSec);
+            const x1 = x((m + 1) * S.monthSec);
+            const cur = !target && m + 1 === S.month;
+            c.fillStyle = cur ? 'rgba(255,181,71,.06)' : m % 2 ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,0)';
+            c.fillRect(x0, T, x1 - x0, H - T - B);
+            c.fillStyle = cur ? 'rgba(255,181,71,.55)' : 'rgba(140,160,200,.35)';
+            c.font = 'bold 11px "JetBrains Mono", monospace';
+            c.fillText(`M${m + 1}`, x0 + 8, H - B - 8);
+        }
         c.font = '12px "JetBrains Mono", monospace';
         c.fillStyle = '#5b6b85';
         c.strokeStyle = 'rgba(120,150,200,.10)';
@@ -373,17 +423,70 @@ const Host = (() => {
             c.closePath();
             c.fillStyle = grad;
             c.fill();
-            c.beginPath();
-            h.forEach((pt, i) => (i ? c.lineTo(x(pt.s), y(pt.p)) : c.moveTo(x(pt.s), y(pt.p))));
+            // Weiche Linie (Kurven durch die Mittelpunkte) mit Leuchten
+            const path = () => {
+                c.beginPath();
+                c.moveTo(x(h[0].s), y(h[0].p));
+                for (let i = 1; i < h.length - 1; i++) {
+                    const mx = (x(h[i].s) + x(h[i + 1].s)) / 2;
+                    const my = (y(h[i].p) + y(h[i + 1].p)) / 2;
+                    c.quadraticCurveTo(x(h[i].s), y(h[i].p), mx, my);
+                }
+                c.lineTo(x(h[h.length - 1].s), y(h[h.length - 1].p));
+            };
+            path();
             c.strokeStyle = col;
-            c.lineWidth = 2.5;
+            c.globalAlpha = 0.25;
+            c.lineWidth = 9;
+            c.stroke();
+            c.globalAlpha = 1;
+            path();
+            c.lineWidth = 2.6;
             c.shadowColor = col;
-            c.shadowBlur = 12;
+            c.shadowBlur = 14;
             c.stroke();
             c.shadowBlur = 0;
             const last = h[h.length - 1];
+            const lx = x(last.s);
+            const ly = y(last.p);
+            if (!target) {
+                // pulsierender Ring am aktuellen Kurs
+                const ph = ((now || performance.now()) % 1400) / 1400;
+                c.beginPath();
+                c.arc(lx, ly, 6 + ph * 18, 0, Math.PI * 2);
+                c.strokeStyle = col;
+                c.globalAlpha = 1 - ph;
+                c.lineWidth = 2;
+                c.stroke();
+                c.globalAlpha = 1;
+                // gestrichelte Linie zum Preisschild rechts
+                c.setLineDash([3, 5]);
+                c.strokeStyle = col;
+                c.globalAlpha = 0.5;
+                c.lineWidth = 1;
+                c.beginPath();
+                c.moveTo(lx, ly);
+                c.lineTo(W - R, ly);
+                c.stroke();
+                c.setLineDash([]);
+                c.globalAlpha = 1;
+                const tag = fmt(last.p);
+                c.font = 'bold 13px "JetBrains Mono", monospace';
+                const tw = c.measureText(tag).width + 14;
+                const tx = Math.min(W - R - tw, Math.max(lx + 14, W - R - tw));
+                c.fillStyle = col;
+                c.beginPath();
+                c.roundRect ? c.roundRect(tx, ly - 11, tw, 22, 6) : c.rect(tx, ly - 11, tw, 22);
+                c.fill();
+                c.fillStyle = '#05080f';
+                c.fillText(tag, tx + 7, ly + 5);
+            }
             c.beginPath();
-            c.arc(x(last.s), y(last.p), 5, 0, Math.PI * 2);
+            c.arc(lx, ly, 5.5, 0, Math.PI * 2);
+            c.fillStyle = '#fff';
+            c.fill();
+            c.beginPath();
+            c.arc(lx, ly, 3.5, 0, Math.PI * 2);
             c.fillStyle = col;
             c.fill();
         }
@@ -561,9 +664,10 @@ const Host = (() => {
     function showEnd(d) {
         App.show('v-end');
         Sound.play('end');
+        setTimeout(() => confetti(5000), 600);
         // Sieger pro Rolle
         const winners = BOARDS.map(B => ({ B, r: d.rows.filter(x => x.role === B.role).sort(B.sort)[0] })).filter(x => x.r);
-        const podium = winners.map(({ B, r }, i) => `<div class="pod p${i === 1 ? 1 : i === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-role">${ROLES[r.role].icon} ${B.title}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${B.cls(r)}">${B.val(r)}</div></div>`).join('');
+        const podium = winners.map(({ B, r }, i) => `<div class="pod p${i === 1 ? 1 : i === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-emb">${roleIcon(r.role, 56)}</div><div class="pod-role">${B.title}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${B.cls(r)}">${B.val(r)}</div></div>`).join('');
         const awards = '';
         const order = BOARDS.flatMap(B => d.rows.filter(r => r.role === B.role).sort(B.sort).map((r, i) => ({ r, i, B })));
         const table = order.map(({ r, i, B }) => `<tr class="${r.bankrupt ? 'dead' : ''}"><td>${i + 1}</td><td>${ROLES[r.role].icon} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</td>
@@ -575,7 +679,7 @@ const Host = (() => {
             <td class="num ${r.points >= 0 ? 'up' : 'down'}">${signed(r.points)}</td></tr>`).join('');
         $('end-wrap').innerHTML = `
             <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Fälligkeit · Schlusskurs ${fmt(d.final)} <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h1></div>
-            ${d.star ? `<div class="star card" style="--rc:${ROLES[d.star.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${ROLES[d.star.role].icon} ${esc(d.star.name)}</div>
+            ${d.star ? `<div class="star card" style="--rc:${ROLES[d.star.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${roleIcon(d.star.role, 36)} ${esc(d.star.name)}</div>
                 <div class="star-d">${d.star.points >= 0 ? '+' : ''}${fmt(d.star.points)} Punkte · war am deutlichsten besser als der Durchschnitt der eigenen Rolle</div></div></div>` : ''}
             <div class="podium">${podium}</div>
             <div class="awards">${awards}</div>

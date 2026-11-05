@@ -2,6 +2,7 @@
 
 const Scenes = (() => {
     let lastKey = '';
+    let lastSold = 0;
 
     const SKY = {
         sun: { a: '#62b4ff', b: '#ffe6b3', leaf: '#2f9e44', leaf2: '#3fbf55', hill: '#3c8c3a', hill2: '#2d6e2c', label: '☀️ Gutes Wetter' },
@@ -57,7 +58,8 @@ const Scenes = (() => {
         const n = Math.max(1, Math.ceil(me.physical / 10));
         const sold = Math.max(0, -me.pos);
         let html = '';
-        for (let i = 0; i < n; i++) html += `<span class="sack ${i < sold ? 'sold' : ''}"><i>🫘</i>${i < sold ? '<em>VERKAUFT</em>' : ''}</span>`;
+        for (let i = 0; i < n; i++) html += `<span class="sack ${i < sold ? 'sold' : ''} ${i < sold && i >= lastSold ? 'stamp' : ''}"><i>🫘</i>${i < sold ? '<em>VERKAUFT</em>' : ''}</span>`;
+        lastSold = sold;
         for (let i = n; i < sold; i++) html += '<span class="sack missing"><i>?</i><em>FEHLT</em></span>';
         return `<div class="barn"><div class="barn-head">🏚️ Lagerhaus <span class="dim small">1 Sack = 10 t · ${Math.min(sold, n)} von ${n} auf Termin verkauft</span></div><div class="sacks">${html}</div></div>`;
     }
