@@ -474,7 +474,7 @@ const Player = (() => {
         Sound.play('end');
         const hedgeTxt = r.role === 'spec'
             ? `Als Hedgefonds hast du ${r.futPL >= 0 ? 'mit' : 'beim'} Spekulieren <b>${signed(r.futPL)} CHF</b> ${r.futPL >= 0 ? 'verdient' : 'verloren'}.`
-            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>..${r.bank === 'fail' ? ` Bankzuschlag: −${fmt(r.bankPaid)} CHF.` : ''}`;
+            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>.${r.bank === 'fail' ? ` Bankzuschlag: −${fmt(r.bankPaid)} CHF.` : ''}`;
         $('p-end').innerHTML = `<div class="card">
             <div class="end-rank">#${msg.rank}<span class="dim">/${msg.total}</span></div>
             <div class="role-badge" style="color:${R.color}">${R.icon} ${R.name}</div>
