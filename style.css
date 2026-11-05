@@ -615,3 +615,17 @@ body[data-role="spec"] .rp-head { align-items: center; }
 .bank-line.warn { background: rgba(255, 181, 71, .12); color: var(--amber); }
 .bank-line.bad { background: rgba(255, 77, 106, .12); color: var(--down); }
 .hm-bar em.bankmark { background: #ffb547; width: 3px; }
+
+/* ===== Einfache Erklärung «So verdienst du Geld» ===== */
+.future-intro { font-size: 14px; line-height: 1.5; background: rgba(96, 165, 250, .1); border: 1px solid rgba(96, 165, 250, .35); border-radius: 12px; padding: 10px 12px; text-align: left; }
+.earn { text-align: left; background: rgba(0, 0, 0, .25); border: 1px solid rgba(255, 255, 255, .08); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px; margin: 6px 0; }
+.earn h4 { font-size: 16px; }
+.earn-steps { padding-left: 20px; display: grid; gap: 5px; font-size: 14px; line-height: 1.45; }
+.earn-h { font-size: 13px; color: var(--dim); }
+.earn-ex { width: 100%; border-collapse: collapse; font-size: 13px; }
+.earn-ex th { font-size: 11px; color: var(--dim); font-weight: 600; text-align: right; padding: 3px 4px; }
+.earn-ex td { padding: 5px 4px; border-top: 1px solid rgba(255, 255, 255, .07); text-align: right; font-family: var(--mono); white-space: nowrap; }
+.earn-ex td:first-child { text-align: left; font-family: var(--sans); white-space: normal; }
+.earn-ex td.tot { font-weight: 800; font-size: 14px; }
+.earn-win { font-size: 13.5px; line-height: 1.45; background: rgba(255, 181, 71, .1); border-radius: 10px; padding: 8px 10px; }
+.how-role .earn { margin: 8px 0; }

@@ -16,7 +16,8 @@ const App = (() => {
     function howTo() {
         modal(`<h2>So funktioniert KAKAO PIT</h2>
             <p>Ihr handelt <b>Kakao-Futures</b> mit Lieferung im Dezember. Ein grosser Bildschirm ist die Börse: Live-Kurs, News und Rangliste. Alle anderen spielen auf dem Handy.</p>
-            <div class="how-roles">${Object.values(ROLES).map(R => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${roleRules(R)}</div>`).join('')}</div>
+            <p class="future-intro">📜 ${FUTURE_INTRO}</p>
+            <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>

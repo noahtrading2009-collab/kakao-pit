@@ -141,6 +141,7 @@ const Player = (() => {
         $('w-title').textContent = `Willkommen, ${name}!`;
         $('w-mission').innerHTML = R.mission;
         $('w-rules').innerHTML = roleRules(R);
+        $('w-earn').innerHTML = `<p class="future-intro">📜 ${FUTURE_INTRO}</p>${earnHTML(role)}`;
         $('w-hint').innerHTML = `💡 ${R.hint}`;
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.classList.toggle('active', b.dataset.role === role));
         App.show('v-wait');
@@ -454,7 +455,7 @@ const Player = (() => {
 
     function renderInfo() {
         const R = ROLES[role];
-        $('tab-info').innerHTML = `<h3>${R.icon} Deine Mission · ${R.job}</h3><p>${R.mission}</p>${roleRules(R)}<p>💡 ${R.hint}</p>
+        $('tab-info').innerHTML = `<h3>${R.icon} Deine Mission · ${R.job}</h3><p class="future-intro">📜 ${FUTURE_INTRO}</p>${earnHTML(role)}${roleRules(R)}<p>💡 ${R.hint}</p>
             <h3>So läuft's</h3><ul class="info-list">
                 <li>1 Kontrakt = <b>${CFG.size} t</b> Kakao, Lieferung Dezember. Einschuss ${Math.round(CFG.marginRate * 100)} % des Werts.</li>
                 <li><b>Kaufen</b> = Long (gewinnt, wenn Kakao steigt). <b>Verkaufen</b> = Short (gewinnt, wenn Kakao fällt).</li>

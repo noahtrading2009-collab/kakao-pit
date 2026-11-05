@@ -28,6 +28,46 @@ const CFG = {
     maxPrice: 7000,
 };
 
+// ===== Einfache Erklärung: Was ist ein Future und wie verdient meine Rolle Geld? =====
+const FUTURE_INTRO = '<b>Ein Future ist ein Vertrag:</b> Du machst <b>heute</b> einen Preis ab, geliefert und bezahlt wird erst <b>im Dezember</b>. 1 Kontrakt = 10 t Kakao.';
+
+function earnHTML(role) {
+    const ex = (rows, cols) => `<table class="earn-ex"><tr><th></th>${cols.map(c => `<th>${c}</th>`).join('')}</tr>${rows.map(r => `<tr><td>${r[0]}</td>${r.slice(1).map((v, i) => `<td class="${i === r.length - 2 ? 'tot ' : ''}${String(v).startsWith('+') ? 'up' : String(v).startsWith('−') ? 'down' : ''}">${v}</td>`).join('')}</tr>`).join('')}</table>`;
+    if (role === 'producer') {
+        return `<div class="earn"><h4>💰 So verdienst du Geld</h4>
+            <ol class="earn-steps">
+                <li>Im Dezember verkaufst du deine <b>Ernte</b>. Wie viel du bekommst, hängt vom Preis <b>dann</b> ab – und den kennt heute niemand.</li>
+                <li>Darum <b>verkaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Preis jetzt schon fest.</li>
+                <li>Egal, was danach passiert: Was du bei der Ernte verlierst, gewinnst du beim Future – und umgekehrt.</li>
+            </ol>
+            <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
+            ${ex([['📉 Preis 2\'000', '20\'000', '+5\'000', '25\'000'], ['📈 Preis 3\'000', '30\'000', '−5\'000', '25\'000']], ['Ernte bringt', 'Future', 'Du bekommst'])}
+            <p class="earn-win">🏆 Du gewinnst, wenn du zu einem <b>möglichst hohen Preis</b> absicherst. Also: Verkaufen, wenn Kakao teuer ist!</p></div>`;
+    }
+    if (role === 'processor') {
+        return `<div class="earn"><h4>💰 So verdienst du Geld</h4>
+            <ol class="earn-steps">
+                <li>Im Dezember musst du <b>Kakao einkaufen</b>, um Schokolade zu machen. Wie viel er kostet, weiss heute niemand.</li>
+                <li>Darum <b>kaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Einkaufspreis jetzt schon fest.</li>
+                <li>Wird Kakao teurer, gewinnt dein Future – das gleicht den teureren Einkauf aus.</li>
+                <li>Bonus: Kunden bestellen Schokolade zu einem <b>festen Preis</b>. Hast du billig eingekauft, verdienst du daran extra.</li>
+            </ol>
+            <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
+            ${ex([['📈 Preis 3\'000', '30\'000', '+5\'000', '25\'000'], ['📉 Preis 2\'000', '20\'000', '−5\'000', '25\'000']], ['Kakao kostet', 'Future', 'Du zahlst'])}
+            <p class="earn-win">🏆 Du gewinnst, wenn du zu einem <b>möglichst tiefen Preis</b> absicherst. Also: Kaufen, wenn Kakao billig ist!</p></div>`;
+    }
+    return `<div class="earn"><h4>💰 So verdienst du Geld</h4>
+        <ol class="earn-steps">
+            <li>Du hast keinen Kakao – du <b>wettest auf den Preis</b>.</li>
+            <li>Glaubst du, Kakao wird <b>teurer</b>? Dann <b>KAUFEN</b> (Long).</li>
+            <li>Glaubst du, Kakao wird <b>billiger</b>? Dann <b>VERKAUFEN</b> (Short).</li>
+            <li>Später machst du das Gegenteil und kassierst den Unterschied.</li>
+        </ol>
+        <div class="earn-h">Beispiel: 10 t, Preis heute <b>2'400</b></div>
+        ${ex([['Gekauft → 📈 2\'600', '+2\'000'], ['Gekauft → 📉 2\'200', '−2\'000'], ['Verkauft → 📉 2\'200', '+2\'000']], ['Gewinn'])}
+        <p class="earn-win">⚠️ Du musst nur 10 % als Pfand (Einschuss) hinterlegen. Darum sind Gewinne <b>und Verluste</b> gross. 🏆 Der Fonds mit dem höchsten Gewinn gewinnt.</p></div>`;
+}
+
 function roleRules(R) {
     return `<ul class="rules"><li class="can-h">Darf</li>${R.can.map(x => `<li class="can">${x}</li>`).join('')}<li class="can-h">Darf nicht</li>${R.cannot.map(x => `<li class="cannot">${x}</li>`).join('')}</ul>`;
 }
