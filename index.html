@@ -97,11 +97,11 @@
         </header>
         <main class="h-main">
             <div class="card h-chart"><canvas id="chart"></canvas><div class="chart-legend" id="chart-legend"></div></div>
-            <div class="card h-rank"><h3>🏆 Rangliste <span class="dim small">Ergebnis vs. Plan + Hedge-Bonus</span></h3><div id="h-rank"></div></div>
+            <div class="card h-rank"><h3>🏆 Ranglisten <span class="dim small">jede Rolle gegen ihresgleichen</span></h3><div id="h-rank"></div></div>
         </main>
         <footer class="h-bottom">
             <div class="card h-news"><h3>📰 Newsfeed</h3><div id="h-news"></div></div>
-            <div class="card h-offers"><h3>🤝 Angebote <span class="dim small">Block-Deals zwischen Tradern</span></h3><div id="h-offers"></div></div>
+            <div class="card h-offers"><h3>🎯 Absicherung <span class="dim small">Kooperativen &amp; Fabriken</span></h3><div id="h-offers"></div></div>
             <div class="card h-tape"><h3>⚡ Abschlüsse</h3><div id="h-tape"></div></div>
         </footer>
         <div id="flash" class="flash hidden"></div>
@@ -160,10 +160,10 @@
                 <div class="kv"><span>Margin-Konto</span><b id="p-margin">0 / 0</b></div>
                 <div class="mbar"><div id="p-mbar"></div><div class="mbar-line"></div></div>
                 <div class="kv"><span>Freies Geld</span><b id="p-cash">0</b></div>
-                <div class="kv big"><span>Ergebnis vs. Plan</span><b id="p-result">0</b></div>
+                <div class="kv big"><span id="p-result-l">Ergebnis</span><b id="p-result">0</b></div>
             </div>
-            <div class="tabs"><button class="active" data-tab="board">🤝 Board</button><button data-tab="info">📖 Info</button></div>
-            <div class="card tab" id="tab-board">
+            <div class="tabs hidden"><button data-tab="board">🤝 Board</button><button class="active" data-tab="info">📖 Info</button></div>
+            <div class="card tab hidden" id="tab-board">
                 <div id="p-offers"></div>
                 <div class="offer-form">
                     <div class="seg mini" id="of-side"><button data-side="sell" class="active">Ich verkaufe</button><button data-side="buy">Ich kaufe</button></div>
@@ -172,7 +172,7 @@
                     <button class="btn btn-primary" id="of-post">Angebot aufs Board</button>
                 </div>
             </div>
-            <div class="card tab hidden" id="tab-info"></div>
+            <div class="card tab" id="tab-info"></div>
         </div>
         <div id="p-toasts"></div>
         <div id="call-ov" class="call-ov hidden"></div>

@@ -587,3 +587,31 @@ body[data-role="spec"] .p-price { display: block; min-height: 108px; }
 body[data-role="spec"] #p-spark { display: block; }
 body[data-role="spec"] .rp-head b { font-size: 13px; color: #ffb547; }
 body[data-role="spec"] .rp-head { align-items: center; }
+
+/* ===== Ranglisten pro Rolle & Absicherung ===== */
+.rk-group { margin-bottom: 10px; }
+.rk-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; color: var(--rc); border-bottom: 1px solid color-mix(in srgb, var(--rc) 40%, transparent); padding-bottom: 4px; margin-bottom: 4px; }
+.rk-head span { font-size: 11px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.rk-group .rank-row { grid-template-columns: 30px 1fr auto; }
+.rk-group .rs small { font-size: 11px; color: var(--dim); margin-left: 2px; }
+.bank-note { font-size: 13px; background: rgba(255, 181, 71, .1); border: 1px solid rgba(255, 181, 71, .35); border-radius: 10px; padding: 6px 10px; margin-bottom: 8px; }
+.bank-note.done { opacity: .6; }
+.hedge-row { display: grid; grid-template-columns: 1fr 120px 64px; gap: 8px; align-items: center; font-size: 14px; padding: 3px 0; }
+.hedge-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hedge-row b { font-family: var(--mono); text-align: right; }
+.hbar { position: relative; height: 10px; background: rgba(255, 255, 255, .08); border-radius: 5px; overflow: hidden; }
+.hbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; transition: width .6s; }
+.hbar i.ok { background: linear-gradient(90deg, #16a34a, #4ade80); }
+.hbar i.low { background: linear-gradient(90deg, #b45309, #fbbf24); }
+.hbar em { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #fff; opacity: .8; }
+.pod-role { font-size: 13px; color: var(--rc, var(--dim)); font-weight: 700; }
+.score-line { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; border-top: 1px dashed rgba(255, 255, 255, .12); padding-top: 6px; font-size: 13px; }
+.score-line b { font-family: var(--mono); font-size: 17px; }
+.score-line b.good { color: var(--up); }
+.score-line b.bad { color: var(--down); }
+.rank-pill { font-family: var(--mono); font-size: 12px; background: rgba(255, 181, 71, .15); color: var(--amber); border-radius: 8px; padding: 2px 7px; }
+.bank-line { font-size: 12.5px; border-radius: 8px; padding: 5px 8px; }
+.bank-line.ok { background: rgba(34, 229, 138, .1); color: var(--up); }
+.bank-line.warn { background: rgba(255, 181, 71, .12); color: var(--amber); }
+.bank-line.bad { background: rgba(255, 77, 106, .12); color: var(--down); }
+.hm-bar em.bankmark { background: #ffb547; width: 3px; }

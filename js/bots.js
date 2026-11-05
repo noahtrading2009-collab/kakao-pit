@@ -44,7 +44,13 @@ const Bots = (() => {
     function hedge(p, m, G) {
         if (p.role === 'producer' && !p.protect && G.month === 1 && Math.random() < 0.02 * (m.ratio + 0.2)) Engine.protect(p.id);
         if (p.orderOffer && Math.random() < 0.15) Engine.answerOrder(p.id, Math.random() < 0.6 + (m.ratio - 0.7));
-        const target = Math.round((-p.physical / CFG.size) * m.ratio);
+        // Timing: Bauern sichern mehr ab, wenn der Preis hoch ist, Fabriken, wenn er tief ist.
+        const rel = G.price / CFG.p0 - 1;
+        let ratio = clamp(m.ratio * 0.55 + (p.role === 'producer' ? rel : -rel) * 3.5, 0.1, 1);
+        // Bankauflage nicht verpassen
+        const left = G.monthSec - (G.clock % G.monthSec);
+        if (G.month > CFG.bankMonth || (G.month === CFG.bankMonth && left < G.monthSec * 0.6)) ratio = Math.max(ratio, CFG.bankQuota + 0.08);
+        const target = Math.round((-p.physical / CFG.size) * ratio);
         const gap = target - p.pos;
         // Gute Angebote anderer Spieler in die richtige Richtung annehmen.
         const good = G.offers.find(o => o.by !== p.id
@@ -54,7 +60,7 @@ const Bots = (() => {
         if (Math.abs(gap) >= 1 && Math.random() < m.pace) {
             Engine.trade(p.id, Math.sign(gap) * Math.min(Math.abs(gap), 1 + Math.floor(Math.random() * 2)));
         }
-        if (Math.random() < 0.01 && Math.abs(gap) >= 2) {
+        if (false && Math.abs(gap) >= 2) { // Board ist ausgeblendet
             const side = gap > 0 ? 'buy' : 'sell';
             Engine.postOffer(p.id, side, Math.min(3, Math.abs(gap)), G.price * (side === 'buy' ? 0.995 : 1.005));
         }
@@ -84,7 +90,7 @@ const Bots = (() => {
         } else if (Math.random() < 0.04) {
             Engine.trade(p.id, (Math.random() < 0.55 ? m.bias : -m.bias) * (1 + Math.floor(Math.random() * 2)));
         }
-        if (Math.random() < 0.015 && pl > 5000) {
+        if (false && pl > 5000) { // Board ist ausgeblendet
             const side = Math.random() < 0.5 ? 'buy' : 'sell';
             Engine.postOffer(p.id, side, 1 + Math.floor(Math.random() * 3), G.price * (side === 'buy' ? 0.996 : 1.004));
         }

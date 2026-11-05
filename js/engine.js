@@ -77,11 +77,40 @@ const Engine = (() => {
         if (p.role === 'spec' || !p.expN) return 0;
         return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
     }
-    function bonus(p) {
-        const q = hedgeQuote(p);
-        return p.role !== 'spec' && !p.bankrupt && q >= 0.5 ? Math.round(CFG.missionBonus * q) : 0;
+    // Kein Hedge-Bonus mehr: Hedger treten gegeneinander um den besten Preis an.
+    const bonus = () => 0;
+    const score = p => liveResult(p);
+    // Kennzahl pro Rolle: Bauern = erzielter Preis pro Tonne (Plan 100 t),
+    // Fabrik = effektiver Einkaufspreis pro Tonne Grundbedarf, Fonds = Gewinn.
+    function metric(p, res = liveResult(p)) {
+        if (p.role === 'producer') return Math.round((res + ROLES.producer.physical * CFG.p0) / ROLES.producer.physical);
+        if (p.role === 'processor') return Math.round((-ROLES.processor.physical * CFG.p0 - res) / -ROLES.processor.physical);
+        return Math.round(res);
     }
-    const score = p => liveResult(p) + bonus(p);
+
+    // Bankauflage: Hedger müssen bis Ende Monat CFG.bankMonth mindestens CFG.bankQuota abgesichert haben.
+    function hedgedShare(p) {
+        if (p.role === 'producer') return p.physical > 0 ? Math.max(0, -p.pos * CFG.size) / p.physical : 0;
+        if (p.role === 'processor') return -p.physical > 0 ? Math.max(0, p.pos * CFG.size) / -p.physical : 0;
+        return 0;
+    }
+
+    function bankCheck() {
+        for (const p of G.players) {
+            if (p.role === 'spec' || p.bankrupt) continue;
+            const q = hedgedShare(p);
+            if (q + 1e-9 >= CFG.bankQuota) {
+                p.bank = 'ok';
+                note(p, 'good', `🏦 Bankauflage erfüllt (${Math.round(q * 100)} % abgesichert). Dein Kredit bleibt günstig.`);
+            } else {
+                p.bank = 'fail';
+                p.cash -= CFG.bankFee;
+                p.bankPaid = CFG.bankFee;
+                note(p, 'bad', `🏦 Bankauflage verfehlt (nur ${Math.round(q * 100)} % statt ${Math.round(CFG.bankQuota * 100)} %): Die Bank verlangt ${fmt(CFG.bankFee)} CHF Risikozuschlag.`);
+            }
+        }
+        feed({ kind: 'alert', icon: '🏦', text: `Bankprüfung: Hedger mit weniger als ${Math.round(CFG.bankQuota * 100)} % Absicherung zahlen ${fmt(CFG.bankFee)} CHF Zuschlag.` });
+    }
 
     function note(p, kind, text) {
         p.notes.push({ kind, text, sec: G.sec });
@@ -443,6 +472,7 @@ const Engine = (() => {
                 p.cash += r;
             }
         }
+        if (G.month === CFG.bankMonth) bankCheck();
         G.marks.push({ month: G.month, price: G.price, clock: G.clock });
         feed({ kind: 'settle', icon: '🧾', text: `Abrechnung Monat ${G.month}: Alle Positionen zu ${fmt(G.price)} CHF/t bewertet.` });
         emit('settle', { month: G.month, results });
@@ -483,7 +513,16 @@ const Engine = (() => {
         }
         for (const p of G.players) {
             if (p.bankrupt || p.pos === 0) continue;
-            if (futEq(p) < 0) liquidate(p, 'Dein Margin-Konto ist leer: Position zwangsweise glattgestellt.');
+            if (futEq(p) < 0) {
+                // Konto leer: zuerst automatisch vom freien Geld nachschiessen, nur wenn das nicht reicht → Zwangsglattstellung.
+                const gap = -futEq(p) + req(p) * 0.3;
+                if (p.cash >= -futEq(p)) {
+                    const t = Math.min(gap, p.cash);
+                    p.cash -= t;
+                    p.margin += t;
+                    note(p, 'bad', `💸 Starker Kurssprung: ${fmt(t)} CHF automatisch aufs Margin-Konto nachgeschossen. Dein Bargeld schmilzt!`);
+                } else liquidate(p, 'Dein Margin-Konto ist leer und dein Bargeld reicht nicht: Position zwangsweise glattgestellt.');
+            }
             else if (p.call && G.sec >= p.call.until) liquidate(p, 'Frist abgelaufen: Deine Position wurde zwangsweise glattgestellt.');
         }
         if (G.phase === 'trading' && G.clock % G.monthSec === 0) settle();
@@ -508,7 +547,7 @@ const Engine = (() => {
     }
 
     function ranking() {
-        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected }))
+        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, pos: p.pos, bankrupt: p.bankrupt, connected: p.connected }))
             .sort((a, b) => b.score - a.score);
     }
 
@@ -528,8 +567,10 @@ const Engine = (() => {
     function personal(id) {
         const p = byId(id);
         if (!p) return null;
-        const rank = ranking().findIndex(r => r.id === id) + 1;
+        const rk = ranking().filter(r => r.role === p.role);
+        const rank = rk.findIndex(r => r.id === id) + 1;
         return {
+            roleCount: rk.length, metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, bankDue: G.month <= CFG.bankMonth,
             id: p.id, name: p.name, role: p.role, cash: Math.round(p.cash), margin: Math.round(p.margin), pos: p.pos,
             eq: Math.round(futEq(p)), unreal: Math.round(unreal(p)), req: Math.round(req(p)), exposure: exposure(p),
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
@@ -558,6 +599,7 @@ const Engine = (() => {
                 orderMargin: Math.round(p.orders.reduce((s, o) => s + o.t * (o.price - G.price), 0)), researchSpent: p.researchSpent, reports: p.reports.length,
                 futPL: Math.round(result - physPL), fees: Math.round(p.fees), bonus: bonus(p), score: Math.round(result + bonus(p)),
                 hedgeQuote: hedgeQuote(p), liquidations: p.liquidations, bankrupt: p.bankrupt, trades: p.trades,
+                metric: metric(p, result), bank: p.bank || null, bankPaid: p.bankPaid || 0,
             };
         }).sort((a, b) => b.score - a.score);
         return { rows, final: G.price, p0: CFG.p0, change: G.price / CFG.p0 - 1, history: G.history, marks: G.marks, feed: G.feed.slice(0, 20) };

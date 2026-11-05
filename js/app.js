@@ -22,8 +22,8 @@ const App = (() => {
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
                 <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>
                 <li>News kommen zuerst als <b>Gerücht</b>, dann als Bestätigung oder Dementi. Der Preis reagiert schon auf das Gerücht.</li>
-                <li>Auf dem <b>Board</b> stellt ihr eigene Angebote ein und handelt direkt miteinander.</li>
-                <li><b>Wertung:</b> Ergebnis gegenüber dem Plan (Startpreis ${fmt(CFG.p0)} CHF/t). Kooperativen und Fabriken bekommen zusätzlich bis zu ${fmt(CFG.missionBonus)} CHF Bonus für konsequente Absicherung.</li>
+                <li><b>Wertung:</b> Ergebnis gegenüber dem Plan (Startpreis ${fmt(CFG.p0)} CHF/t). Jede Rolle hat ihre eigene Rangliste: Kooperativen kämpfen um den <b>besten Verkaufspreis</b>, Fabriken um den <b>günstigsten Einkauf</b>, Hedgefonds um den <b>höchsten Gewinn</b>.</li>
+                <li>🏦 Die Bank verlangt von Kooperativen und Fabriken bis Ende Monat ${CFG.bankMonth} mindestens ${Math.round(CFG.bankQuota * 100)} % Absicherung – sonst ${fmt(CFG.bankFee)} CHF Zuschlag.</li>
                 <li>Zu wenig Leute? Der Host kann <b>KI-Trader</b> dazunehmen.</li>
             </ul>
             <p class="dim small">Technik: Die Geräte verbinden sich direkt über WebRTC. Zum Finden dient ein öffentlicher Vermittler (PeerJS) – dafür braucht es Internet.</p>`);

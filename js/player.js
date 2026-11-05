@@ -160,7 +160,7 @@ const Player = (() => {
         $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `Monat ${pub.month}/${pub.months}`;
         $('p-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('p-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
-        $('p-rank').textContent = `#${me.rank}/${pub.playerCount}`;
+        $('p-rank').textContent = `#${me.rank}/${me.roleCount}`;
 
         const prev = Number($('p-price').dataset.v || pub.price);
         $('p-price').textContent = fmt(pub.price);
@@ -183,8 +183,8 @@ const Player = (() => {
         const per = Math.abs(exp) * 100;
         let txt;
         if (me.role === 'spec') txt = exp === 0 ? 'Keine Position – kein Risiko, keine Chance.' : `Steigt Kakao um 100 CHF/t, ${exp > 0 ? 'gewinnst' : 'verlierst'} du ${fmt(per)} CHF.`;
-        else if (Math.abs(exp) <= 20) txt = `🛡️ Gut abgesichert. Der Preis kann dir fast egal sein. Hedge-Quote bisher: <b>${Math.round(me.hedgeQuote * 100)} %</b>`;
-        else txt = `${exp > 0 ? '⚠️ Fällt' : '⚠️ Steigt'} Kakao um 100 CHF/t, verlierst du ${fmt(per)} CHF. ${me.role === 'producer' ? 'Verkaufe' : 'Kaufe'} Futures, um dich abzusichern. Hedge-Quote bisher: <b>${Math.round(me.hedgeQuote * 100)} %</b>`;
+        else if (Math.abs(exp) <= 20) txt = `🛡️ Gut abgesichert. Der Preis kann dir fast egal sein. Abgesichert: <b>${Math.round(me.hedged * 100)} %</b>`;
+        else txt = `${exp > 0 ? '⚠️ Fällt' : '⚠️ Steigt'} Kakao um 100 CHF/t, verlierst du ${fmt(per)} CHF. ${me.role === 'producer' ? 'Verkaufe' : 'Kaufe'} Futures, um dich abzusichern. Abgesichert: <b>${Math.round(me.hedged * 100)} %</b>`;
         if (exp && me.role !== 'spec' && Math.sign(exp) !== Math.sign(R.physical)) txt = '🎲 Du bist überabgesichert – das ist jetzt eine Wette in die Gegenrichtung.';
         $('p-exp-text').innerHTML = txt;
 
@@ -197,8 +197,19 @@ const Player = (() => {
         $('p-mbar').style.width = `${mr * 100}%`;
         $('p-mbar').className = me.req && me.eq < me.req * CFG.maintenance ? 'bad' : me.req && me.eq < me.req ? 'warn' : '';
         $('p-cash').textContent = fmtCHF(me.cash);
-        $('p-result').textContent = `${signed(me.result)}${me.bonus ? ` (+${fmt(me.bonus)} Bonus)` : ''}`;
-        $('p-result').className = me.result >= 0 ? 'up' : 'down';
+        if (me.role === 'producer') {
+            $('p-result-l').textContent = 'Dein erzielter Preis';
+            $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
+            $('p-result').className = me.metric >= CFG.p0 ? 'up' : 'down';
+        } else if (me.role === 'processor') {
+            $('p-result-l').textContent = 'Dein Einkaufspreis';
+            $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
+            $('p-result').className = me.metric <= CFG.p0 ? 'up' : 'down';
+        } else {
+            $('p-result-l').textContent = 'Gewinn';
+            $('p-result').textContent = signed(me.result);
+            $('p-result').className = me.result >= 0 ? 'up' : 'down';
+        }
 
         // Kurse
         const ask = Math.round(pub.price * (1 + CFG.spread));
@@ -275,8 +286,12 @@ const Player = (() => {
             const q = need ? hedged / need : 0;
             const over = hedged > need;
             html = `<div class="hm-row"><span>Abgesichert</span><b class="${over ? 'bad' : q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
-                <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em style="left:70%"></em><em style="left:100%"></em></div>
-                ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}`;
+                <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em class="bankmark" style="left:${CFG.bankQuota * 100}%"></em><em style="left:100%"></em></div>
+                ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}
+                <div class="score-line"><span>🎯 ${me.role === 'producer' ? 'Dein Preis bisher' : 'Dein Einkauf bisher'}</span><b class="${(me.role === 'producer' ? me.metric >= CFG.p0 : me.metric <= CFG.p0) ? 'good' : 'bad'}">${fmt(me.metric)} CHF/t</b><span class="rank-pill">#${me.rank} von ${me.roleCount}</span></div>
+                ${me.bank === 'ok' ? '<div class="bank-line ok">🏦 Bankauflage erfüllt ✔</div>'
+                    : me.bank === 'fail' ? `<div class="bank-line bad">🏦 Bankauflage verfehlt – ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt</div>`
+                    : `<div class="bank-line ${q >= CFG.bankQuota ? 'ok' : 'warn'}">🏦 Bank: bis Ende Monat ${CFG.bankMonth} mind. ${Math.round(CFG.bankQuota * 100)} % absichern${q >= CFG.bankQuota ? ' ✔' : ` – sonst ${fmt(CFG.bankFee)} CHF Zuschlag`}</div>`}`;
         }
         if ($('p-hmeter').dataset.h !== html) {
             $('p-hmeter').dataset.h = html;
@@ -444,9 +459,8 @@ const Player = (() => {
                 <li>1 Kontrakt = <b>${CFG.size} t</b> Kakao, Lieferung Dezember. Einschuss ${Math.round(CFG.marginRate * 100)} % des Werts.</li>
                 <li><b>Kaufen</b> = Long (gewinnt, wenn Kakao steigt). <b>Verkaufen</b> = Short (gewinnt, wenn Kakao fällt).</li>
                 <li>Am Ende jedes Monats wird abgerechnet (Mark-to-Market). Unter ${Math.round(CFG.maintenance * 100)} % Einschuss gibt's einen Margin Call.</li>
-                <li>Auf dem <b>Board</b> könnt ihr direkt miteinander handeln – ohne Spread, halbe Gebühr.</li>
                 <li>Gerüchte bewegen den Preis schon <i>vor</i> der Bestätigung.</li>
-                ${R.physical ? `<li>Hedger erhalten bis zu <b>${fmt(CFG.missionBonus)} CHF Bonus</b> – je konsequenter abgesichert, desto mehr.</li>` : ''}
+                ${R.physical ? `<li><b>Wertung:</b> Du trittst gegen die anderen ${R.short === 'Fabrik' ? 'Fabriken' : 'Kooperativen'} an. ${role === 'producer' ? 'Wer den höchsten Preis pro Tonne erzielt, gewinnt.' : 'Wer am günstigsten einkauft, gewinnt (Auftragsmargen senken deinen Preis).'}</li><li>🏦 <b>Bankauflage:</b> Bis Ende Monat ${CFG.bankMonth} mindestens ${Math.round(CFG.bankQuota * 100)} % absichern, sonst ${fmt(CFG.bankFee)} CHF Zuschlag.</li><li>💸 Margin Calls treffen auch Hedger: Wer zu viel absichert und zu wenig Bargeld hat, wird zwangsweise glattgestellt.</li>` : '<li><b>Wertung:</b> Der Hedgefonds mit dem höchsten Gewinn gewinnt.</li>'}
             </ul>
             <h3>Begriffe</h3>${GLOSSARY.map(([t, d]) => `<p><b>${t}:</b> ${d}</p>`).join('')}`;
     }
@@ -460,16 +474,17 @@ const Player = (() => {
         Sound.play('end');
         const hedgeTxt = r.role === 'spec'
             ? `Als Hedgefonds hast du ${r.futPL >= 0 ? 'mit' : 'beim'} Spekulieren <b>${signed(r.futPL)} CHF</b> ${r.futPL >= 0 ? 'verdient' : 'verloren'}.`
-            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>. Hedge-Quote ${Math.round(r.hedgeQuote * 100)} %${r.bonus ? `, Bonus +${fmt(r.bonus)}` : ''}.`;
+            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>..${r.bank === 'fail' ? ` Bankzuschlag: −${fmt(r.bankPaid)} CHF.` : ''}`;
         $('p-end').innerHTML = `<div class="card">
             <div class="end-rank">#${msg.rank}<span class="dim">/${msg.total}</span></div>
             <div class="role-badge" style="color:${R.color}">${R.icon} ${R.name}</div>
             <h2>${esc(r.name)}</h2>
-            <div class="end-score ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)} CHF</div>
+            <div class="end-score ${r.role === 'spec' ? (r.score >= 0 ? 'up' : 'down') : ''}">${r.role === 'producer' ? `${fmt(r.metric)} CHF/t erzielt` : r.role === 'processor' ? `${fmt(r.metric)} CHF/t Einkauf` : `${signed(r.score)} CHF`}</div>
+            <div class="dim small">Platz ${msg.rank} von ${msg.total} ${r.role === 'spec' ? 'Hedgefonds' : r.role === 'producer' ? 'Kooperativen' : 'Fabriken'}</div>
             <p>Schlusskurs ${fmt(msg.final)} CHF/t (${pct(msg.final / msg.p0 - 1)}).</p>
             <p>${hedgeTxt}</p>
             ${r.liquidations ? `<p class="bad">📞 ${r.liquidations}× zwangsweise glattgestellt.</p>` : ''}
-            <h3>🏆 Top 3</h3><ol class="top3">${msg.top.map(t => `<li>${ROLES[t.role].icon} ${esc(t.name)} <b>${signed(t.score)}</b></li>`).join('')}</ol>
+            <h3>🏆 Top 3 deiner Rolle</h3><ol class="top3">${msg.top.map(t => `<li>${ROLES[t.role].icon} ${esc(t.name)} <b>${t.role === 'spec' ? signed(t.score) : `${fmt(t.metric)}/t`}</b></li>`).join('')}</ol>
             <p class="dim small">Die ausführliche Auswertung steht auf dem grossen Bildschirm.</p></div>`;
     }
 

@@ -15,7 +15,9 @@ const CFG = {
     impact: 0.0011,        // Preiswirkung pro netto gehandeltem Kontrakt
     offerSec: 35,          // Laufzeit eines Angebots auf dem Board
     offerBand: 0.04,       // Angebote max. ±4 % vom Marktpreis
-    missionBonus: 15000,   // Bonus für konsequente Absicherung
+    bankMonth: 2,          // Bankprüfung am Ende dieses Monats …
+    bankQuota: 0.5,        // … mindestens so viel muss abgesichert sein
+    bankFee: 6000,         // sonst Risikozuschlag
     protectCost: 4000,     // Kooperative: Pflanzenschutz halbiert Ernteverluste
     orderEvery: 28,        // Fabrik: ungefähr alle x Sekunden ein Kundenauftrag
     orderSec: 20,          // so lange ist ein Auftrag gültig
@@ -32,17 +34,17 @@ function roleRules(R) {
 
 const ROLES = {
     producer: {
-        name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 80000, limit: 15,
-        mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b> und verkauft sie zum dann gültigen Preis. Fällt der Preis, bricht euer Umsatz ein. Und: Dürre oder Krankheit können eure <b>Erntemenge</b> schrumpfen lassen.',
-        hint: 'Absichern = Futures <b>verkaufen</b> (Short). Aber Vorsicht: Wer 100 t verkauft und nur 80 t erntet, ist überabgesichert. Pflanzenschutz halbiert Ernteverluste.',
+        name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 60000, limit: 15,
+        mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b>. Ihr tretet gegen die anderen Kooperativen an: Wer erzielt den <b>besten Preis pro Tonne</b>? Verkauft Futures, wenn der Preis hoch ist – aber wartet ihr zu lange, kann er abstürzen.',
+        hint: 'Timing ist alles: Ein Dürre-Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Und Achtung: Steigt der Preis, musst du Geld nachschiessen – zu viel absichern mit zu wenig Bargeld kann dich ruinieren.',
         job: 'Short-Hedger', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
         can: ['Ernte auf Termin verkaufen (Short) – höchstens so viel, wie du erntest', 'Pflanzenschutz kaufen', 'Absicherung wieder auflösen'],
         cannot: ['Futures kaufen (Long)', 'Mehr verkaufen, als du erntest', 'Research-Berichte'],
     },
     processor: {
-        name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 80000, limit: 15,
-        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Laufend bestellen Detailhändler Schokolade zu einem <b>festen Verkaufspreis</b>. Jeder Auftrag bringt Marge – aber nur, solange Kakao nicht teurer wird.',
-        hint: 'Absichern = Futures <b>kaufen</b> (Long). Nimmst du einen Auftrag an, steigt dein Bedarf – sichere ihn sofort ab, dann ist deine Marge fix.',
+        name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 60000, limit: 15,
+        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Ihr tretet gegen die anderen Fabriken an: Wer kauft <b>am günstigsten</b> ein? Kauft Futures, wenn der Preis tief ist. Kundenaufträge zu festen Preisen bringen zusätzliche Marge.',
+        hint: 'Timing ist alles: Kommt ein Gerücht über eine Rekordernte, fällt der Preis – warten oder jetzt kaufen? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Fällt der Preis stark, musst du Geld nachschiessen.',
         job: 'Long-Hedger', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',
         can: ['Kakao auf Termin kaufen (Long) – höchstens deinen Bedarf', 'Kundenaufträge annehmen oder ablehnen', 'Absicherung wieder auflösen'],
         cannot: ['Futures verkaufen (Short)', 'Mehr kaufen, als du brauchst', 'Research-Berichte'],
@@ -53,7 +55,7 @@ const ROLES = {
         hint: 'Kauft Research-Berichte (meistens richtig, nicht immer) und handelt, bevor die News bestätigt wird. Hoher Hebel, Margin Calls und Konkurs sind real.',
         job: 'Spekulant', tagline: 'Übernimm das Risiko der anderen – und verdiene daran.',
         can: ['Long und Short handeln – bis 20 Kontrakte', 'Research-Berichte kaufen', 'Als Gegenpartei der Hedger auftreten'],
-        cannot: ['Kakao ernten oder verarbeiten', 'Kundenaufträge', 'Hedge-Bonus'],
+        cannot: ['Kakao ernten oder verarbeiten', 'Kundenaufträge', 'Bank-Kredit (ihr habt nur euer Kapital)'],
     },
 };
 

@@ -142,7 +142,10 @@ const Host = (() => {
             const rows = data.rows;
             conns.forEach(e => {
                 const row = rows.find(r => r.id === e.pid);
-                if (row) send(e, { t: 'end', row, rank: rows.indexOf(row) + 1, total: rows.length, final: data.final, p0: data.p0, top: rows.slice(0, 3).map(r => ({ name: r.name, role: r.role, score: r.score })) });
+                if (!row) return;
+                const B = BOARDS.find(b => b.role === row.role);
+                const peers = rows.filter(r => r.role === row.role).sort(B.sort);
+                send(e, { t: 'end', row, rank: peers.indexOf(row) + 1, total: peers.length, final: data.final, p0: data.p0, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, score: r.score, metric: r.metric })) });
             });
             setTimeout(() => showEnd(data), 1500);
         }
@@ -225,18 +228,42 @@ const Host = (() => {
         drawChart(S);
         renderRank(S);
         renderNews(S);
-        renderOffers(S);
+        renderHedges(S);
         renderTape(S);
     }
 
+    // Jede Rolle hat ihre eigene Rangliste: Bauern um den besten Verkaufspreis,
+    // Fabriken um den günstigsten Einkauf, Fonds um den höchsten Gewinn.
+    const BOARDS = [
+        { role: 'producer', title: 'Bester Verkaufspreis', sort: (a, b) => b.metric - a.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric >= CFG.p0 ? 'up' : 'down') },
+        { role: 'processor', title: 'Günstigster Einkauf', sort: (a, b) => a.metric - b.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric <= CFG.p0 ? 'up' : 'down') },
+        { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
+    ];
+
     function renderRank(S) {
-        $('h-rank').innerHTML = S.ranking.slice(0, 12).map((r, i) => {
-            const R = ROLES[r.role];
-            const pos = r.pos > 0 ? `<span class="up">L ${r.pos}</span>` : r.pos < 0 ? `<span class="down">S ${-r.pos}</span>` : '<span class="dim">–</span>';
-            return `<div class="rank-row ${r.bankrupt ? 'dead' : ''}"><span class="rk">${i + 1}</span><span class="rr" style="color:${R.color}">${R.icon}</span>
-                <span class="rn">${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
-                <span class="rp">${pos}</span><span class="rs ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</span></div>`;
-        }).join('') + (S.ranking.length > 12 ? `<div class="dim small">+ ${S.ranking.length - 12} weitere</div>` : '');
+        $('h-rank').innerHTML = BOARDS.map(B => {
+            const R = ROLES[B.role];
+            const list = S.ranking.filter(r => r.role === B.role).sort(B.sort);
+            if (!list.length) return '';
+            return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head">${R.icon} ${R.short} <span>${B.title}</span></div>
+                ${list.slice(0, 5).map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
+                    <span class="rn">${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
+                    <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}</div>`;
+        }).join('');
+    }
+
+    // Absicherung der Hedger + Bankprüfung (statt Board)
+    function renderHedges(S) {
+        const G = Engine.G;
+        const due = G.month <= CFG.bankMonth;
+        const hedgers = S.ranking.filter(r => r.role !== 'spec');
+        $('h-offers').innerHTML = `<div class="bank-note ${due ? '' : 'done'}">🏦 ${due ? `Bankprüfung Ende Monat ${CFG.bankMonth}: mindestens <b>${Math.round(CFG.bankQuota * 100)} %</b> absichern – sonst ${fmt(CFG.bankFee)} CHF Zuschlag` : 'Bankprüfung vorbei'}</div>`
+            + hedgers.slice(0, 8).map(r => {
+                const q = Math.min(1.2, r.hedged);
+                return `<div class="hedge-row"><span>${ROLES[r.role].icon} ${esc(r.name)}</span>
+                    <div class="hbar"><i class="${r.hedged >= CFG.bankQuota ? 'ok' : 'low'}" style="width:${Math.min(100, q * 100)}%"></i><em style="left:${CFG.bankQuota * 100}%"></em></div>
+                    <b>${Math.round(r.hedged * 100)} %${r.bank === 'fail' ? ' 💸' : r.bank === 'ok' ? ' ✔' : ''}</b></div>`;
+            }).join('');
     }
 
     function newsClass(k) {
@@ -401,11 +428,21 @@ const Host = (() => {
         const out = [];
         const dir = d.change >= 0 ? 'gestiegen' : 'gefallen';
         out.push(`Kakao ist von ${fmt(d.p0)} auf <b>${fmt(d.final)} CHF/t</b> ${dir} (${pct(d.change)}). Für 100 t sind das <b>${signed(100 * (d.final - d.p0))} CHF</b> Unterschied.`);
+        const coops = d.rows.filter(r => r.role === 'producer').sort((a, b) => b.metric - a.metric);
+        if (coops.length > 1) {
+            const a = coops[0];
+            const z = coops[coops.length - 1];
+            out.push(`🌱 Gleiche Ernte, anderer Preis: <b>${esc(a.name)}</b> hat <b>${fmt(a.metric)} CHF/t</b> erzielt, <b>${esc(z.name)}</b> nur <b>${fmt(z.metric)} CHF/t</b>. Der Unterschied liegt fast nur im <i>Zeitpunkt</i> der Absicherung (und bei der Erntemenge).`);
+        } else if (coops.length) out.push(`🌱 <b>${esc(coops[0].name)}</b> hat <b>${fmt(coops[0].metric)} CHF/t</b> erzielt – der Plan war ${fmt(d.p0)}.`);
+        const facs = d.rows.filter(r => r.role === 'processor').sort((a, b) => a.metric - b.metric);
+        if (facs.length) out.push(`🏭 Günstigster Einkauf: <b>${esc(facs[0].name)}</b> mit <b>${fmt(facs[0].metric)} CHF/t</b> (inkl. Auftragsmargen)${facs.length > 1 ? `, teuerster: ${esc(facs[facs.length - 1].name)} mit ${fmt(facs[facs.length - 1].metric)} CHF/t` : ''}.`);
         const hedgers = d.rows.filter(r => r.role !== 'spec');
         const good = hedgers.filter(r => r.hedgeQuote >= 0.6).sort((a, b) => Math.abs(b.physPL) - Math.abs(a.physPL))[0];
-        if (good) out.push(`🛡️ <b>${esc(good.name)}</b> (${ROLES[good.role].short}) hat sich zu ${Math.round(good.hedgeQuote * 100)} % abgesichert. Ohne Futures: <b>${signed(good.physPL)} CHF</b>. Mit Futures: <b>${signed(good.result)} CHF</b>. Die Futures haben den Preiseffekt zu einem grossen Teil ausgeglichen – in beide Richtungen. Genau das ist Hedging: Man verzichtet auf Glück, um Pech zu vermeiden.`);
+        if (good) out.push(`🛡️ <b>${esc(good.name)}</b> war gut abgesichert: Ohne Futures hätte das Geschäft <b>${signed(good.physPL)} CHF</b> gebracht, die Futures <b>${signed(good.futPL)} CHF</b>. Die beiden heben sich weitgehend auf – das ist Hedging.`);
         const naked = hedgers.filter(r => r.hedgeQuote < 0.4).sort((a, b) => a.result - b.result)[0];
-        if (naked) out.push(`🎲 <b>${esc(naked.name)}</b> hat kaum abgesichert (${Math.round(naked.hedgeQuote * 100)} %) und trug das volle Preisrisiko: <b>${signed(naked.result)} CHF</b>. ${naked.result > 0 ? 'Diesmal Glück gehabt – das ist Spekulation, kein Plan.' : 'Genau davor schützt ein Future.'}`);
+        if (naked) out.push(`🎲 <b>${esc(naked.name)}</b> hat kaum abgesichert und trug das volle Preisrisiko: <b>${signed(naked.result)} CHF</b>. ${naked.result > 0 ? 'Diesmal Glück gehabt – das ist Spekulation, kein Plan.' : 'Genau davor schützt ein Future.'}`);
+        const fined = d.rows.filter(r => r.bank === 'fail');
+        if (fined.length) out.push(`🏦 ${fined.map(r => esc(r.name)).join(', ')} ${fined.length === 1 ? 'hat' : 'haben'} die Bankauflage verfehlt und ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt. Banken verlangen Absicherung, weil sie sonst das Preisrisiko mittragen.`);
         const specs = d.rows.filter(r => r.role === 'spec').sort((a, b) => b.result - a.result);
         if (specs.length) out.push(`🦈 Bester Hedgefonds: <b>${esc(specs[0].name)}</b> mit ${signed(specs[0].result)} CHF. ${specs[specs.length - 1].result < 0 ? `Schlechtester: ${esc(specs[specs.length - 1].name)} mit ${signed(specs[specs.length - 1].result)} CHF.` : ''} Spekulanten übernehmen das Risiko, das Hedger loswerden wollen.`);
         const shrunk = d.rows.filter(r => r.role === 'producer' && r.physical !== 100).sort((a, b) => a.physical - b.physical)[0];
@@ -422,15 +459,17 @@ const Host = (() => {
     function showEnd(d) {
         App.show('v-end');
         Sound.play('end');
-        const podium = d.rows.slice(0, 3).map((r, i) => `<div class="pod p${i + 1}"><div class="pod-medal">${['🥇', '🥈', '🥉'][i]}</div><div class="pod-name">${ROLES[r.role].icon} ${esc(r.name)}</div><div class="pod-score ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</div></div>`).join('');
-        const best = role => d.rows.filter(r => r.role === role)[0];
-        const awards = Object.keys(ROLES).map(k => best(k)).filter(Boolean).map(r => `<div class="award" style="--rc:${ROLES[r.role].color}">${ROLES[r.role].icon} Beste${r.role === 'spec' ? 'r' : ''} ${ROLES[r.role].short}<b>${esc(r.name)}</b></div>`).join('');
-        const table = d.rows.map((r, i) => `<tr class="${r.bankrupt ? 'dead' : ''}"><td>${i + 1}</td><td>${ROLES[r.role].icon} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</td>
+        // Sieger pro Rolle
+        const winners = BOARDS.map(B => ({ B, r: d.rows.filter(x => x.role === B.role).sort(B.sort)[0] })).filter(x => x.r);
+        const podium = winners.map(({ B, r }, i) => `<div class="pod p${i === 1 ? 1 : i === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-role">${ROLES[r.role].icon} ${B.title}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${B.cls(r)}">${B.val(r)}</div></div>`).join('');
+        const awards = '';
+        const order = BOARDS.flatMap(B => d.rows.filter(r => r.role === B.role).sort(B.sort).map((r, i) => ({ r, i, B })));
+        const table = order.map(({ r, i, B }) => `<tr class="${r.bankrupt ? 'dead' : ''}"><td>${i + 1}</td><td>${ROLES[r.role].icon} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</td>
+            <td class="num ${B.cls(r)}"><b>${B.val(r)}</b></td>
             <td class="num ${r.physPL >= 0 ? 'up' : 'down'}">${r.role === 'spec' ? '–' : signed(r.physPL)}</td>
             <td class="num ${r.futPL >= 0 ? 'up' : 'down'}">${signed(r.futPL)}</td>
-            <td class="num">${r.role === 'spec' ? '–' : `${Math.round(r.hedgeQuote * 100)} %`}</td>
-            <td class="num">${r.bonus ? `+${fmt(r.bonus)}` : '–'}</td>
-            <td class="num ${r.score >= 0 ? 'up' : 'down'}"><b>${signed(r.score)}</b></td></tr>`).join('');
+            <td class="num">${r.role === 'spec' ? '–' : r.bank === 'fail' ? `<span class="down">−${fmt(r.bankPaid)}</span>` : '✔'}</td>
+            <td class="num ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</td></tr>`).join('');
         $('end-wrap').innerHTML = `
             <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Fälligkeit · Schlusskurs ${fmt(d.final)} <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h1></div>
             <div class="podium">${podium}</div>
@@ -439,9 +478,9 @@ const Host = (() => {
                 <div class="card"><h3>📈 Der Kursverlauf</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
                 <div class="card"><h3>📊 Alle Trader</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Hedge</th><th>Bonus</th><th>Total</th></tr></thead><tbody>${table}</tbody></table>
+                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Kooperative: erzielter Preis pro Tonne · Fabrik: effektiver Einkaufspreis · Fonds: Gewinn">Wertung</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Bank</th><th>Total</th></tr></thead><tbody>${table}</tbody></table>
                     <p class="dim small">Geschäft = Ernte bzw. Einkauf und Kundenaufträge gegenüber dem Plan. Futures = Gewinn/Verlust aus allen Kontrakten (inkl. Gebühren). Bei guten Hedgern heben sich beide weitgehend auf.</p>
-                    <h3>🗣️ Diskussion</h3><ol class="lessons"><li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li><li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li><li>Wann hat ein Gerücht den Preis bewegt – vor oder nach der Bestätigung?</li></ol>
+                    <h3>🗣️ Diskussion</h3><ol class="lessons"><li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – und war das Können oder Glück?</li><li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li><li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li><li>Wann hat ein Gerücht den Preis bewegt – vor oder nach der Bestätigung?</li></ol>
                 </div>
             </div>
             <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neue Runde</button></div>`;
