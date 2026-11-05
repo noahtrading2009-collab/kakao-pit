@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#04121f">
+    <title>NETTO NULL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg"><i></i><i></i></div>
+
+    <!-- ===== START ===== -->
+    <section id="v-start" class="view active">
+        <div class="start-wrap">
+            <div class="hero">
+                <svg class="hero-art" viewBox="0 0 400 180" aria-hidden="true">
+                    <defs><linearGradient id="hsky" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a7f68"/><stop offset=".5" stop-color="#7fa9c9"/><stop offset="1" stop-color="#4fb4ff"/></linearGradient></defs>
+                    <rect width="400" height="180" rx="20" fill="url(#hsky)"/>
+                    <circle cx="350" cy="44" r="20" fill="#fff6c8"/>
+                    <path d="M0 130 L60 90 L100 115 L160 70 L210 110 L260 80 L320 120 L400 95 L400 180 L0 180Z" fill="rgba(255,255,255,.25)"/>
+                    <g class="hero-smoke"><circle cx="70" cy="70" r="14"/><circle cx="82" cy="50" r="18"/><circle cx="98" cy="28" r="22"/></g>
+                    <rect x="60" y="80" width="18" height="70" fill="#4a4a4a"/><rect x="30" y="110" width="80" height="40" fill="#5b5b5b"/>
+                    <rect x="170" y="100" width="40" height="50" fill="#64748b"/><rect x="180" y="70" width="10" height="30" fill="#475569"/>
+                    <g class="hero-wind" transform="translate(300 90)"><rect x="-2" y="0" width="4" height="60" fill="#fff"/><g class="hero-blades"><rect x="-2" y="-30" width="4" height="30" fill="#fff"/><rect x="-2" y="-30" width="4" height="30" fill="#fff" transform="rotate(120)"/><rect x="-2" y="-30" width="4" height="30" fill="#fff" transform="rotate(240)"/></g></g>
+                    <rect x="250" y="135" width="40" height="10" fill="#1e40af" transform="skewX(-25)"/><rect x="340" y="138" width="40" height="10" fill="#1e40af" transform="skewX(-25)"/>
+                    <rect y="150" width="400" height="30" fill="#3f7f45"/>
+                </svg>
+            </div>
+            <div class="logo">NETTO<span>NULL</span></div>
+            <p class="tagline">Das Klassenspiel um CO₂-Zertifikate.<br><b>Jede Tonne hat ihren Preis.</b> Wer spart, wer kauft – und wer zahlt Strafe?</p>
+            <div class="start-cards">
+                <div class="card start-card">
+                    <h2>📱 Mitspielen</h2>
+                    <label>Raumcode<input id="in-code" maxlength="5" autocomplete="off" placeholder="z. B. K7Q2M" spellcheck="false"></label>
+                    <label>Firmenname<input id="in-name" maxlength="16" autocomplete="off" placeholder="z. B. Noahs Werke"></label>
+                    <label>Branche
+                        <div class="co-pick" id="seg-co">
+                            <button data-co="" class="active" style="--cc:#7dd3fc"><i>🎲</i><b>Zufall</b></button>
+                            <button data-co="energy" style="--cc:#facc15"><i>⚡</i><b>Energie</b></button>
+                            <button data-co="cement" style="--cc:#f97316"><i>🏗️</i><b>Zement</b></button>
+                            <button data-co="steel" style="--cc:#94a3b8"><i>🔩</i><b>Stahl</b></button>
+                            <button data-co="air" style="--cc:#60a5fa"><i>✈️</i><b>Airline</b></button>
+                            <button data-co="chem" style="--cc:#34d399"><i>🧪</i><b>Chemie</b></button>
+                        </div>
+                    </label>
+                    <button class="btn btn-primary btn-big" id="btn-join">Beitreten</button>
+                    <p class="err" id="join-err"></p>
+                </div>
+                <div class="card start-card">
+                    <h2>🖥️ Spiel leiten</h2>
+                    <p class="dim">Für den Beamer. Erstellt einen Raum und führt in Ruhe durch 6 Runden – ohne Zeitdruck. Ca. 20 Minuten.</p>
+                    <button class="btn btn-ghost btn-big" id="btn-host">Raum erstellen</button>
+                </div>
+            </div>
+            <button class="btn btn-link" id="btn-how">Wie funktioniert das Spiel?</button>
+        </div>
+    </section>
+
+    <!-- ===== HOST: LOBBY ===== -->
+    <section id="v-lobby" class="view">
+        <div class="lobby">
+            <div class="card join-box">
+                <div class="logo small">NETTO<span>NULL</span></div>
+                <div class="dim">Öffnet diese Seite und gebt den Code ein:</div>
+                <div class="join-url" id="join-url"></div>
+                <div class="room-code" id="room-code">·····</div>
+                <div id="qr"></div>
+                <div class="net-status" id="net-status">Verbinde …</div>
+            </div>
+            <div class="lobby-right">
+                <h2>Firmen im Raum <span class="count" id="lobby-count">0</span></h2>
+                <div class="co-cols" id="lobby-cos"></div>
+                <div class="lobby-actions">
+                    <div class="bot-ctl"><span>KI-Firmen</span><button class="btn btn-ghost btn-sm" id="bot-minus">−</button><b id="bot-count">0</b><button class="btn btn-ghost btn-sm" id="bot-plus">+</button></div>
+                    <button class="btn btn-primary btn-big" id="btn-start" disabled>🏛️ Emissionshandel starten</button>
+                </div>
+                <p class="dim small">Tipp: Am meisten lernt man, wenn alle fünf Branchen vertreten sind. KI-Firmen füllen fehlende Branchen auf.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== HOST: SPIEL ===== -->
+    <section id="v-host" class="view">
+        <header class="h-top">
+            <div class="logo tiny">NETTO<span>NULL</span></div>
+            <div class="h-years" id="h-years"></div>
+            <div class="h-price"><small>CO₂-Preis</small><b id="h-price">–</b><span>CHF/t</span></div>
+            <button class="icon" id="h-sound" title="Ton">🔊</button>
+        </header>
+        <main class="h-main">
+            <div class="h-stage">
+                <div class="h-sky" id="h-sky"></div>
+                <div class="card h-panel" id="h-panel"></div>
+            </div>
+            <aside class="h-side">
+                <div class="card"><h3>🏆 Rangliste <small>Vermögen</small></h3><div id="h-rank"></div></div>
+                <div class="card"><h3>📈 CO₂-Preis</h3><canvas id="h-pchart"></canvas></div>
+            </aside>
+        </main>
+    </section>
+
+    <section id="v-end" class="view"><div class="end-wrap" id="end-wrap"></div></section>
+
+    <!-- ===== SPIELER ===== -->
+    <section id="v-wait" class="view">
+        <div class="card wait" id="w-card">
+            <div class="w-icon" id="w-icon"></div>
+            <div class="w-co" id="w-co"></div>
+            <h2 id="w-name"></h2>
+            <p id="w-desc"></p>
+            <h3>Deine Klimaschutz-Massnahmen</h3>
+            <div class="w-measures" id="w-measures"></div>
+            <div class="dim small">Andere Branche wählen (bis zum Start):</div>
+            <div class="co-pick mini" id="w-cos">
+                <button data-co="energy" style="--cc:#facc15"><i>⚡</i></button>
+                <button data-co="cement" style="--cc:#f97316"><i>🏗️</i></button>
+                <button data-co="steel" style="--cc:#94a3b8"><i>🔩</i></button>
+                <button data-co="air" style="--cc:#60a5fa"><i>✈️</i></button>
+                <button data-co="chem" style="--cc:#34d399"><i>🧪</i></button>
+            </div>
+            <div class="dim pulse">Warte auf den Start …</div>
+        </div>
+    </section>
+
+    <section id="v-player" class="view">
+        <header class="p-top">
+            <div class="p-co" id="p-co"></div>
+            <div class="p-year" id="p-year"></div>
+            <div class="p-rank" id="p-rank">#1</div>
+        </header>
+        <div class="p-scroll">
+            <div class="card p-status" id="p-status"></div>
+            <div id="p-news"></div>
+            <div id="p-decide" class="hidden"></div>
+            <div id="p-result" class="hidden"></div>
+        </div>
+    </section>
+
+    <section id="v-pend" class="view"><div class="p-end" id="p-end"></div></section>
+
+    <div id="toasts"></div>
+    <div id="modal-ov" class="modal-ov hidden"><div class="card modal" id="modal"></div></div>
+    <div id="conn-lost" class="conn-lost hidden">Verbindung verloren … <button class="btn btn-primary btn-sm" id="btn-rejoin">Neu verbinden</button></div>
+
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/net.js"></script>
+    <script src="js/host.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
