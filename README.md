@@ -17,9 +17,9 @@ Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirt
 
 | Rolle | Ausgangslage | Lernziel |
 |---|---|---|
-| 🌱 Kakao-Kooperative | Erntet im Dezember 100 t, Risiko fallende Preise | **Short-Hedge**: Futures verkaufen |
-| 🏭 Schokoladenfabrik | Muss im Dezember 100 t kaufen, Risiko steigende Preise | **Long-Hedge**: Futures kaufen |
-| 🦈 Hedgefonds | Kein Kakao, nur Kapital | **Spekulation**, Hebel, Liquiditätsrisiko |
+| 🌱 Kakao-Kooperative | Erntet im Dezember ca. 100 t, Risiko fallende Preise. **Eigene Mechanik:** Dürre, Krankheit oder Regen verändern die **Erntemenge**. Pflanzenschutz halbiert Verluste. | **Short-Hedge** – und: Futures sichern den Preis, nicht die Menge (Überabsicherung) |
+| 🏭 Schokoladenfabrik | Braucht 100 t, Risiko steigende Preise. **Eigene Mechanik:** Kunden bestellen laufend Schokolade zu einem **festen Verkaufspreis**. Jeder angenommene Auftrag erhöht den Bedarf. | **Long-Hedge**: Marge eines Auftrags mit Futures fixieren |
+| 🦈 Hedgefonds | Kein Kakao, nur Kapital, grösseres Limit. **Eigene Mechanik:** **Research-Berichte** über laufende Gerüchte (ca. 80 % Trefferquote, kostet Geld). | **Spekulation**, Informationsvorsprung, Hebel, Liquiditätsrisiko |
 
 Jeder Spieler wählt beim Beitreten seine Rolle (oder «Zufall») und kann sie im Warteraum bis zum Start wechseln. KI-Trader füllen die Rollen auf, die am wenigsten besetzt sind.
 

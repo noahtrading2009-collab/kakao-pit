@@ -116,6 +116,9 @@ const Host = (() => {
         else if (msg.t === 'cancel') r = Engine.cancelOffer(e.pid, Number(msg.id));
         else if (msg.t === 'topup') r = Engine.topUp(e.pid);
         else if (msg.t === 'reduce' && p && p.pos) r = Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2));
+        else if (msg.t === 'protect') r = Engine.protect(e.pid);
+        else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
+        else if (msg.t === 'research') r = Engine.research(e.pid);
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
         if (r.ok && (msg.t === 'offer' || msg.t === 'accept')) conns.forEach(push);
@@ -405,6 +408,12 @@ const Host = (() => {
         if (naked) out.push(`🎲 <b>${esc(naked.name)}</b> hat kaum abgesichert (${Math.round(naked.hedgeQuote * 100)} %) und trug das volle Preisrisiko: <b>${signed(naked.result)} CHF</b>. ${naked.result > 0 ? 'Diesmal Glück gehabt – das ist Spekulation, kein Plan.' : 'Genau davor schützt ein Future.'}`);
         const specs = d.rows.filter(r => r.role === 'spec').sort((a, b) => b.result - a.result);
         if (specs.length) out.push(`🦈 Bester Hedgefonds: <b>${esc(specs[0].name)}</b> mit ${signed(specs[0].result)} CHF. ${specs[specs.length - 1].result < 0 ? `Schlechtester: ${esc(specs[specs.length - 1].name)} mit ${signed(specs[specs.length - 1].result)} CHF.` : ''} Spekulanten übernehmen das Risiko, das Hedger loswerden wollen.`);
+        const shrunk = d.rows.filter(r => r.role === 'producer' && r.physical !== 100).sort((a, b) => a.physical - b.physical)[0];
+        if (shrunk) out.push(`🌱 <b>${esc(shrunk.name)}</b> hat am Ende <b>${shrunk.physical} t</b> statt 100 t geerntet${shrunk.protect ? ' (mit Pflanzenschutz)' : ''}. Futures sichern den <i>Preis</i> ab, nicht die <i>Menge</i>: Wer mehr verkauft, als er erntet, ist überabgesichert und spekuliert plötzlich.`);
+        const factory = d.rows.filter(r => r.role === 'processor' && r.orders).sort((a, b) => b.orderT - a.orderT)[0];
+        if (factory) out.push(`🏭 <b>${esc(factory.name)}</b> hat ${factory.orders} Kundenaufträge über ${factory.orderT} t angenommen. Marge zum Schlusskurs: <b class="${factory.orderMargin >= 0 ? 'up' : 'down'}">${signed(factory.orderMargin)} CHF</b>. Mit Long-Futures war diese Marge schon beim Annehmen fix.`);
+        const analyst = d.rows.filter(r => r.role === 'spec' && r.reports).sort((a, b) => b.result - a.result)[0];
+        if (analyst) out.push(`🕵️ <b>${esc(analyst.name)}</b> hat ${analyst.reports} Research-Berichte gekauft (${fmt(analyst.researchSpent)} CHF). Information hat einen Preis – und ist nie ganz sicher.`);
         const liq = d.rows.filter(r => r.liquidations > 0);
         if (liq.length) out.push(`📞 ${liq.length} ${liq.length === 1 ? 'Trader wurde' : 'Trader wurden'} zwangsweise glattgestellt (${liq.map(r => esc(r.name)).join(', ')}). Hebel wirkt in beide Richtungen – wer nicht nachschiessen kann, verliert die Position.`);
         return out;
@@ -430,8 +439,8 @@ const Host = (() => {
                 <div class="card"><h3>📈 Der Kursverlauf</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
                 <div class="card"><h3>📊 Alle Trader</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Gewinn/Verlust auf Kakao-Ernte oder -Einkauf durch die Preisänderung">Kakao</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Hedge</th><th>Bonus</th><th>Total</th></tr></thead><tbody>${table}</tbody></table>
-                    <p class="dim small">Kakao = Wirkung der Preisänderung auf eure Ernte bzw. euren Einkauf. Futures = Gewinn/Verlust aus allen Kontrakten. Bei guten Hedgern heben sich beide fast auf.</p>
+                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Hedge</th><th>Bonus</th><th>Total</th></tr></thead><tbody>${table}</tbody></table>
+                    <p class="dim small">Geschäft = Ernte bzw. Einkauf und Kundenaufträge gegenüber dem Plan. Futures = Gewinn/Verlust aus allen Kontrakten (inkl. Gebühren). Bei guten Hedgern heben sich beide weitgehend auf.</p>
                     <h3>🗣️ Diskussion</h3><ol class="lessons"><li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li><li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li><li>Wann hat ein Gerücht den Preis bewegt – vor oder nach der Bestätigung?</li></ol>
                 </div>
             </div>

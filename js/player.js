@@ -207,7 +207,55 @@ const Player = (() => {
         $('of-qty').textContent = ofQty;
         $('of-price').textContent = fmt(ofPrice);
         renderOffers();
+        renderRolePanel();
         renderCall();
+    }
+
+    // ===== Rollen-Panel: jede Rolle hat eigene Entscheidungen =====
+
+    let panelKey = '';
+    function renderRolePanel() {
+        const el = $('p-rolepanel');
+        let html = '';
+        if (me.role === 'producer') {
+            const d = me.physical - 100;
+            const pods = Math.round(me.physical / 10);
+            html = `<div class="rp-head"><span>🌱 Deine Plantage</span><b>${me.physical} t</b></div>
+                <div class="pods">${Array.from({ length: 12 }, (_, i) => `<span class="${i < pods ? 'on' : ''}">🫘</span>`).join('')}</div>
+                <div class="small">${d === 0 ? 'Erwartete Ernte wie geplant.' : `Erwartete Ernte <b class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)} t</b> gegenüber Plan.`}
+                Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b> von ${me.physical} t${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert!</span>' : ''}.</div>
+                ${me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('')}
+                ${me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
+                    : `<button class="btn btn-ghost full" data-rp="protect">🛡️ Pflanzenschutz kaufen (${fmt(CFG.protectCost)} CHF)<small>halbiert Ernteverluste durch Dürre und Krankheit</small></button>`}`;
+        } else if (me.role === 'processor') {
+            const o = me.orderOffer;
+            const orderT = me.orders.reduce((s, x) => s + x.t, 0);
+            html = `<div class="rp-head"><span>🏭 Deine Aufträge</span><b>${-me.physical} t Bedarf</b></div>
+                ${o ? `<div class="order-card"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left">${o.left}s</span></div>
+                    <div>Bestellt Schokolade aus <b>${o.t} t Kakao</b> zum festen Erlös von <b>${fmt(o.price)} CHF/t</b>.</div>
+                    <div class="small">Heute kostet Kakao ${fmt(pub.price)} → Marge <b class="up">${fmt(o.price - pub.price)} CHF/t</b> (= ${fmt((o.price - pub.price) * o.t)} CHF) – aber nur, wenn du den Einkauf absicherst.</div>
+                    <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`
+                    : '<div class="small dim">Warte auf den nächsten Kundenauftrag …</div>'}
+                <div class="small">Grundbedarf 100 t${orderT ? ` + ${orderT} t aus ${me.orders.length} Aufträgen` : ''}. Abgesichert: <b>${Math.max(0, me.pos * CFG.size)} t</b> von ${-me.physical} t.</div>
+                ${me.orders.slice(-3).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)} · Marge heute <b class="${x.price - pub.price >= 0 ? 'up' : 'down'}">${signed((x.price - pub.price) * x.t)}</b></div>`).join('')}`;
+        } else {
+            const last = me.reports[me.reports.length - 1];
+            html = `<div class="rp-head"><span>🦈 Research-Abteilung</span><b>${me.rumorActive ? '🔥 Gerücht läuft' : 'ruhig'}</b></div>
+                ${last ? `<div class="report">🕵️ ${esc(last.text)}</div>` : '<div class="small dim">Noch kein Bericht. Research lohnt sich, solange ein Gerücht läuft: Wer früher weiss, ob es stimmt, kann vor allen anderen handeln.</div>'}
+                <button class="btn btn-ghost full" data-rp="research" ${me.researchReady ? 'disabled' : ''}>🕵️ Research-Bericht kaufen (${fmt(me.rumorActive ? CFG.researchCost : CFG.researchCost / 2)} CHF)${me.researchReady ? ` · bereit in ${me.researchReady}s` : ''}<small>Trefferquote ca. ${Math.round(CFG.researchHit * 100)} % – nicht immer richtig!</small></button>`;
+        }
+        const key = html;
+        if (key === panelKey) return;
+        panelKey = key;
+        el.className = `card p-rolepanel ${me.role}`;
+        el.innerHTML = html;
+        el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
+            const a = b.dataset.rp;
+            if (a === 'protect') send({ t: 'protect' });
+            if (a === 'order-yes') send({ t: 'order', accept: true });
+            if (a === 'order-no') send({ t: 'order', accept: false });
+            if (a === 'research') send({ t: 'research' });
+        }));
     }
 
     function renderOffers() {
@@ -318,7 +366,7 @@ const Player = (() => {
         Sound.play('end');
         const hedgeTxt = r.role === 'spec'
             ? `Als Hedgefonds hast du ${r.futPL >= 0 ? 'mit' : 'beim'} Spekulieren <b>${signed(r.futPL)} CHF</b> ${r.futPL >= 0 ? 'verdient' : 'verloren'}.`
-            : `Ohne Futures hätte dir die Preisänderung <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>. Hedge-Quote ${Math.round(r.hedgeQuote * 100)} %${r.bonus ? `, Bonus +${fmt(r.bonus)}` : ''}.`;
+            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>. Hedge-Quote ${Math.round(r.hedgeQuote * 100)} %${r.bonus ? `, Bonus +${fmt(r.bonus)}` : ''}.`;
         $('p-end').innerHTML = `<div class="card">
             <div class="end-rank">#${msg.rank}<span class="dim">/${msg.total}</span></div>
             <div class="role-badge" style="color:${R.color}">${R.icon} ${R.name}</div>

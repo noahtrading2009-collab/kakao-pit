@@ -42,7 +42,9 @@ const Bots = (() => {
     }
 
     function hedge(p, m, G) {
-        const target = Math.round((-ROLES[p.role].physical / CFG.size) * m.ratio);
+        if (p.role === 'producer' && !p.protect && G.month === 1 && Math.random() < 0.02 * (m.ratio + 0.2)) Engine.protect(p.id);
+        if (p.orderOffer && Math.random() < 0.15) Engine.answerOrder(p.id, Math.random() < 0.6 + (m.ratio - 0.7));
+        const target = Math.round((-p.physical / CFG.size) * m.ratio);
         const gap = target - p.pos;
         // Gute Angebote anderer Spieler in die richtige Richtung annehmen.
         const good = G.offers.find(o => o.by !== p.id
@@ -65,7 +67,16 @@ const Bots = (() => {
             return Engine.trade(p.id, -Math.sign(p.pos) * Math.min(Math.abs(p.pos), 3));
         }
         const rumors = Engine.activeRumors();
-        if (rumors.length) {
+        if (rumors.length && p.researchAt < G.sec - 30 && Math.random() < 0.06) {
+            Engine.research(p.id);
+            const r = rumors[0];
+            const last = p.reports[p.reports.length - 1];
+            if (last) m.view = { until: G.clock + r.left, dir: last.text.includes('steigen') ? 1 : -1 };
+        }
+        if (m.view && G.clock < m.view.until) {
+            const want = m.view.dir * 8;
+            if (want !== p.pos && Math.random() < 0.3) return Engine.trade(p.id, Math.sign(want - p.pos) * Math.min(3, Math.abs(want - p.pos)));
+        } else if (rumors.length) {
             const r = rumors[0];
             const want = Math.sign(r.impact) * Math.round(4 + Math.abs(r.impact) * 40);
             if (r.left <= 2 && p.pos && Math.random() < 0.5) return Engine.trade(p.id, -Math.sign(p.pos) * Math.min(Math.abs(p.pos), 3));

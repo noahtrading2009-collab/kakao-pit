@@ -43,6 +43,9 @@ const Engine = (() => {
             id: G.seq++, name: String(name || 'Trader').slice(0, 18), key, bot, role, connected: true,
             cash: R.cash, margin: 0, pos: 0, fees: 0, trades: 0, liquidations: 0, bankrupt: false,
             call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * CFG.p0, notes: [],
+            physical: R.physical, revenue: 0, protect: false, harvestLog: [],
+            orders: [], orderOffer: null, nextOrderAt: 8 + Math.floor(Math.random() * CFG.orderEvery),
+            reports: [], researchAt: -999, researchSpent: 0,
         };
         G.players.push(p);
         return p;
@@ -55,6 +58,7 @@ const Engine = (() => {
         const R = ROLES[role];
         p.role = role;
         p.cash = R.cash;
+        p.physical = R.physical;
         p.startValue = R.cash + R.physical * CFG.p0;
         return true;
     }
@@ -67,11 +71,11 @@ const Engine = (() => {
     const unreal = p => p.pos * (G.price - G.ref) * CFG.size;
     const futEq = p => p.margin + unreal(p);
     const req = (p, pos = p.pos) => Math.abs(pos) * G.price * CFG.size * G.marginRate;
-    const exposure = p => ROLES[p.role].physical + p.pos * CFG.size;
-    const liveResult = p => p.cash + futEq(p) + ROLES[p.role].physical * G.price - p.startValue;
+    const exposure = p => p.physical + p.pos * CFG.size;
+    const liveResult = p => p.cash + futEq(p) + p.physical * G.price + p.revenue - p.startValue;
     function hedgeQuote(p) {
         if (p.role === 'spec' || !p.expN) return 0;
-        return clamp(1 - p.expAcc / p.expN / Math.abs(ROLES[p.role].physical), 0, 1);
+        return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
     }
     function bonus(p) {
         const q = hedgeQuote(p);
@@ -226,6 +230,87 @@ const Engine = (() => {
         emit('liquidation', { pid: p.id });
     }
 
+    // ===== Rollen-Aktionen =====
+
+    // Kooperative: Pflanzenschutz halbiert künftige Ernteverluste.
+    function protect(id) {
+        const p = byId(id);
+        if (!p || p.role !== 'producer') return { ok: false, msg: 'Nur für Kooperativen.' };
+        if (p.protect) return { ok: false, msg: 'Deine Plantage ist schon geschützt.' };
+        if (G.phase !== 'trading' && G.phase !== 'settle') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
+        if (p.cash < CFG.protectCost) return { ok: false, msg: 'Zu wenig Geld.' };
+        p.cash -= CFG.protectCost;
+        p.protect = true;
+        return { ok: true, msg: 'Pflanzenschutz gekauft: Ernteverluste werden ab jetzt halbiert.' };
+    }
+
+    function harvestShock(def, confirmed) {
+        if (!def.yield || !confirmed) return;
+        for (const p of G.players) {
+            if (p.role !== 'producer') continue;
+            let f = def.yield;
+            if (f < 1 && p.protect) f = 1 - (1 - f) / 2;
+            const before = p.physical;
+            p.physical = Math.max(10, Math.round(p.physical * f));
+            const d = p.physical - before;
+            p.harvestLog.push({ text: def.yes, d });
+            note(p, d < 0 ? 'bad' : 'good', d < 0
+                ? `🌱 Deine Ernte schrumpft um ${-d} t auf ${p.physical} t${p.protect ? ' (Pflanzenschutz hat die Hälfte gerettet)' : ''}. Prüfe deine Absicherung!`
+                : `🌱 Deine Ernte wächst um ${d} t auf ${p.physical} t. Du kannst mehr absichern.`);
+        }
+    }
+
+    // Fabrik: Kundenaufträge zu festem Verkaufspreis.
+    function spawnOrders(mult = 1) {
+        const total = CFG.months * G.monthSec;
+        for (const p of G.players) {
+            if (p.role !== 'processor' || p.bankrupt) continue;
+            if (p.orderOffer && G.sec >= p.orderOffer.until) p.orderOffer = null;
+            if (p.orderOffer || G.clock < p.nextOrderAt || G.clock > total - 15 || -p.physical >= 200) continue;
+            const t = 10 * (1 + Math.floor(Math.random() * 3));
+            const margin = Math.round((60 + Math.random() * 160) * mult);
+            p.orderOffer = { id: G.seq++, client: rand(CLIENTS), t, price: Math.round(G.price + margin), until: G.sec + CFG.orderSec };
+            p.nextOrderAt = G.clock + Math.round(CFG.orderEvery * (0.7 + Math.random() * 0.6));
+            note(p, 'good', `📦 Neuer Auftrag: ${p.orderOffer.client} will Schokolade aus ${t} t Kakao – fester Erlös ${fmt(p.orderOffer.price)} CHF/t.`);
+        }
+    }
+
+    function answerOrder(id, accept) {
+        const p = byId(id);
+        if (!p || !p.orderOffer) return { ok: false, msg: 'Der Auftrag ist nicht mehr gültig.' };
+        const o = p.orderOffer;
+        p.orderOffer = null;
+        if (!accept) return { ok: true, msg: `Auftrag von ${o.client} abgelehnt.` };
+        p.physical -= o.t;
+        p.revenue += o.t * o.price;
+        p.orders.push({ client: o.client, t: o.t, price: o.price, at: G.price });
+        return { ok: true, msg: `Auftrag angenommen: ${o.t} t zu ${fmt(o.price)} CHF/t. Dein Bedarf steigt auf ${-p.physical} t – sichere ihn ab!` };
+    }
+
+    // Hedgefonds: Research-Bericht über ein laufendes Gerücht.
+    function research(id) {
+        const p = byId(id);
+        if (!p || p.role !== 'spec') return { ok: false, msg: 'Nur für Hedgefonds.' };
+        if (G.phase !== 'trading') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
+        if (G.sec - p.researchAt < CFG.researchCooldown) return { ok: false, msg: `Die Analysten brauchen noch ${CFG.researchCooldown - (G.sec - p.researchAt)} s.` };
+        const rumor = G.events.find(e => e.stage === 'rumor');
+        const cost = rumor ? CFG.researchCost : Math.round(CFG.researchCost / 2);
+        if (p.cash < cost) return { ok: false, msg: 'Zu wenig Geld für Research.' };
+        p.cash -= cost;
+        p.researchSpent += cost;
+        p.researchAt = G.sec;
+        let text;
+        if (rumor) {
+            const says = Math.random() < CFG.researchHit ? rumor.confirmed : !rumor.confirmed;
+            const dir = (says ? rumor.def.impact : -rumor.priced) > 0 ? 'steigen' : 'fallen';
+            text = `«${rumor.def.rumor}»: Unsere Quelle erwartet ein ${says ? 'BESTÄTIGT' : 'DEMENTI'}. Kakao dürfte dann ${dir}. (Trefferquote ca. ${Math.round(CFG.researchHit * 100)} %, Auflösung in ca. ${rumor.resolveAt - G.clock} s)`;
+        } else {
+            text = 'Zurzeit läuft kein Gerücht. Die Analysten sehen nichts Konkretes (halber Preis verrechnet).';
+        }
+        p.reports.push({ text, sec: G.sec });
+        return { ok: true, msg: 'Research-Bericht ist da.', report: text };
+    }
+
     // ===== News =====
 
     function feed(item) {
@@ -263,6 +348,7 @@ const Engine = (() => {
                     e.stage = 'rumor';
                     e.target = e.def.impact * e.def.prob * 0.6;
                     feed({ kind: 'rumor', icon: e.def.icon, text: `GERÜCHT: ${e.def.rumor}`, dir: Math.sign(e.def.impact) });
+                    if (e.def.yield) G.players.filter(p => p.role === 'producer').forEach(p => note(p, 'bad', `🌱 Achtung: Dieses Gerücht betrifft auch deine Ernte (${e.def.yield < 1 ? `bis −${Math.round((1 - e.def.yield) * 100)} %` : `bis +${Math.round((e.def.yield - 1) * 100)} %`}).`));
                 } else if (e.type === 'surprise') {
                     e.stage = 'done';
                     drift += e.def.impact;
@@ -279,6 +365,8 @@ const Engine = (() => {
                     const jump = e.confirmed ? e.def.impact - e.priced : -e.priced;
                     drift += jump;
                     feed({ kind: e.confirmed ? 'yes' : 'no', icon: e.confirmed ? '✅' : '❌', text: e.confirmed ? `BESTÄTIGT: ${e.def.yes}` : `DEMENTI: ${e.def.no}`, dir: Math.sign(jump) });
+                    harvestShock(e.def, e.confirmed);
+                    if (e.def.orders && e.confirmed) G.orderBoost = G.clock + 40;
                 } else {
                     const d = (e.target - e.priced) * 0.22;
                     e.priced += d;
@@ -339,7 +427,8 @@ const Engine = (() => {
         for (const p of G.players) {
             p.cash += p.margin;
             p.margin = 0;
-            p.cash += ROLES[p.role].physical * G.price;
+            p.cash += p.physical * G.price + p.revenue;
+            p.orderOffer = null;
         }
         G.offers = [];
         feed({ kind: 'bell', icon: '🔔', text: `Fälligkeit! Schlusskurs ${fmt(G.price)} CHF/t.` });
@@ -364,6 +453,7 @@ const Engine = (() => {
                 }
             }
             G.offers = G.offers.filter(o => o.until > G.sec);
+            spawnOrders(G.orderBoost && G.clock < G.orderBoost ? 1.6 : 1);
         }
         for (const p of G.players) {
             if (p.bankrupt || p.pos === 0) continue;
@@ -419,16 +509,24 @@ const Engine = (() => {
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
             result: Math.round(liveResult(p)), bonus: bonus(p), hedgeQuote: hedgeQuote(p), rank, bankrupt: p.bankrupt,
             limit: ROLES[p.role].limit, notes: p.notes.slice(-3), liquidations: p.liquidations,
+            physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
+            orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
+            orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
+            reports: p.reports.slice(-2), researchReady: Math.max(0, CFG.researchCooldown - (G.sec - p.researchAt)),
+            rumorActive: G.events.some(e => e.stage === 'rumor'),
         };
     }
 
     function debrief() {
         const rows = G.players.map(p => {
             const R = ROLES[p.role];
-            const physPL = R.physical * (G.price - CFG.p0);
+            // Effect of price, harvest size and customer orders on the physical business (vs. plan).
+            const physPL = p.physical * G.price + p.revenue - R.physical * CFG.p0;
             const result = p.cash - p.startValue;
             return {
                 id: p.id, name: p.name, role: p.role, bot: p.bot, result: Math.round(result), physPL: Math.round(physPL),
+                physical: p.physical, protect: p.protect, orders: p.orders.length, orderT: p.orders.reduce((s, o) => s + o.t, 0),
+                orderMargin: Math.round(p.orders.reduce((s, o) => s + o.t * (o.price - G.price), 0)), researchSpent: p.researchSpent, reports: p.reports.length,
                 futPL: Math.round(result - physPL), fees: Math.round(p.fees), bonus: bonus(p), score: Math.round(result + bonus(p)),
                 hedgeQuote: hedgeQuote(p), liquidations: p.liquidations, bankrupt: p.bankrupt, trades: p.trades,
             };
@@ -438,6 +536,7 @@ const Engine = (() => {
 
     return {
         create, addPlayer, setRole, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
+        protect, answerOrder, research,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId,
         get G() { return G; },
     };

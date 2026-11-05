@@ -16,6 +16,12 @@ const CFG = {
     offerSec: 35,          // Laufzeit eines Angebots auf dem Board
     offerBand: 0.04,       // Angebote max. ±4 % vom Marktpreis
     missionBonus: 15000,   // Bonus für konsequente Absicherung
+    protectCost: 4000,     // Kooperative: Pflanzenschutz halbiert Ernteverluste
+    orderEvery: 28,        // Fabrik: ungefähr alle x Sekunden ein Kundenauftrag
+    orderSec: 20,          // so lange ist ein Auftrag gültig
+    researchCost: 2500,    // Hedgefonds: Research-Bericht
+    researchHit: 0.8,      // Trefferquote der Research-Quelle
+    researchCooldown: 20,
     minPrice: 900,
     maxPrice: 7000,
 };
@@ -23,32 +29,32 @@ const CFG = {
 const ROLES = {
     producer: {
         name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 80000, limit: 15,
-        mission: 'Ihr erntet im Dezember <b>100 t Kakao</b> und verkauft sie zum dann gültigen Preis. Fällt der Preis, bricht euer Umsatz ein.',
-        hint: 'Absichern = Futures <b>verkaufen</b> (Short). 10 Kontrakte decken eure 100 t.',
+        mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b> und verkauft sie zum dann gültigen Preis. Fällt der Preis, bricht euer Umsatz ein. Und: Dürre oder Krankheit können eure <b>Erntemenge</b> schrumpfen lassen.',
+        hint: 'Absichern = Futures <b>verkaufen</b> (Short). Aber Vorsicht: Wer 100 t verkauft und nur 80 t erntet, ist überabgesichert. Pflanzenschutz halbiert Ernteverluste.',
     },
     processor: {
         name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 80000, limit: 15,
-        mission: 'Ihr müsst im Dezember <b>100 t Kakao</b> kaufen, um zu produzieren. Steigt der Preis, wird eure Schokolade unbezahlbar.',
-        hint: 'Absichern = Futures <b>kaufen</b> (Long). 10 Kontrakte decken eure 100 t.',
+        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Laufend bestellen Detailhändler Schokolade zu einem <b>festen Verkaufspreis</b>. Jeder Auftrag bringt Marge – aber nur, solange Kakao nicht teurer wird.',
+        hint: 'Absichern = Futures <b>kaufen</b> (Long). Nimmst du einen Auftrag an, steigt dein Bedarf – sichere ihn sofort ab, dann ist deine Marge fix.',
     },
     spec: {
         name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a78bfa', physical: 0, cash: 120000, limit: 20,
-        mission: 'Ihr habt keinen Kakao und braucht keinen. Ihr handelt nur auf Kursbewegungen – und übernehmt damit das Risiko der anderen.',
-        hint: 'Gewinn = richtig liegen. Aber: hoher Hebel, Margin Calls und Konkurs sind real.',
+        mission: 'Ihr habt keinen Kakao und braucht keinen. Ihr handelt nur auf Kursbewegungen – und übernehmt damit das Risiko der anderen. Euer Vorteil: <b>Research</b> über Gerüchte und ein grösseres Positionslimit.',
+        hint: 'Kauft Research-Berichte (meistens richtig, nicht immer) und handelt, bevor die News bestätigt wird. Hoher Hebel, Margin Calls und Konkurs sind real.',
     },
 };
 
 // News: Gerücht → (bestätigt | dementiert). impact = Preisänderung bei Bestätigung.
 const NEWS = [
-    { id: 'drought', icon: '☀️', impact: 0.12, prob: 0.65, rumor: 'Wetterdienst warnt vor Trockenheit in Westafrika', yes: 'Dürre bestätigt: Ernte in Ghana bricht ein', no: 'Entwarnung: Regenzeit setzt pünktlich ein' },
-    { id: 'blackpod', icon: '🍂', impact: 0.09, prob: 0.6, rumor: 'Pilzkrankheit «Black Pod» auf Plantagen gemeldet', yes: 'Black Pod breitet sich aus: Ernteausfälle bestätigt', no: 'Black Pod lokal begrenzt, keine Ernteausfälle' },
-    { id: 'record', icon: '🌾', impact: -0.1, prob: 0.6, rumor: 'Insider: Elfenbeinküste erwartet Rekordernte', yes: 'Offiziell: Rekordernte an der Elfenbeinküste', no: 'Rekordernte-Gerücht falsch: Ernte im Durchschnitt' },
+    { id: 'drought', icon: '☀️', impact: 0.12, prob: 0.65, yield: 0.88, rumor: 'Wetterdienst warnt vor Trockenheit in Westafrika', yes: 'Dürre bestätigt: Ernte in Ghana bricht ein', no: 'Entwarnung: Regenzeit setzt pünktlich ein' },
+    { id: 'blackpod', icon: '🍂', impact: 0.09, prob: 0.6, yield: 0.9, rumor: 'Pilzkrankheit «Black Pod» auf Plantagen gemeldet', yes: 'Black Pod breitet sich aus: Ernteausfälle bestätigt', no: 'Black Pod lokal begrenzt, keine Ernteausfälle' },
+    { id: 'record', icon: '🌾', impact: -0.1, prob: 0.6, yield: 1.12, rumor: 'Insider: Elfenbeinküste erwartet Rekordernte', yes: 'Offiziell: Rekordernte an der Elfenbeinküste', no: 'Rekordernte-Gerücht falsch: Ernte im Durchschnitt' },
     { id: 'export', icon: '🚫', impact: 0.08, prob: 0.5, rumor: 'Ghana erwägt Exportstopp für Rohkakao', yes: 'Ghana verhängt Exportstopp für 30 Tage', no: 'Regierung dementiert Exportstopp' },
-    { id: 'asia', icon: '🍫', impact: 0.06, prob: 0.7, rumor: 'Asiatische Konzerne bestellen massiv Schokolade', yes: 'Rekordnachfrage aus Asien bestätigt', no: 'Nachfrage aus Asien bleibt flach' },
+    { id: 'asia', icon: '🍫', impact: 0.06, prob: 0.7, orders: 1.6, rumor: 'Asiatische Konzerne bestellen massiv Schokolade', yes: 'Rekordnachfrage aus Asien bestätigt', no: 'Nachfrage aus Asien bleibt flach' },
     { id: 'diet', icon: '🥗', impact: -0.05, prob: 0.6, rumor: 'EU plant Zuckersteuer auf Süsswaren', yes: 'Zuckersteuer beschlossen: Schokoladenabsatz sinkt', no: 'EU verzichtet auf Zuckersteuer' },
     { id: 'strike', icon: '⚓', impact: 0.05, prob: 0.55, rumor: 'Hafenarbeiter in Abidjan drohen mit Streik', yes: 'Hafenstreik: Kakaoschiffe stecken fest', no: 'Einigung im Hafen von Abidjan, kein Streik' },
     { id: 'ecuador', icon: '🌴', impact: -0.07, prob: 0.6, rumor: 'Neue Grossplantagen in Ecuador sollen bald liefern', yes: 'Ecuador liefert erste Grossernte aus', no: 'Plantagen in Ecuador verzögern sich um ein Jahr' },
-    { id: 'rain', icon: '🌧️', impact: -0.06, prob: 0.65, rumor: 'Prognose: ideales Regenwetter in Westafrika', yes: 'Perfekte Wachstumsbedingungen: Ernte steigt', no: 'Wetter normalisiert sich, keine Rekordernte' },
+    { id: 'rain', icon: '🌧️', impact: -0.06, prob: 0.65, yield: 1.12, rumor: 'Prognose: ideales Regenwetter in Westafrika', yes: 'Perfekte Wachstumsbedingungen: Ernte steigt', no: 'Wetter normalisiert sich, keine Rekordernte' },
     { id: 'fund', icon: '🏦', impact: -0.06, prob: 0.5, rumor: 'Grosser Rohstofffonds soll Kakao-Positionen abbauen', yes: 'Fonds verkauft: Kakao unter Druck', no: 'Fonds hält Positionen, Gerücht falsch' },
 ];
 const SURPRISES = [
@@ -58,6 +64,8 @@ const SURPRISES = [
     { id: 'recession', icon: '📉', impact: -0.045, text: 'EILMELDUNG: Rezessionsangst – Konsumgüter unter Druck' },
 ];
 const MARGIN_HIKE = { id: 'hike', icon: '⚖️', text: 'BÖRSENAUFSICHT: Einschuss steigt ab der nächsten Abrechnung auf 15 %', rate: 0.15 };
+
+const CLIENTS = ['Alpenmarkt', 'Kaufhaus Helvetia', 'Bahnhofkiosk AG', 'Pralinen-Boutique', 'Export Asien', 'Hotelkette Seeblick', 'Discounter Spar-Fix', 'Café-Kette Bohne'];
 
 const BOT_NAMES = {
     producer: ['Ghana Cocoa Coop', 'Côte Farmers', 'Ecuador Verde', 'Akwaba Kakao'],
