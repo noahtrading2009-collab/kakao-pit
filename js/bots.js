@@ -42,7 +42,8 @@ const Bots = (() => {
     }
 
     function hedge(p, m, G) {
-        if (p.role === 'producer' && !p.protect && G.month === 1 && Math.random() < 0.02 * (m.ratio + 0.2)) Engine.protect(p.id);
+        if (p.role === 'producer' && !p.protect && Math.random() < (Engine.protectPrice() > CFG.protectLow ? 0.004 : 0.012)) Engine.protect(p.id);
+        if (p.buyerOffer && Math.random() < 0.15) Engine.answerBuyer(p.id, p.buyerOffer.price >= G.price * (0.995 + Math.random() * 0.03));
         if (p.orderOffer && Math.random() < 0.15) Engine.answerOrder(p.id, Math.random() < 0.6 + (m.ratio - 0.7));
         // Timing: Bauern sichern mehr ab, wenn der Preis hoch ist, Fabriken, wenn er tief ist.
         const rel = G.price / CFG.p0 - 1;

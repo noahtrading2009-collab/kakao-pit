@@ -16,7 +16,7 @@ const Engine = (() => {
             clock: 0, sec: 0, month: 1, settleLeft: 0,
             price: CFG.p0, ref: CFG.p0, marginRate: CFG.marginRate, pendingRate: null,
             history: [{ s: 0, p: CFG.p0 }], marks: [], feed: [], events: [], players: [], offers: [], tape: [],
-            flow: 0, drift: 0, seq: 1,
+            flow: 0, drift: 0, seq: 1, trades: [],
         };
         return G;
     }
@@ -46,7 +46,15 @@ const Engine = (() => {
             physical: R.physical, revenue: 0, protect: false, harvestLog: [],
             orders: [], orderOffer: null, nextOrderAt: 8 + Math.floor(Math.random() * CFG.orderEvery),
             reports: [], researchAt: -999, researchSpent: 0,
+            costs: 0,                                   // Pflanzenschutz, Bankzuschlag (für den Hedge-Vergleich)
+            buyerOffer: null, nextBuyerAt: 10 + Math.floor(Math.random() * CFG.buyerEvery), sales: [], extraAt: [],
+            cancels: 0, nextCancelAt: 40 + Math.floor(Math.random() * 30),
         };
+        if (role === 'producer') {
+            // 1–2 Mal liefern Mitglieder Nachernte (zufälliger Zeitpunkt in Monat 1–3)
+            const n = 1 + (Math.random() < 0.5 ? 1 : 0);
+            for (let i = 0; i < n; i++) p.extraAt.push(0.1 + Math.random() * 0.6);   // Anteil der Spielzeit
+        }
         G.players.push(p);
         return p;
     }
@@ -73,6 +81,8 @@ const Engine = (() => {
     const req = (p, pos = p.pos) => Math.abs(pos) * G.price * CFG.size * G.marginRate;
     const exposure = p => p.physical + p.pos * CFG.size;
     const liveResult = p => p.cash + futEq(p) + p.physical * G.price + p.revenue - p.startValue;
+    // Was hat die Absicherung (Futures inkl. Gebühren) bisher gebracht? Geschäft und Zusatzkosten herausgerechnet.
+    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - ROLES[p.role].physical * CFG.p0) + p.costs + p.researchSpent;
     function hedgeQuote(p) {
         if (p.role === 'spec' || !p.expN) return 0;
         return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
@@ -83,7 +93,8 @@ const Engine = (() => {
     // Kennzahl pro Rolle: Bauern = erzielter Preis pro Tonne (Plan 100 t),
     // Fabrik = effektiver Einkaufspreis pro Tonne Grundbedarf, Fonds = Gewinn.
     function metric(p, res = liveResult(p)) {
-        if (p.role === 'producer') return Math.round((res + ROLES.producer.physical * CFG.p0) / ROLES.producer.physical);
+        // Bauern: Gesamterlös (Ernte + Direktverkäufe + Futures − Kosten) geteilt durch alle Tonnen inkl. Nachernte.
+        if (p.role === 'producer') return Math.round((res + ROLES.producer.physical * CFG.p0) / Math.max(10, p.physical + p.sales.reduce((s, x) => s + x.t, 0)));
         if (p.role === 'processor') return Math.round((-ROLES.processor.physical * CFG.p0 - res) / -ROLES.processor.physical);
         return Math.round(res);
     }
@@ -105,6 +116,7 @@ const Engine = (() => {
             } else {
                 p.bank = 'fail';
                 p.cash -= CFG.bankFee;
+                p.costs += CFG.bankFee;
                 p.bankPaid = CFG.bankFee;
                 note(p, 'bad', `🏦 Bankauflage verfehlt (nur ${Math.round(q * 100)} % statt ${Math.round(CFG.bankQuota * 100)} %): Die Bank verlangt ${fmt(CFG.bankFee)} CHF Risikozuschlag.`);
             }
@@ -121,6 +133,9 @@ const Engine = (() => {
     // ===== Handel =====
 
     function execute(p, q, price, fee, reducing) {
+        // Für den Chart: Wer ist wann ein- bzw. ausgestiegen?
+        G.trades.push({ s: G.clock, pid: p.id, q, price, open: Math.abs(p.pos + q) > Math.abs(p.pos) });
+        if (G.trades.length > 3000) G.trades.shift();
         p.margin += q * (G.ref - price) * CFG.size;
         p.pos += q;
         p.cash -= fee;
@@ -286,16 +301,79 @@ const Engine = (() => {
 
     // ===== Rollen-Aktionen =====
 
-    // Kooperative: Pflanzenschutz halbiert künftige Ernteverluste.
+    // Kooperative: Pflanzenschutz ist eine Versicherung – billig, solange es ruhig ist,
+    // teuer, sobald ein Dürre- oder Krankheitsgerücht läuft.
+    function protectPrice() {
+        const risky = G.events.some(e => e.stage === 'rumor' && e.def.yield && e.def.yield < 1);
+        return risky ? CFG.protectHigh : CFG.protectLow;
+    }
+
     function protect(id) {
         const p = byId(id);
         if (!p || p.role !== 'producer') return { ok: false, msg: 'Nur für Kooperativen.' };
         if (p.protect) return { ok: false, msg: 'Deine Plantage ist schon geschützt.' };
         if (G.phase !== 'trading' && G.phase !== 'settle') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
-        if (p.cash < CFG.protectCost) return { ok: false, msg: 'Zu wenig Geld.' };
-        p.cash -= CFG.protectCost;
+        const c = protectPrice();
+        if (p.cash < c) return { ok: false, msg: 'Zu wenig Geld.' };
+        p.cash -= c;
+        p.costs += c;
         p.protect = true;
-        return { ok: true, msg: 'Pflanzenschutz gekauft: Ernteverluste werden ab jetzt halbiert.' };
+        return { ok: true, msg: `Pflanzenschutz für ${fmt(c)} CHF gekauft: Ernteverluste werden ab jetzt halbiert.` };
+    }
+
+    // Kooperative: Händler bieten Direktverkäufe zu festem Preis an (Terminverkauf ohne Börse).
+    function spawnBuyers() {
+        const total = CFG.months * G.monthSec;
+        for (const p of G.players) {
+            if (p.role !== 'producer' || p.bankrupt) continue;
+            if (p.buyerOffer && G.sec >= p.buyerOffer.until) p.buyerOffer = null;
+            // Nachernte von Mitgliedern
+            while (p.extraAt.length && G.clock / total >= p.extraAt[0]) {
+                p.extraAt.shift();
+                const t = 10 + 5 * Math.floor(Math.random() * 3);
+                p.physical += t;
+                note(p, 'good', `🚜 Mitglieder liefern Nachernte: +${t} t. Diese Menge ist noch nicht abgesichert!`);
+            }
+            if (p.buyerOffer || G.clock < p.nextBuyerAt || G.clock > total - 15 || p.physical < 20) continue;
+            const t = Math.min(10 * (1 + Math.floor(Math.random() * 3)), Math.floor(p.physical / 10) * 10 - 10);
+            if (t < 10) continue;
+            const prem = Math.round((-130 + Math.random() * 280) / 5) * 5;   // mal besser, mal schlechter als die Börse
+            p.buyerOffer = { id: G.seq++, client: rand(BUYERS), t, price: Math.round(G.price + prem), until: G.sec + CFG.orderSec };
+            p.nextBuyerAt = G.clock + Math.round(CFG.buyerEvery * (0.7 + Math.random() * 0.6));
+            note(p, 'good', `🤝 ${p.buyerOffer.client} will ${t} t kaufen – fester Preis ${fmt(p.buyerOffer.price)} CHF/t.`);
+        }
+    }
+
+    function answerBuyer(id, accept) {
+        const p = byId(id);
+        if (!p || !p.buyerOffer) return { ok: false, msg: 'Das Angebot ist nicht mehr gültig.' };
+        const o = p.buyerOffer;
+        p.buyerOffer = null;
+        if (!accept) return { ok: true, msg: `Angebot von ${o.client} abgelehnt.` };
+        if (o.t > p.physical) return { ok: false, msg: 'So viel Kakao hast du nicht mehr.' };
+        p.physical -= o.t;
+        p.revenue += o.t * o.price;
+        p.sales.push({ client: o.client, t: o.t, price: o.price });
+        const over = -p.pos * CFG.size > p.physical;
+        return { ok: true, msg: `Verkauft: ${o.t} t an ${o.client} zu ${fmt(o.price)} CHF/t – dieser Preis ist fix.${over ? ' ⚠️ Jetzt bist du überabgesichert – löse einen Teil auf!' : ''}` };
+    }
+
+    // Fabrik: Kunden stornieren manchmal Aufträge – dann ist man plötzlich überabgesichert.
+    function cancelOrders() {
+        const total = CFG.months * G.monthSec;
+        for (const p of G.players) {
+            if (p.role !== 'processor' || p.bankrupt || !p.orders.length) continue;
+            if (G.clock < p.nextCancelAt || G.clock > total - 20) continue;
+            p.nextCancelAt = G.clock + 45 + Math.floor(Math.random() * 40);
+            if (Math.random() > CFG.cancelProb) continue;
+            const i = Math.floor(Math.random() * p.orders.length);
+            const o = p.orders.splice(i, 1)[0];
+            p.physical += o.t;
+            p.revenue -= o.t * o.price;
+            p.cancels++;
+            const over = p.pos * CFG.size > -p.physical;
+            note(p, 'bad', `❌ ${o.client} storniert den Auftrag über ${o.t} t. Dein Bedarf sinkt auf ${-p.physical} t.${over ? ' Du bist jetzt überabgesichert – löse einen Teil auf!' : ''}`);
+        }
     }
 
     function harvestShock(def, confirmed) {
@@ -510,6 +588,8 @@ const Engine = (() => {
             }
             G.offers = G.offers.filter(o => o.until > G.sec);
             spawnOrders(G.orderBoost && G.clock < G.orderBoost ? 1.6 : 1);
+            spawnBuyers();
+            cancelOrders();
         }
         for (const p of G.players) {
             if (p.bankrupt || p.pos === 0) continue;
@@ -570,7 +650,9 @@ const Engine = (() => {
         const rk = ranking().filter(r => r.role === p.role);
         const rank = rk.findIndex(r => r.id === id) + 1;
         return {
-            roleCount: rk.length, metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, bankDue: G.month <= CFG.bankMonth,
+            roleCount: rk.length, metric: metric(p), hedgeEffect: Math.round(hedgeEffect(p)), protectPrice: protectPrice(),
+            buyerOffer: p.buyerOffer ? { client: p.buyerOffer.client, t: p.buyerOffer.t, price: p.buyerOffer.price, left: Math.max(0, p.buyerOffer.until - G.sec) } : null,
+            sales: p.sales.slice(-3), cancels: p.cancels, hedged: hedgedShare(p), bank: p.bank || null, bankDue: G.month <= CFG.bankMonth,
             id: p.id, name: p.name, role: p.role, cash: Math.round(p.cash), margin: Math.round(p.margin), pos: p.pos,
             eq: Math.round(futEq(p)), unreal: Math.round(unreal(p)), req: Math.round(req(p)), exposure: exposure(p),
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
@@ -602,12 +684,27 @@ const Engine = (() => {
                 metric: metric(p, result), bank: p.bank || null, bankPaid: p.bankPaid || 0,
             };
         }).sort((a, b) => b.score - a.score);
-        return { rows, final: G.price, p0: CFG.p0, change: G.price / CFG.p0 - 1, history: G.history, marks: G.marks, feed: G.feed.slice(0, 20) };
+        // Trader des Tages: Punkte = wie viel besser als der Durchschnitt der eigenen Rolle,
+        // geteilt durch die typische Streuung der Rolle (damit alle Rollen gleiche Chancen haben).
+        const SCALE = { producer: 35, processor: 60, spec: 10000 };
+        const avg = a => a.reduce((s, x) => s + x, 0) / a.length;
+        for (const r of rows) {
+            const peers = rows.filter(x => x.role === r.role);
+            if (r.role === 'spec') {
+                const base = peers.length > 1 ? avg(peers.map(x => x.result)) : 0;
+                r.points = Math.round((10 * (r.result - base)) / SCALE.spec);
+            } else {
+                const base = peers.length > 1 ? avg(peers.map(x => x.metric)) : G.price;   // allein in der Rolle: Vergleich mit «gar nicht absichern»
+                r.points = Math.round((10 * (r.role === 'producer' ? r.metric - base : base - r.metric)) / SCALE[r.role]);
+            }
+        }
+        const star = rows.filter(r => !r.bankrupt).sort((a, b) => b.points - a.points)[0] || null;
+        return { rows, star, trades: G.trades, final: G.price, p0: CFG.p0, change: G.price / CFG.p0 - 1, history: G.history, marks: G.marks, feed: G.feed.slice(0, 20) };
     }
 
     return {
         create, addPlayer, setRole, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
-        protect, answerOrder, research,
+        protect, answerOrder, research, answerBuyer, protectPrice,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId,
         get G() { return G; },
     };

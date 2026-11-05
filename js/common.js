@@ -18,7 +18,10 @@ const CFG = {
     bankMonth: 2,          // Bankprüfung am Ende dieses Monats …
     bankQuota: 0.5,        // … mindestens so viel muss abgesichert sein
     bankFee: 6000,         // sonst Risikozuschlag
-    protectCost: 4000,     // Kooperative: Pflanzenschutz halbiert Ernteverluste
+    protectLow: 2000,      // Kooperative: Pflanzenschutz (Versicherung) in ruhigen Zeiten …
+    protectHigh: 7000,     // … und wenn ein Dürre-/Krankheitsgerücht läuft
+    buyerEvery: 32,        // Kooperative: ungefähr alle x Sekunden ein Händler-Angebot
+    cancelProb: 0.45,      // Fabrik: Chance auf eine Stornierung pro Prüfung
     orderEvery: 28,        // Fabrik: ungefähr alle x Sekunden ein Kundenauftrag
     orderSec: 20,          // so lange ist ein Auftrag gültig
     researchCost: 2500,    // Hedgefonds: Research-Bericht
@@ -39,6 +42,7 @@ function earnHTML(role) {
                 <li>Im Dezember verkaufst du deine <b>Ernte</b>. Wie viel du bekommst, hängt vom Preis <b>dann</b> ab – und den kennt heute niemand.</li>
                 <li>Darum <b>verkaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Preis jetzt schon fest.</li>
                 <li>Egal, was danach passiert: Was du bei der Ernte verlierst, gewinnst du beim Future – und umgekehrt.</li>
+                <li>Zwischendurch bieten dir <b>Händler</b> feste Preise an, und Mitglieder liefern <b>Nachernte</b>. Prüfe jedes Mal: Ist das ein guter Preis? Ist alles abgesichert?</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📉 Preis 2\'000', '20\'000', '+5\'000', '25\'000'], ['📈 Preis 3\'000', '30\'000', '−5\'000', '25\'000']], ['Ernte bringt', 'Future', 'Du bekommst'])}
@@ -50,7 +54,7 @@ function earnHTML(role) {
                 <li>Im Dezember musst du <b>Kakao einkaufen</b>, um Schokolade zu machen. Wie viel er kostet, weiss heute niemand.</li>
                 <li>Darum <b>kaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Einkaufspreis jetzt schon fest.</li>
                 <li>Wird Kakao teurer, gewinnt dein Future – das gleicht den teureren Einkauf aus.</li>
-                <li>Bonus: Kunden bestellen Schokolade zu einem <b>festen Preis</b>. Hast du billig eingekauft, verdienst du daran extra.</li>
+                <li>Bonus: Kunden bestellen Schokolade zu einem <b>festen Preis</b>. Hast du billig eingekauft, verdienst du daran extra. Aber Vorsicht: Kunden können <b>stornieren</b> – dann bist du überabgesichert.</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📈 Preis 3\'000', '30\'000', '+5\'000', '25\'000'], ['📉 Preis 2\'000', '20\'000', '−5\'000', '25\'000']], ['Kakao kostet', 'Future', 'Du zahlst'])}
@@ -78,12 +82,12 @@ const ROLES = {
         mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b>. Ihr tretet gegen die anderen Kooperativen an: Wer erzielt den <b>besten Preis pro Tonne</b>? Verkauft Futures, wenn der Preis hoch ist – aber wartet ihr zu lange, kann er abstürzen.',
         hint: 'Timing ist alles: Ein Dürre-Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Und Achtung: Steigt der Preis, musst du Geld nachschiessen – zu viel absichern mit zu wenig Bargeld kann dich ruinieren.',
         job: 'Short-Hedger', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
-        can: ['Ernte auf Termin verkaufen (Short) – höchstens so viel, wie du erntest', 'Pflanzenschutz kaufen', 'Absicherung wieder auflösen'],
+        can: ['Ernte auf Termin verkaufen (Short) – höchstens so viel, wie du erntest', 'Händler-Angebote annehmen: Direktverkauf zu festem Preis', 'Pflanzenschutz kaufen (günstig, solange es ruhig ist)', 'Absicherung wieder auflösen'],
         cannot: ['Futures kaufen (Long)', 'Mehr verkaufen, als du erntest', 'Research-Berichte'],
     },
     processor: {
         name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 60000, limit: 15,
-        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Ihr tretet gegen die anderen Fabriken an: Wer kauft <b>am günstigsten</b> ein? Kauft Futures, wenn der Preis tief ist. Kundenaufträge zu festen Preisen bringen zusätzliche Marge.',
+        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Ihr tretet gegen die anderen Fabriken an: Wer kauft <b>am günstigsten</b> ein? Kauft Futures, wenn der Preis tief ist. Kundenaufträge zu festen Preisen bringen zusätzliche Marge – aber Kunden können auch stornieren.',
         hint: 'Timing ist alles: Kommt ein Gerücht über eine Rekordernte, fällt der Preis – warten oder jetzt kaufen? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Fällt der Preis stark, musst du Geld nachschiessen.',
         job: 'Long-Hedger', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',
         can: ['Kakao auf Termin kaufen (Long) – höchstens deinen Bedarf', 'Kundenaufträge annehmen oder ablehnen', 'Absicherung wieder auflösen'],
@@ -120,6 +124,7 @@ const SURPRISES = [
 ];
 const MARGIN_HIKE = { id: 'hike', icon: '⚖️', text: 'BÖRSENAUFSICHT: Einschuss steigt ab der nächsten Abrechnung auf 15 %', rate: 0.15 };
 
+const BUYERS = ['Barry Callebaut', 'Lindt & Sprüngli', 'Cargill', 'Nestlé', 'Ferrero', 'Olam Food', 'Touton Trading'];
 const CLIENTS = ['Alpenmarkt', 'Kaufhaus Helvetia', 'Bahnhofkiosk AG', 'Pralinen-Boutique', 'Export Asien', 'Hotelkette Seeblick', 'Discounter Spar-Fix', 'Café-Kette Bohne'];
 
 const BOT_NAMES = {

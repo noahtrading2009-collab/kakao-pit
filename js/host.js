@@ -118,6 +118,7 @@ const Host = (() => {
         else if (msg.t === 'reduce' && p && p.pos) r = Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2));
         else if (msg.t === 'protect') r = Engine.protect(e.pid);
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
+        else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'research') r = Engine.research(e.pid);
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
@@ -145,7 +146,7 @@ const Host = (() => {
                 if (!row) return;
                 const B = BOARDS.find(b => b.role === row.role);
                 const peers = rows.filter(r => r.role === row.role).sort(B.sort);
-                send(e, { t: 'end', row, rank: peers.indexOf(row) + 1, total: peers.length, final: data.final, p0: data.p0, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, score: r.score, metric: r.metric })) });
+                send(e, { t: 'end', row, rank: peers.indexOf(row) + 1, total: peers.length, final: data.final, p0: data.p0, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, score: r.score, metric: r.metric })), star: data.star ? { id: data.star.id, name: data.star.name, role: data.star.role, points: data.star.points } : null });
             });
             setTimeout(() => showEnd(data), 1500);
         }
@@ -386,6 +387,7 @@ const Host = (() => {
             c.fillStyle = col;
             c.fill();
         }
+        drawTradeMarks(c, x, y, W, L, T);
         // News markers on the timeline
         const feedItems = (S.feed || []).filter(n => ['rumor', 'yes', 'no', 'flash', 'alert'].includes(n.kind) && n.clock > 0);
         c.font = '16px sans-serif';
@@ -393,6 +395,106 @@ const Host = (() => {
             const pt = h.find(q => q.s === n.clock) || h[h.length - 1];
             c.fillText(n.icon, x(n.clock) - 8, y(pt.p) - 12);
         });
+    }
+
+    // ===== Ein- und Ausstiege der Spieler im Chart =====
+    // Nur echte Spieler (keine KI), nahe Trades zusammengefasst, Kürzel nur ohne Überlappung.
+    const MARK_COLORS = ['#38bdf8', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#c084fc', '#2dd4bf', '#f87171', '#a3e635', '#e879f9', '#60a5fa', '#fbbf24'];
+
+    function markColor(pid) {
+        const humans = Engine.G.players.filter(p => !p.bot).map(p => p.id);
+        return MARK_COLORS[Math.max(0, humans.indexOf(pid)) % MARK_COLORS.length];
+    }
+
+    function tradeMarks() {
+        const G = Engine.G;
+        const human = new Set(G.players.filter(p => !p.bot).map(p => p.id));
+        const out = [];
+        for (const t of G.trades) {
+            if (!human.has(t.pid)) continue;
+            const last = out[out.length - 1];
+            const prev = [...out].reverse().find(m => m.pid === t.pid);
+            if (prev && prev.open === t.open && Math.sign(prev.q) === Math.sign(t.q) && t.s - prev.s <= 4) {
+                prev.q += t.q;
+                prev.price = t.price;
+                continue;
+            }
+            out.push({ ...t });
+            if (last && out.length > 80) out.shift();
+        }
+        return out;
+    }
+
+    function drawTradeMarks(c, x, y, W, L, T) {
+        const G = Engine.G;
+        const marks = tradeMarks();
+        if (!marks.length) return;
+        const labels = [];
+        const free = (bx, by, bw, bh) => !labels.some(r => bx < r.x + r.w && bx + bw > r.x && by < r.y + r.h && by + bh > r.y);
+        c.save();
+        for (const m of marks) {
+            const p = G.players.find(q => q.id === m.pid);
+            if (!p) continue;
+            const col = markColor(m.pid);
+            const px = x(m.s);
+            const py = y(m.price);
+            const up = m.q > 0;
+            c.lineWidth = 2;
+            if (m.open) {
+                // Einstieg: gefülltes Dreieck (▲ gekauft, ▼ verkauft)
+                c.beginPath();
+                if (up) { c.moveTo(px, py - 9); c.lineTo(px - 7, py + 4); c.lineTo(px + 7, py + 4); } else { c.moveTo(px, py + 9); c.lineTo(px - 7, py - 4); c.lineTo(px + 7, py - 4); }
+                c.closePath();
+                c.fillStyle = col;
+                c.fill();
+                c.strokeStyle = '#0b1020';
+                c.stroke();
+            } else {
+                // Ausstieg: Ring
+                c.beginPath();
+                c.arc(px, py, 6, 0, Math.PI * 2);
+                c.fillStyle = '#0b1020';
+                c.fill();
+                c.strokeStyle = col;
+                c.lineWidth = 3;
+                c.stroke();
+            }
+            const tag = p.name.slice(0, 3);
+            c.font = 'bold 11px "Space Grotesk", sans-serif';
+            const tw = c.measureText(tag).width + 8;
+            const ty = up ? py + 12 : py - 26;
+            const tx = px - tw / 2;
+            if (free(tx, ty, tw, 15)) {
+                labels.push({ x: tx, y: ty, w: tw, h: 15 });
+                c.fillStyle = 'rgba(11,16,32,.85)';
+                c.fillRect(tx, ty, tw, 15);
+                c.fillStyle = col;
+                c.fillText(tag, tx + 4, ty + 11);
+            }
+        }
+        // Legende oben links
+        const humans = G.players.filter(q => !q.bot && marks.some(m => m.pid === q.id));
+        let lx = L + 8;
+        const ly = T + 4;
+        c.font = '12px "Space Grotesk", sans-serif';
+        const key = '▲▼ Einstieg    ◯ Ausstieg';
+        const kw = c.measureText(key).width + 22;
+        const items = humans.map(h => ({ h, w: c.measureText(h.name.slice(0, 10)).width + 32 }));
+        const total = kw + items.reduce((s, i) => s + i.w, 0) + 8;
+        c.fillStyle = 'rgba(11,16,32,.8)';
+        c.fillRect(L + 2, T - 6, Math.min(W - L - 20, total), 20);
+        c.fillStyle = '#c8d3e6';
+        c.fillText(key, lx, ly + 8);
+        lx += kw;
+        items.forEach(({ h, w }) => {
+            if (lx + w > W - 20) return;
+            c.fillStyle = markColor(h.id);
+            c.fillRect(lx, ly, 10, 10);
+            c.fillStyle = '#e6edf7';
+            c.fillText(h.name.slice(0, 10), lx + 15, ly + 9);
+            lx += w;
+        });
+        c.restore();
     }
 
     // ===== Overlays =====
@@ -469,16 +571,19 @@ const Host = (() => {
             <td class="num ${r.physPL >= 0 ? 'up' : 'down'}">${r.role === 'spec' ? '–' : signed(r.physPL)}</td>
             <td class="num ${r.futPL >= 0 ? 'up' : 'down'}">${signed(r.futPL)}</td>
             <td class="num">${r.role === 'spec' ? '–' : r.bank === 'fail' ? `<span class="down">−${fmt(r.bankPaid)}</span>` : '✔'}</td>
-            <td class="num ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</td></tr>`).join('');
+            <td class="num ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</td>
+            <td class="num ${r.points >= 0 ? 'up' : 'down'}">${signed(r.points)}</td></tr>`).join('');
         $('end-wrap').innerHTML = `
             <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Fälligkeit · Schlusskurs ${fmt(d.final)} <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h1></div>
+            ${d.star ? `<div class="star card" style="--rc:${ROLES[d.star.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${ROLES[d.star.role].icon} ${esc(d.star.name)}</div>
+                <div class="star-d">${d.star.points >= 0 ? '+' : ''}${fmt(d.star.points)} Punkte · war am deutlichsten besser als der Durchschnitt der eigenen Rolle</div></div></div>` : ''}
             <div class="podium">${podium}</div>
             <div class="awards">${awards}</div>
             <div class="end-grid">
                 <div class="card"><h3>📈 Der Kursverlauf</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
                 <div class="card"><h3>📊 Alle Trader</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Kooperative: erzielter Preis pro Tonne · Fabrik: effektiver Einkaufspreis · Fonds: Gewinn">Wertung</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Bank</th><th>Total</th></tr></thead><tbody>${table}</tbody></table>
+                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Kooperative: erzielter Preis pro Tonne · Fabrik: effektiver Einkaufspreis · Fonds: Gewinn">Wertung</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Bank</th><th>Total</th><th title="Wie viel besser als der Durchschnitt der eigenen Rolle (fair über alle Rollen)">⭐ Punkte</th></tr></thead><tbody>${table}</tbody></table>
                     <p class="dim small">Geschäft = Ernte bzw. Einkauf und Kundenaufträge gegenüber dem Plan. Futures = Gewinn/Verlust aus allen Kontrakten (inkl. Gebühren). Bei guten Hedgern heben sich beide weitgehend auf.</p>
                     <h3>🗣️ Diskussion</h3><ol class="lessons"><li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – und war das Können oder Glück?</li><li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li><li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li><li>Wann hat ein Gerücht den Preis bewegt – vor oder nach der Bestätigung?</li></ol>
                 </div>

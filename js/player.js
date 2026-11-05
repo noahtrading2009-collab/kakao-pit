@@ -289,6 +289,7 @@ const Player = (() => {
             html = `<div class="hm-row"><span>Abgesichert</span><b class="${over ? 'bad' : q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
                 <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em class="bankmark" style="left:${CFG.bankQuota * 100}%"></em><em style="left:100%"></em></div>
                 ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}
+                <div class="hedge-effect ${me.hedgeEffect >= 0 ? 'good' : 'bad'}">🛡️ Deine Absicherung hat dir bisher <b>${me.hedgeEffect >= 0 ? `+${fmt(me.hedgeEffect)} CHF gerettet` : `${fmt(-me.hedgeEffect)} CHF gekostet`}</b><small>${me.hedgeEffect >= 0 ? 'Ohne Futures stündest du so viel schlechter da.' : 'Ohne Futures stündest du besser da – dafür warst du geschützt.'}</small></div>
                 <div class="score-line"><span>🎯 ${me.role === 'producer' ? 'Dein Preis bisher' : 'Dein Einkauf bisher'}</span><b class="${(me.role === 'producer' ? me.metric >= CFG.p0 : me.metric <= CFG.p0) ? 'good' : 'bad'}">${fmt(me.metric)} CHF/t</b><span class="rank-pill">#${me.rank} von ${me.roleCount}</span></div>
                 ${me.bank === 'ok' ? '<div class="bank-line ok">🏦 Bankauflage erfüllt ✔</div>'
                     : me.bank === 'fail' ? `<div class="bank-line bad">🏦 Bankauflage verfehlt – ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt</div>`
@@ -308,13 +309,20 @@ const Player = (() => {
         let html = '';
         if (me.role === 'producer') {
             const d = me.physical - 100;
-            const pods = Math.round(me.physical / 10);
+            const b = me.buyerOffer;
+            const soldT = me.sales.reduce((s, x) => s + x.t, 0);
+            const pricey = me.protectPrice > CFG.protectLow;
             html = `<div class="rp-head"><span>🌱 Deine Plantage</span><b>${me.physical} t</b></div>
-                <div class="small">${d === 0 ? 'Erwartete Ernte wie geplant.' : `Erwartete Ernte <b class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)} t</b> gegenüber Plan.`}
-                Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b> von ${me.physical} t${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert!</span>' : ''}.</div>
+                ${b ? `<div class="order-card buyer"><div class="oc-top"><b>🤝 ${esc(b.client)}</b><span class="oc-left">${b.left}s</span></div>
+                    <div>Will <b>${b.t} t</b> zum festen Preis von <b>${fmt(b.price)} CHF/t</b> kaufen.</div>
+                    <div class="small">Börse gerade ${fmt(pub.price)} → das Angebot ist <b class="${b.price >= pub.price ? 'up' : 'down'}">${b.price >= pub.price ? `${fmt(b.price - pub.price)} besser` : `${fmt(pub.price - b.price)} schlechter`}</b> als die Börse. Wer weiss, wo der Preis im Dezember steht?</div>
+                    <div class="oc-btns"><button class="btn btn-primary" data-rp="buyer-yes">Verkaufen</button><button class="btn btn-ghost" data-rp="buyer-no">Ablehnen</button></div></div>`
+                    : '<div class="small dim">Warte auf das nächste Händler-Angebot …</div>'}
+                <div class="small">Noch nicht verkaufte Ernte: <b>${me.physical} t</b>${soldT ? ` · direkt verkauft: ${soldT} t` : ''}. Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b>${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert! Löse einen Teil auf.</span>' : ''}</div>
                 ${me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('')}
+                ${me.sales.map(s => `<div class="rp-log">✔ ${esc(s.client)} · ${s.t} t zu ${fmt(s.price)} · heute <b class="${s.price >= pub.price ? 'up' : 'down'}">${signed((s.price - pub.price) * s.t)}</b></div>`).join('')}
                 ${me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
-                    : `<button class="btn btn-ghost full" data-rp="protect">🛡️ Pflanzenschutz kaufen (${fmt(CFG.protectCost)} CHF)<small>halbiert Ernteverluste durch Dürre und Krankheit</small></button>`}`;
+                    : `<button class="btn btn-ghost full ${pricey ? 'pricey' : ''}" data-rp="protect">🛡️ Pflanzenschutz (Versicherung) · ${fmt(me.protectPrice)} CHF<small>${pricey ? '⚠️ Ein Gerücht läuft – die Versicherung ist jetzt teuer!' : 'Jetzt günstig. Läuft ein Dürre-Gerücht, kostet sie ' + fmt(CFG.protectHigh) + ' CHF.'} Halbiert Ernteverluste.</small></button>`}`;
         } else if (me.role === 'processor') {
             const o = me.orderOffer;
             const orderT = me.orders.reduce((s, x) => s + x.t, 0);
@@ -342,6 +350,8 @@ const Player = (() => {
             if (a === 'protect') send({ t: 'protect' });
             if (a === 'order-yes') send({ t: 'order', accept: true });
             if (a === 'order-no') send({ t: 'order', accept: false });
+            if (a === 'buyer-yes') send({ t: 'buyer', accept: true });
+            if (a === 'buyer-no') send({ t: 'buyer', accept: false });
             if (a === 'research') send({ t: 'research' });
         }));
     }
@@ -485,6 +495,7 @@ const Player = (() => {
             <p>Schlusskurs ${fmt(msg.final)} CHF/t (${pct(msg.final / msg.p0 - 1)}).</p>
             <p>${hedgeTxt}</p>
             ${r.liquidations ? `<p class="bad">📞 ${r.liquidations}× zwangsweise glattgestellt.</p>` : ''}
+            ${msg.star ? (msg.star.id === r.id ? `<div class="star-me">⭐ Du bist TRADER DES TAGES! (${signed(msg.star.points)} Punkte)</div>` : `<p class="dim small">⭐ Trader des Tages: <b>${esc(msg.star.name)}</b> · deine Punkte: ${signed(r.points)}</p>`) : ''}
             <h3>🏆 Top 3 deiner Rolle</h3><ol class="top3">${msg.top.map(t => `<li>${ROLES[t.role].icon} ${esc(t.name)} <b>${t.role === 'spec' ? signed(t.score) : `${fmt(t.metric)}/t`}</b></li>`).join('')}</ol>
             <p class="dim small">Die ausführliche Auswertung steht auf dem grossen Bildschirm.</p></div>`;
     }
