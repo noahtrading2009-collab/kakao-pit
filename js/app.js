@@ -1,0 +1,73 @@
+// ===== KAKAO PIT – Start und Navigation =====
+
+const App = (() => {
+    let len = 'normal';
+
+    function show(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
+    }
+
+    function modal(html) {
+        $('modal').innerHTML = `${html}<div class="modal-btns"><button class="btn btn-primary" id="modal-ok">Verstanden</button></div>`;
+        $('modal-ov').classList.remove('hidden');
+        $('modal-ok').onclick = () => $('modal-ov').classList.add('hidden');
+    }
+
+    function howTo() {
+        modal(`<h2>So funktioniert KAKAO PIT</h2>
+            <p>Ihr handelt <b>Kakao-Futures</b> mit Lieferung im Dezember. Ein grosser Bildschirm ist die Börse: Live-Kurs, News und Rangliste. Alle anderen spielen auf dem Handy.</p>
+            <div class="how-roles">${Object.values(ROLES).map(R => `<div class="how-role" style="--rc:${R.color}"><b>${R.icon} ${R.name}</b><p>${R.mission}</p><p class="dim">${R.hint}</p></div>`).join('')}</div>
+            <ul class="info-list">
+                <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
+                <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>
+                <li>News kommen zuerst als <b>Gerücht</b>, dann als Bestätigung oder Dementi. Der Preis reagiert schon auf das Gerücht.</li>
+                <li>Auf dem <b>Board</b> stellt ihr eigene Angebote ein und handelt direkt miteinander.</li>
+                <li><b>Wertung:</b> Ergebnis gegenüber dem Plan (Startpreis ${fmt(CFG.p0)} CHF/t). Kooperativen und Fabriken bekommen zusätzlich bis zu ${fmt(CFG.missionBonus)} CHF Bonus für konsequente Absicherung.</li>
+                <li>Zu wenig Leute? Der Host kann <b>KI-Trader</b> dazunehmen.</li>
+            </ul>
+            <p class="dim small">Technik: Die Geräte verbinden sich direkt über WebRTC. Zum Finden dient ein öffentlicher Vermittler (PeerJS) – dafür braucht es Internet.</p>`);
+    }
+
+    function init() {
+        Player.bind();
+        const params = new URLSearchParams(location.search);
+        const joinCode = params.get('join');
+        let last = null;
+        try {
+            last = JSON.parse(localStorage.getItem('kakaopit-last'));
+        } catch (e) {
+            // ignore
+        }
+        if (joinCode) $('in-code').value = joinCode.toUpperCase();
+        else if (last) $('in-code').value = last.code;
+        if (last) $('in-name').value = last.name;
+        if (joinCode) document.body.classList.add('joining');
+
+        $('seg-len').querySelectorAll('[data-len]').forEach(b => b.addEventListener('click', () => {
+            len = b.dataset.len;
+            $('seg-len').querySelectorAll('[data-len]').forEach(x => x.classList.toggle('active', x === b));
+        }));
+        $('btn-join').addEventListener('click', () => {
+            Sound.init();
+            const code = $('in-code').value.trim().toUpperCase();
+            const name = $('in-name').value.trim();
+            if (code.length !== 5) return ($('join-err').textContent = 'Der Raumcode hat 5 Zeichen.');
+            if (!name) return ($('join-err').textContent = 'Bitte gib einen Namen ein.');
+            Player.join(code, name);
+        });
+        $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
+        $('btn-host').addEventListener('click', () => {
+            Sound.init();
+            Host.create(len);
+        });
+        $('btn-start').addEventListener('click', () => Host.start());
+        $('bot-plus').addEventListener('click', () => Host.addBot());
+        $('bot-minus').addEventListener('click', () => Host.removeBot());
+        $('btn-how').addEventListener('click', howTo);
+        $('h-sound').addEventListener('click', () => { $('h-sound').textContent = Sound.toggle() ? '🔇' : '🔊'; });
+        $('modal-ov').addEventListener('click', e => { if (e.target.id === 'modal-ov') $('modal-ov').classList.add('hidden'); });
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+    return { show, modal };
+})();

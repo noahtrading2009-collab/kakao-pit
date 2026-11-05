@@ -1,0 +1,63 @@
+# KAKAO PIT
+
+Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirtschaft & Recht.
+
+- **Ablauf:** Ein grosser Bildschirm (Beamer) ist die Börse. Alle anderen spielen auf dem Handy.
+- **Spieler:** 2–30.
+- **Dauer:** 4–8 Minuten pro Runde, plus Auswertung.
+
+## So spielt ihr
+
+1. **Host:** Seite öffnen → **Spiel leiten** → Spieldauer wählen → **Raum erstellen**. Auf dem Beamer erscheinen ein Raumcode und ein QR-Code.
+2. **Spieler:** QR-Code scannen oder die Seite öffnen → Raumcode und Namen eingeben → **Beitreten**.
+3. Zu wenige Leute? Der Host nimmt **KI-Trader** dazu (auch zum Alleine-Testen).
+4. **Börse eröffnen.** 4 Handelsmonate, nach jedem Monat wird abgerechnet, danach ist Fälligkeit.
+
+## Rollen
+
+| Rolle | Ausgangslage | Lernziel |
+|---|---|---|
+| 🌱 Kakao-Kooperative | Erntet im Dezember 100 t, Risiko fallende Preise | **Short-Hedge**: Futures verkaufen |
+| 🏭 Schokoladenfabrik | Muss im Dezember 100 t kaufen, Risiko steigende Preise | **Long-Hedge**: Futures kaufen |
+| 🦈 Hedgefonds | Kein Kakao, nur Kapital | **Spekulation**, Hebel, Liquiditätsrisiko |
+
+Die Rollen werden automatisch gleichmässig verteilt.
+
+## Regeln
+
+- **Kontrakt:** 1 Kontrakt = 10 t Kakao, Lieferung Dezember. Startpreis (= Plan) 2'400 CHF/t.
+- **Einschuss:** 10 % des Kontraktwerts (Hebel 10×). Margin Call unter 70 %: nachschiessen oder Position verkleinern, sonst **Zwangsglattstellung** nach 25 s.
+- **Mark-to-Market:** Am Ende jedes Monats werden alle Positionen zum Marktpreis abgerechnet.
+- **Handel:**
+  - **Markt:** Kauf/Verkauf beim Market Maker mit Spread und Gebühr. Grosse Orders bewegen den Preis.
+  - **Board:** eigene Angebote für andere Spieler (Block-Deals, halbe Gebühr, kein Spread).
+- **News:** Zuerst kommt ein **Gerücht**, danach eine **Bestätigung** oder ein **Dementi**. Der Markt preist Gerüchte teilweise schon ein. Dazu kommen Eilmeldungen und manchmal eine Erhöhung des Einschusses durch die Börsenaufsicht.
+- **Wertung:** Ergebnis gegenüber dem Plan (inkl. Wirkung des Preises auf Ernte bzw. Einkauf). Kooperativen und Fabriken erhalten bis zu **15'000 CHF Bonus** für konsequente Absicherung (zeitgewichtete Hedge-Quote).
+
+## Auswertung
+
+Auf dem Beamer erscheinen:
+- **Ranking:** Podium und Beste je Rolle.
+- **Kursverlauf:** Chart mit allen News-Markern.
+- **Tabelle:** Für jeden Trader «Kakao» (Preiseffekt auf Ernte/Einkauf) vs. «Futures» (Ergebnis der Kontrakte). Bei guten Hedgern heben sich beide weitgehend auf.
+- **Lektionen:** automatisch aus der Partie erzeugt (bester Hedge, ungesichertes Risiko, Spekulanten, Zwangsglattstellungen).
+- **Diskussionsfragen** für die Klasse.
+
+Auf jedem Handy erscheint eine persönliche Auswertung.
+
+## Technik und Voraussetzungen
+
+- **Online:** Das Spiel muss **online erreichbar** sein, damit Handys es laden können (z. B. **GitHub Pages**). Als Datei auf dem Laptop funktioniert nur der Host mit KI-Tradern.
+- **Internet:** Alle Geräte brauchen Internet. Die Verbindung läuft per WebRTC direkt zwischen den Geräten. Zum Finden dient der öffentliche Vermittler von **PeerJS** (`0.peerjs.com`). Manche Schulnetze blockieren WebRTC – dann hilft ein Handy-Hotspot.
+- **Host = Börse:** Der Host-Rechner berechnet den Markt. Er darf während des Spiels nicht schlafen gehen oder den Tab schliessen.
+- **Code:** HTML, CSS und Vanilla-JavaScript. Externe Skripte: PeerJS 1.5.4 (unpkg) und qrcodejs 1.0.0 (cdnjs). Schriften von Google Fonts.
+
+| Datei | Inhalt |
+|---|---|
+| `js/common.js` | Regeln, Rollen, News, Begriffe, Sound |
+| `js/engine.js` | Markt-Engine: Preis, Konten, Margin, Abrechnung, Wertung |
+| `js/bots.js` | KI-Trader |
+| `js/net.js` | Verbindung mit Raumcode (PeerJS) |
+| `js/host.js` | Beamer: Lobby, Live-Chart, Rangliste, News, Auswertung |
+| `js/player.js` | Handy: Handel, Board, Margin Call, persönliche Auswertung |
+| `js/app.js` | Start und Navigation |

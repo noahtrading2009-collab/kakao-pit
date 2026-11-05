@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#070b14">
+    <title>KAKAO PIT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <!-- ===== START ===== -->
+    <section id="v-start" class="view active">
+        <div class="start-wrap">
+            <div class="logo"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
+            <p class="tagline">Das Multiplayer-Spiel um Kakao-Futures. Hedger gegen Spekulanten. Live.</p>
+            <div class="start-cards">
+                <div class="card start-card">
+                    <h2>📱 Mitspielen</h2>
+                    <p class="dim">Gib den Raumcode vom grossen Bildschirm ein.</p>
+                    <label>Raumcode<input id="in-code" maxlength="5" autocomplete="off" placeholder="z. B. K7Q2M" spellcheck="false"></label>
+                    <label>Dein Name<input id="in-name" maxlength="16" autocomplete="off" placeholder="Trader-Name"></label>
+                    <button class="btn btn-primary btn-big" id="btn-join">Beitreten</button>
+                    <p class="err" id="join-err"></p>
+                </div>
+                <div class="card start-card">
+                    <h2>🖥️ Spiel leiten</h2>
+                    <p class="dim">Für den Beamer oder grossen Bildschirm. Erstellt einen Raum, zeigt Live-Chart, News und Rangliste.</p>
+                    <label>Spieldauer
+                        <div class="seg" id="seg-len"><button data-len="kurz">Kurz · 4 Min.</button><button data-len="normal" class="active">Normal · 6 Min.</button><button data-len="lang">Lang · 8 Min.</button></div>
+                    </label>
+                    <button class="btn btn-ghost btn-big" id="btn-host">Raum erstellen</button>
+                    <p class="err" id="host-err"></p>
+                </div>
+            </div>
+            <button class="btn btn-link" id="btn-how">Wie funktioniert das Spiel?</button>
+        </div>
+    </section>
+
+    <!-- ===== HOST: LOBBY ===== -->
+    <section id="v-lobby" class="view">
+        <div class="lobby">
+            <div class="lobby-left">
+                <div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
+                <div class="join-box card">
+                    <div class="dim">Geht auf diese Seite und gebt den Code ein:</div>
+                    <div class="join-url" id="join-url"></div>
+                    <div class="room-code" id="room-code">·····</div>
+                    <div id="qr"></div>
+                    <div class="net-status" id="net-status">Verbinde mit dem Vermittler …</div>
+                </div>
+            </div>
+            <div class="lobby-right">
+                <h2>Trader im Raum <span class="count" id="lobby-count">0</span></h2>
+                <div class="role-cols" id="lobby-roles"></div>
+                <div class="lobby-actions">
+                    <div class="bot-ctl"><span>KI-Trader</span><button class="btn btn-ghost btn-sm" id="bot-minus">−</button><b id="bot-count">0</b><button class="btn btn-ghost btn-sm" id="bot-plus">+</button></div>
+                    <button class="btn btn-primary btn-big" id="btn-start" disabled>🔔 Börse eröffnen</button>
+                </div>
+                <p class="dim small">Rollen werden automatisch verteilt: Kooperativen (verkaufen Kakao), Schokoladenfabriken (kaufen Kakao) und Hedgefonds (spekulieren).</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== HOST: GAME ===== -->
+    <section id="v-host" class="view">
+        <header class="h-top">
+            <div class="logo tiny"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
+            <div class="h-code">Code <b id="h-code"></b></div>
+            <div class="h-months" id="h-months"></div>
+            <div class="h-timer" id="h-timer">1:30</div>
+            <div class="h-price"><span class="dim">KAKAO DEZ</span><b id="h-price">2'400</b><span id="h-change" class="chg">±0.0 %</span></div>
+            <button class="icon" id="h-sound" title="Ton">🔊</button>
+        </header>
+        <main class="h-main">
+            <div class="card h-chart"><canvas id="chart"></canvas><div class="chart-legend" id="chart-legend"></div></div>
+            <div class="card h-rank"><h3>🏆 Rangliste <span class="dim small">Ergebnis vs. Plan + Hedge-Bonus</span></h3><div id="h-rank"></div></div>
+        </main>
+        <footer class="h-bottom">
+            <div class="card h-news"><h3>📰 Newsfeed</h3><div id="h-news"></div></div>
+            <div class="card h-offers"><h3>🤝 Angebote <span class="dim small">Block-Deals zwischen Tradern</span></h3><div id="h-offers"></div></div>
+            <div class="card h-tape"><h3>⚡ Abschlüsse</h3><div id="h-tape"></div></div>
+        </footer>
+        <div id="flash" class="flash hidden"></div>
+        <div id="settle-ov" class="settle-ov hidden"></div>
+    </section>
+
+    <!-- ===== HOST: END ===== -->
+    <section id="v-end" class="view"><div class="end-wrap" id="end-wrap"></div></section>
+
+    <!-- ===== PLAYER ===== -->
+    <section id="v-wait" class="view">
+        <div class="wait card">
+            <div class="role-badge" id="w-role"></div>
+            <h2 id="w-title">Du bist drin!</h2>
+            <div class="mission" id="w-mission"></div>
+            <div class="hint" id="w-hint"></div>
+            <div class="dim pulse">Warte, bis die Börse eröffnet …</div>
+        </div>
+    </section>
+
+    <section id="v-player" class="view">
+        <header class="p-top">
+            <div class="p-role" id="p-role"></div>
+            <div class="p-clock"><span id="p-month"></span><b id="p-timer">1:30</b></div>
+            <div class="p-rank" id="p-rank">#1</div>
+        </header>
+        <div class="p-scroll">
+            <div class="card p-price">
+                <div><div class="dim small">Kakao Dezember · CHF/t</div><div class="big-price" id="p-price">2'400</div><div class="chg" id="p-change"></div></div>
+                <canvas id="p-spark"></canvas>
+            </div>
+            <div class="p-news" id="p-news"></div>
+            <div class="card p-risk">
+                <div class="row"><span class="dim small">Dein Kakao-Risiko</span><b id="p-exp">+100 t</b></div>
+                <div class="gauge"><div class="gauge-zero"></div><div class="gauge-bar" id="p-gauge"></div></div>
+                <div class="small" id="p-exp-text"></div>
+            </div>
+            <div class="card p-pos">
+                <div class="kv"><span>Futures</span><b id="p-pos">0 Kontrakte</b></div>
+                <div class="kv"><span>Offener Gewinn/Verlust</span><b id="p-unreal">0</b></div>
+                <div class="kv"><span>Margin-Konto</span><b id="p-margin">0 / 0</b></div>
+                <div class="mbar"><div id="p-mbar"></div><div class="mbar-line"></div></div>
+                <div class="kv"><span>Freies Geld</span><b id="p-cash">0</b></div>
+                <div class="kv big"><span>Ergebnis vs. Plan</span><b id="p-result">0</b></div>
+            </div>
+            <div class="card p-trade">
+                <div class="qty" id="p-qty"><button data-q="1" class="active">1</button><button data-q="2">2</button><button data-q="5">5</button><button data-q="10">10</button><span class="dim small">Kontrakte à 10 t</span></div>
+                <div class="trade-btns">
+                    <button class="tbtn buy" id="p-buy"><span>KAUFEN</span><b id="p-ask">2'404</b><small>Long</small></button>
+                    <button class="tbtn sell" id="p-sell"><span>VERKAUFEN</span><b id="p-bid">2'396</b><small>Short</small></button>
+                </div>
+            </div>
+            <div class="tabs"><button class="active" data-tab="board">🤝 Board</button><button data-tab="info">📖 Info</button></div>
+            <div class="card tab" id="tab-board">
+                <div id="p-offers"></div>
+                <div class="offer-form">
+                    <div class="seg mini" id="of-side"><button data-side="sell" class="active">Ich verkaufe</button><button data-side="buy">Ich kaufe</button></div>
+                    <div class="of-row"><button class="btn btn-ghost btn-sm" data-of="q-">−</button><span><b id="of-qty">2</b> Kontr.</span><button class="btn btn-ghost btn-sm" data-of="q+">+</button>
+                        <button class="btn btn-ghost btn-sm" data-of="p-">−</button><span>@ <b id="of-price">2'400</b></span><button class="btn btn-ghost btn-sm" data-of="p+">+</button></div>
+                    <button class="btn btn-primary" id="of-post">Angebot aufs Board</button>
+                </div>
+            </div>
+            <div class="card tab hidden" id="tab-info"></div>
+        </div>
+        <div id="p-toasts"></div>
+        <div id="call-ov" class="call-ov hidden"></div>
+        <div id="p-flash" class="p-flash hidden"></div>
+    </section>
+
+    <section id="v-pend" class="view"><div class="p-end" id="p-end"></div></section>
+
+    <div id="modal-ov" class="modal-ov hidden"><div class="card modal" id="modal"></div></div>
+    <div id="conn-lost" class="conn-lost hidden">Verbindung verloren … <button class="btn btn-primary btn-sm" id="btn-rejoin">Neu verbinden</button></div>
+
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/bots.js"></script>
+    <script src="js/net.js"></script>
+    <script src="js/host.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
