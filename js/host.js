@@ -235,16 +235,21 @@ const Host = (() => {
         pe.className = S.price > lastPrice ? 'up flashup' : S.price < lastPrice ? 'down flashdown' : '';
         lastPrice = S.price;
         const ch = S.price / S.p0 - 1;
-        $('h-change').textContent = pct(ch);
+        $('h-change').textContent = `${ch > 0 ? '▲' : ch < 0 ? '▼' : '•'} ${pct(ch)}`;
         $('h-change').className = `chg ${ch > 0 ? 'up' : ch < 0 ? 'down' : ''}`;
         // Chart und Preis werden flüssig (60 fps) zum neuen Wert animiert.
-        anim.from = anim.cur === null ? S.price : anim.cur;
+        anim.from = anim.cur === null ? S.price : anim.to;
         anim.to = S.price;
         anim.t0 = performance.now();
         anim.S = S;
         if (!anim.running) {
             anim.running = true;
             requestAnimationFrame(frame);
+        }
+        // Fallback: Wenn das Gerät keine Animationsbilder liefert (z. B. Tab im Hintergrund), trotzdem aktuell zeichnen.
+        if (performance.now() - (anim.lastFrame || 0) > 1500) {
+            $('h-price').textContent = fmt(S.price);
+            drawChart(S, null, S.price, performance.now(), 1);
         }
         renderRank(S);
         renderNews(S);
@@ -260,11 +265,13 @@ const Host = (() => {
             anim.running = false;
             return;
         }
-        const k = Math.min(1, (now - anim.t0) / 900);
-        const e = 1 - Math.pow(1 - k, 3);
-        anim.cur = anim.from + (anim.to - anim.from) * e;
+        // Linear über die ganze Sekunde: Kurs und Zeitachse wandern gleichmässig weiter (kein Ruck, kein Stocken).
+        anim.lastFrame = performance.now();
+        const k = Math.min(1, (now - anim.t0) / 1000);
+        anim.k = k;
+        anim.cur = anim.from + (anim.to - anim.from) * k;
         $('h-price').textContent = fmt(anim.cur);
-        drawChart(anim.S, null, anim.cur, now);
+        drawChart(anim.S, null, anim.cur, now, k);
         requestAnimationFrame(frame);
     }
 
@@ -276,30 +283,68 @@ const Host = (() => {
         { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
     ];
 
+    // Ändert sich die Reihenfolge, gleiten die Zeilen an ihren neuen Platz (FLIP-Animation).
+    // Sonst werden nur die Zahlen aktualisiert – nichts flackert.
     function renderRank(S) {
-        $('h-rank').innerHTML = BOARDS.map(B => {
+        const el = $('h-rank');
+        const groups = BOARDS.map(B => ({ B, list: S.ranking.filter(r => r.role === B.role).sort(B.sort).slice(0, 5) })).filter(g => g.list.length);
+        const key = groups.map(g => g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}`).join(',')).join('|');
+        if (el.dataset.k === key) {
+            for (const { B, list } of groups) {
+                for (const r of list) {
+                    const rs = el.querySelector(`[data-k="${r.id}"] .rs`);
+                    const v = B.val(r);
+                    if (rs && rs.innerHTML !== v) {
+                        rs.innerHTML = v;
+                        rs.className = `rs ${B.cls(r)}`;
+                    }
+                }
+            }
+            return;
+        }
+        const before = new Map([...el.querySelectorAll('[data-k]')].map(n => [n.dataset.k, n.getBoundingClientRect().top]));
+        el.dataset.k = key;
+        el.innerHTML = groups.map(({ B, list }) => {
             const R = ROLES[B.role];
-            const list = S.ranking.filter(r => r.role === B.role).sort(B.sort);
-            if (!list.length) return '';
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
-                ${list.slice(0, 5).map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
+                ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
                     <span class="rn">${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
                     <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}</div>`;
         }).join('');
+        el.querySelectorAll('[data-k]').forEach(n => {
+            const top = before.get(n.dataset.k);
+            if (top === undefined || !n.animate) return;
+            const dy = top - n.getBoundingClientRect().top;
+            if (Math.abs(dy) < 2) return;
+            n.animate([{ transform: `translateY(${dy}px)`, background: 'rgba(255,181,71,.25)' }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.2,1,.3,1)' });
+        });
     }
 
     // Absicherung der Hedger + Bankprüfung (statt Board)
     function renderHedges(S) {
         const G = Engine.G;
         const due = G.month <= CFG.bankMonth;
-        const hedgers = S.ranking.filter(r => r.role !== 'spec');
-        $('h-offers').innerHTML = `<div class="bank-note ${due ? '' : 'done'}">🏦 ${due ? `Bankprüfung Ende Monat ${CFG.bankMonth}: mindestens <b>${Math.round(CFG.bankQuota * 100)} %</b> absichern – sonst ${fmt(CFG.bankFee)} CHF Zuschlag` : 'Bankprüfung vorbei'}</div>`
-            + hedgers.slice(0, 8).map(r => {
-                const q = Math.min(1.2, r.hedged);
-                return `<div class="hedge-row"><span>${ROLES[r.role].icon} ${esc(r.name)}</span>
-                    <div class="hbar"><i class="${r.hedged >= CFG.bankQuota ? 'ok' : 'low'}" style="width:${Math.min(100, q * 100)}%"></i><em style="left:${CFG.bankQuota * 100}%"></em></div>
-                    <b>${Math.round(r.hedged * 100)} %${r.bank === 'fail' ? ' 💸' : r.bank === 'ok' ? ' ✔' : ''}</b></div>`;
-            }).join('');
+        const hedgers = S.ranking.filter(r => r.role !== 'spec').sort((a, b) => a.id - b.id).slice(0, 8);
+        const el = $('h-offers');
+        const key = `${due}|${hedgers.map(r => r.id).join(',')}`;
+        // Gleiche Zeilen wie vorher? Dann nur Balken und Zahlen anpassen – die Balken gleiten dann weich.
+        if (el.dataset.k !== key) {
+            el.dataset.k = key;
+            el.innerHTML = `<div class="bank-note ${due ? '' : 'done'}">🏦 ${due ? `Bankprüfung Ende Monat ${CFG.bankMonth}: mindestens <b>${Math.round(CFG.bankQuota * 100)} %</b> absichern – sonst ${fmt(CFG.bankFee)} CHF Zuschlag` : 'Bankprüfung vorbei'}</div>`
+                + hedgers.map(r => `<div class="hedge-row" data-k="${r.id}"><span>${roleIcon(r.role, 16)} ${esc(r.name)}</span>
+                    <div class="hbar"><i style="width:0%"></i><em style="left:${CFG.bankQuota * 100}%"></em></div><b></b></div>`).join('');
+        }
+        for (const r of hedgers) {
+            const row = el.querySelector(`[data-k="${r.id}"]`);
+            if (!row) continue;
+            const bar = row.querySelector('.hbar i');
+            const w = `${Math.min(100, Math.min(1.2, r.hedged) * 100)}%`;
+            if (bar.style.width !== w) bar.style.width = w;
+            bar.className = r.hedged >= CFG.bankQuota ? 'ok' : 'low';
+            const txt = `${Math.round(r.hedged * 100)} %${r.bank === 'fail' ? ' 💸' : r.bank === 'ok' ? ' ✔' : ''}`;
+            const b = row.querySelector('b');
+            if (b.textContent !== txt) b.textContent = txt;
+        }
     }
 
     function newsClass(k) {
@@ -338,7 +383,26 @@ const Host = (() => {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    function drawChart(S, target = null, live = null, now = 0) {
+    const axis = { lo: null, hi: null };
+    const volCache = { n: -1, bins: [], max: 0 };
+
+    function volumeBins() {
+        const tr = Engine.G.trades;
+        if (volCache.n === tr.length) return volCache;
+        const m = new Map();
+        for (const t of tr) {
+            const v = m.get(t.s) || { abs: 0, net: 0 };
+            v.abs += Math.abs(t.q);
+            v.net += t.q;
+            m.set(t.s, v);
+        }
+        volCache.n = tr.length;
+        volCache.bins = [...m.entries()];
+        volCache.max = Math.max(0, ...volCache.bins.map(([, v]) => v.abs));
+        return volCache;
+    }
+
+    function drawChart(S, target = null, live = null, now = 0, k = 1) {
         const c = target || ctx;
         const el = target ? target.canvas : cv;
         if (!c) return;
@@ -347,9 +411,12 @@ const Host = (() => {
         const H = el.height / dpr;
         const total = S.months * S.monthSec;
         let h = S.history;
-        if (live !== null && h.length) {
+        if (live !== null && h.length > 1) {
+            // Der neueste Punkt wandert in der Zeit und im Preis gleichmässig vom letzten Punkt aus nach vorne.
             h = h.slice();
-            h[h.length - 1] = { ...h[h.length - 1], p: live };
+            const prev = h[h.length - 2];
+            const last = h[h.length - 1];
+            h[h.length - 1] = { s: prev.s + (last.s - prev.s) * k, p: live };
         }
         const prices = h.map(x => x.p);
         let lo = Math.min(...prices, S.p0) * 0.97;
@@ -358,6 +425,17 @@ const Host = (() => {
             const m = (hi + lo) / 2;
             lo = m - 150;
             hi = m + 150;
+        }
+        if (!target) {
+            // Achse gleitet sanft mit, statt zu springen
+            if (axis.lo === null) {
+                axis.lo = lo;
+                axis.hi = hi;
+            }
+            axis.lo += (lo - axis.lo) * 0.06;
+            axis.hi += (hi - axis.hi) * 0.06;
+            lo = Math.min(axis.lo, Math.min(...prices) - 5);
+            hi = Math.max(axis.hi, Math.max(...prices) + 5);
         }
         const L = 64;
         const R = 18;
@@ -376,6 +454,16 @@ const Host = (() => {
             c.fillStyle = cur ? 'rgba(255,181,71,.55)' : 'rgba(140,160,200,.35)';
             c.font = 'bold 11px "JetBrains Mono", monospace';
             c.fillText(`M${m + 1}`, x0 + 8, H - B - 8);
+        }
+        // Handelsvolumen pro Sekunde als dezente Balken am unteren Rand (grün = mehr gekauft, rot = mehr verkauft)
+        const vol = volumeBins();
+        if (vol.max) {
+            const bw = Math.max(1.5, (W - L - R) / total - 0.6);
+            for (const [s, v] of vol.bins) {
+                const bh = (v.abs / vol.max) * 46;
+                c.fillStyle = v.net >= 0 ? 'rgba(34,229,138,.28)' : 'rgba(255,77,106,.28)';
+                c.fillRect(x(s) - bw / 2, H - B - bh, bw, bh);
+            }
         }
         c.font = '12px "JetBrains Mono", monospace';
         c.fillStyle = '#5b6b85';

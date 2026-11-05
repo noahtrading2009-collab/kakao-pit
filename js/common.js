@@ -12,7 +12,7 @@ const CFG = {
     fee: 8,                // CHF pro Kontrakt am Markt
     spread: 0.0015,        // Geld-Brief-Spanne des Market Makers
     vol: 0.0042,           // Zufallsschwankung pro Sekunde
-    impact: 0.0011,        // Preiswirkung pro netto gehandeltem Kontrakt
+    impact: 0.00025,       // Preiswirkung pro netto gehandeltem Kontrakt (klein: einzelne Trades bewegen den Markt kaum)
     offerSec: 35,          // Laufzeit eines Angebots auf dem Board
     offerBand: 0.04,       // Angebote max. ±4 % vom Marktpreis
     bankMonth: 2,          // Bankprüfung am Ende dieses Monats …

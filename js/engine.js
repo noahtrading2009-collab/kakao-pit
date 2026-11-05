@@ -575,7 +575,7 @@ const Engine = (() => {
         if (G.phase === 'trading') {
             G.clock++;
             const news = runNews();
-            const flow = clamp(G.flow * CFG.impact, -0.03, 0.03);
+            const flow = clamp(G.flow * CFG.impact, -0.006, 0.006);
             G.flow = 0;
             const next = G.price * (1 + gauss() * CFG.vol + news + flow);
             G.price = Math.round(clamp(next, CFG.minPrice, CFG.maxPrice));
