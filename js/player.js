@@ -210,6 +210,7 @@ const Player = (() => {
         if (ofPrice === null) ofPrice = pub.price;
         $('of-qty').textContent = ofQty;
         $('of-price').textContent = fmt(ofPrice);
+        Scenes.render(me, pub);
         renderOffers();
         renderRolePanel();
         renderCall();
@@ -293,7 +294,6 @@ const Player = (() => {
             const d = me.physical - 100;
             const pods = Math.round(me.physical / 10);
             html = `<div class="rp-head"><span>🌱 Deine Plantage</span><b>${me.physical} t</b></div>
-                <div class="pods">${Array.from({ length: 12 }, (_, i) => `<span class="${i < pods ? 'on' : ''}">🫘</span>`).join('')}</div>
                 <div class="small">${d === 0 ? 'Erwartete Ernte wie geplant.' : `Erwartete Ernte <b class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)} t</b> gegenüber Plan.`}
                 Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b> von ${me.physical} t${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert!</span>' : ''}.</div>
                 ${me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('')}

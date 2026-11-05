@@ -275,6 +275,7 @@ const Engine = (() => {
             if (p.role !== 'producer') continue;
             let f = def.yield;
             if (f < 1 && p.protect) f = 1 - (1 - f) / 2;
+            p.lastSky = def.id;
             const before = p.physical;
             p.physical = Math.max(10, Math.round(p.physical * f));
             const d = p.physical - before;
@@ -539,6 +540,9 @@ const Engine = (() => {
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
             reports: p.reports.slice(-2), researchReady: Math.max(0, CFG.researchCooldown - (G.sec - p.researchAt)),
             rumorActive: G.events.some(e => e.stage === 'rumor'),
+            sky: ((G.events.find(e => e.stage === 'rumor' && e.def.yield) || {}).def || {}).id || p.lastSky || 'sun',
+            skyRumor: G.events.some(e => e.stage === 'rumor' && e.def.yield),
+            month: G.month,
         };
     }
 
