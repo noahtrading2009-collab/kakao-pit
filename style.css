@@ -54,6 +54,9 @@ h3 { font-size: 14px; letter-spacing: .6px; text-transform: uppercase; color: va
 .seg button { flex: 1; background: none; border: none; color: var(--dim); padding: 8px 6px; border-radius: 7px; font-weight: 700; font-size: 13px; }
 .seg button.active { background: rgba(255, 181, 71, .16); color: var(--amber); }
 .seg.mini button { padding: 6px; }
+.role-seg { flex-wrap: wrap; }
+.role-seg button { min-width: 0; font-size: 12.5px; }
+.w-switch { display: grid; gap: 6px; }
 
 /* Logo */
 .logo { font-family: var(--mono); font-weight: 800; letter-spacing: 2px; font-size: 64px; line-height: 1; display: inline-flex; gap: 10px; }

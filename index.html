@@ -24,6 +24,9 @@
                     <p class="dim">Gib den Raumcode vom grossen Bildschirm ein.</p>
                     <label>Raumcode<input id="in-code" maxlength="5" autocomplete="off" placeholder="z. B. K7Q2M" spellcheck="false"></label>
                     <label>Dein Name<input id="in-name" maxlength="16" autocomplete="off" placeholder="Trader-Name"></label>
+                    <label>Deine Rolle
+                        <div class="seg role-seg" id="seg-role"><button data-role="" class="active">🎲 Zufall</button><button data-role="producer">🌱 Kooperative</button><button data-role="processor">🏭 Fabrik</button><button data-role="spec">🦈 Fonds</button></div>
+                    </label>
                     <button class="btn btn-primary btn-big" id="btn-join">Beitreten</button>
                     <p class="err" id="join-err"></p>
                 </div>
@@ -99,6 +102,8 @@
             <h2 id="w-title">Du bist drin!</h2>
             <div class="mission" id="w-mission"></div>
             <div class="hint" id="w-hint"></div>
+            <div class="w-switch"><div class="dim small">Andere Rolle wählen (bis die Börse öffnet):</div>
+                <div class="seg role-seg" id="w-roles"><button data-role="producer">🌱 Kooperative</button><button data-role="processor">🏭 Fabrik</button><button data-role="spec">🦈 Fonds</button></div></div>
             <div class="dim pulse">Warte, bis die Börse eröffnet …</div>
         </div>
     </section>

@@ -90,7 +90,8 @@ const Host = (() => {
         conns.set(conn.peer, e);
         if (!msg || typeof msg !== 'object') return;
         if (msg.t === 'join') {
-            const p = Engine.addPlayer(String(msg.name || '').trim() || 'Trader', String(msg.key || ''));
+            const wish = ROLES[msg.role] ? msg.role : null;
+            const p = Engine.addPlayer(String(msg.name || '').trim() || 'Trader', String(msg.key || ''), false, wish);
             if (!p) return send(e, { t: 'reject', msg: 'Das Spiel läuft schon. Warte auf die nächste Runde.' });
             e.pid = p.id;
             send(e, { t: 'welcome', pid: p.id, role: p.role, name: p.name, phase: Engine.G.phase, code });
@@ -100,6 +101,13 @@ const Host = (() => {
             return;
         }
         if (!e.pid) return;
+        if (msg.t === 'role') {
+            if (Engine.setRole(e.pid, msg.role)) {
+                send(e, { t: 'role', role: msg.role });
+                renderLobby();
+            } else send(e, { t: 'res', ok: false, msg: 'Die Rolle kann nur vor dem Start gewechselt werden.' });
+            return;
+        }
         let r = { ok: false, msg: 'Unbekannte Aktion.' };
         const p = Engine.byId(e.pid);
         if (msg.t === 'trade') r = Engine.trade(e.pid, Number(msg.q));

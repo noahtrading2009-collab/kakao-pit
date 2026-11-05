@@ -48,6 +48,17 @@ const Engine = (() => {
         return p;
     }
 
+    // Players may pick or switch their role while the room is still in the lobby.
+    function setRole(id, role) {
+        const p = byId(id);
+        if (!p || G.phase !== 'lobby' || !ROLES[role]) return false;
+        const R = ROLES[role];
+        p.role = role;
+        p.cash = R.cash;
+        p.startValue = R.cash + R.physical * CFG.p0;
+        return true;
+    }
+
     function removePlayer(id) {
         if (G.phase === 'lobby') G.players = G.players.filter(p => p.id !== id);
     }
@@ -426,7 +437,7 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
+        create, addPlayer, setRole, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId,
         get G() { return G; },
     };

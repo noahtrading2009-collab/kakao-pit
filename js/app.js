@@ -47,13 +47,17 @@ const App = (() => {
             len = b.dataset.len;
             $('seg-len').querySelectorAll('[data-len]').forEach(x => x.classList.toggle('active', x === b));
         }));
+        $('seg-role').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
+            $('seg-role').querySelectorAll('[data-role]').forEach(x => x.classList.toggle('active', x === b));
+        }));
         $('btn-join').addEventListener('click', () => {
             Sound.init();
             const code = $('in-code').value.trim().toUpperCase();
             const name = $('in-name').value.trim();
             if (code.length !== 5) return ($('join-err').textContent = 'Der Raumcode hat 5 Zeichen.');
             if (!name) return ($('join-err').textContent = 'Bitte gib einen Namen ein.');
-            Player.join(code, name);
+            const active = $('seg-role').querySelector('.active');
+            Player.join(code, name, active ? active.dataset.role : '');
         });
         $('in-name').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
         $('btn-host').addEventListener('click', () => {

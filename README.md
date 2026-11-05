@@ -21,7 +21,7 @@ Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirt
 | 🏭 Schokoladenfabrik | Muss im Dezember 100 t kaufen, Risiko steigende Preise | **Long-Hedge**: Futures kaufen |
 | 🦈 Hedgefonds | Kein Kakao, nur Kapital | **Spekulation**, Hebel, Liquiditätsrisiko |
 
-Die Rollen werden automatisch gleichmässig verteilt.
+Jeder Spieler wählt beim Beitreten seine Rolle (oder «Zufall») und kann sie im Warteraum bis zum Start wechseln. KI-Trader füllen die Rollen auf, die am wenigsten besetzt sind.
 
 ## Regeln
 

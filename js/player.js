@@ -31,9 +31,12 @@ const Player = (() => {
         }
     }
 
-    function join(c, n) {
+    let wish = '';
+
+    function join(c, n, r) {
         code = c.toUpperCase().trim();
         name = n.trim();
+        if (r !== undefined) wish = r;
         key = keyFor(code);
         if (!Net.available()) {
             $('join-err').textContent = 'Verbindung nicht möglich: PeerJS konnte nicht geladen werden (Internet?).';
@@ -46,7 +49,7 @@ const Player = (() => {
             onOpen: c2 => {
                 conn = c2;
                 $('conn-lost').classList.add('hidden');
-                conn.send({ t: 'join', name, key });
+                conn.send({ t: 'join', name, key, role: wish });
             },
             onData,
             onClose: () => { if (!ended) $('conn-lost').classList.remove('hidden'); },
@@ -79,6 +82,11 @@ const Player = (() => {
             }
             showWait();
             if (msg.phase !== 'lobby') App.show('v-player');
+            return;
+        }
+        if (msg.t === 'role') {
+            role = msg.role;
+            showWait();
             return;
         }
         if (msg.t === 's') {
@@ -130,6 +138,7 @@ const Player = (() => {
         $('w-title').textContent = `Willkommen, ${name}!`;
         $('w-mission').innerHTML = R.mission;
         $('w-hint').innerHTML = `💡 ${R.hint}`;
+        $('w-roles').querySelectorAll('[data-role]').forEach(b => b.classList.toggle('active', b.dataset.role === role));
         App.show('v-wait');
         Sound.init();
         Sound.play('join');
@@ -353,6 +362,11 @@ const Player = (() => {
             $('tab-info').classList.toggle('hidden', b.dataset.tab !== 'info');
         }));
         $('btn-rejoin').addEventListener('click', () => join(code, name));
+        $('w-roles').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
+            if (b.dataset.role === role) return;
+            Sound.play('join');
+            send({ t: 'role', role: b.dataset.role });
+        }));
     }
 
     return { join, bind };
