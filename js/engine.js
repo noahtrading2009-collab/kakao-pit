@@ -9,14 +9,15 @@ const Engine = (() => {
     let G = null;
     let emit = () => {};
 
-    function create(len, onEvent) {
+    function create(len, onEvent, years) {
         emit = onEvent || (() => {});
         G = {
             phase: 'lobby', len, monthSec: CFG.monthSec[len] || CFG.monthSec.normal,
             clock: 0, sec: 0, month: 1, settleLeft: 0,
-            price: CFG.p0, ref: CFG.p0, marginRate: CFG.marginRate, pendingRate: null,
+            p0: CFG.p0, price: CFG.p0, ref: CFG.p0, marginRate: CFG.marginRate, pendingRate: null,
             history: [{ s: 0, p: CFG.p0 }], marks: [], feed: [], events: [], players: [], offers: [], tape: [],
             flow: 0, drift: 0, seq: 1, trades: [],
+            year: 1, years: years || CFG.years, yearLog: [], shopLeft: 0,
         };
         return G;
     }
@@ -42,8 +43,9 @@ const Engine = (() => {
         const p = {
             id: G.seq++, name: String(name || 'Trader').slice(0, 18), key, bot, role, connected: true,
             cash: R.cash, margin: 0, pos: 0, fees: 0, trades: 0, liquidations: 0, bankrupt: false,
-            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * CFG.p0, notes: [],
-            physical: R.physical, revenue: 0, protect: false, harvestLog: [],
+            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * G.p0, notes: [],
+            physical: R.physical, basePhys: R.physical, revenue: 0, protect: false, harvestLog: [],
+            upgrades: [], total: 0, yearPts: [], years: [], upSpent: 0, interest: 0, loans: 0, level: 0,
             orders: [], orderOffer: null, nextOrderAt: 8 + Math.floor(Math.random() * CFG.orderEvery),
             reports: [], researchAt: -999, researchSpent: 0,
             costs: 0,                                   // Pflanzenschutz, Bankzuschlag (für den Hedge-Vergleich)
@@ -67,7 +69,8 @@ const Engine = (() => {
         p.role = role;
         p.cash = R.cash;
         p.physical = R.physical;
-        p.startValue = R.cash + R.physical * CFG.p0;
+        p.basePhys = R.physical;
+        p.startValue = R.cash + R.physical * G.p0;
         return true;
     }
 
@@ -76,13 +79,16 @@ const Engine = (() => {
     }
 
     const byId = id => G.players.find(p => p.id === id);
+    const has = (p, u) => p.upgrades.includes(u);
+    const cooldown = p => (has(p, "network") ? CFG.researchCooldown / 2 : CFG.researchCooldown);
+    const hitRate = p => (has(p, "analysts") ? 0.93 : CFG.researchHit);
     const unreal = p => p.pos * (G.price - G.ref) * CFG.size;
     const futEq = p => p.margin + unreal(p);
     const req = (p, pos = p.pos) => Math.abs(pos) * G.price * CFG.size * G.marginRate;
     const exposure = p => p.physical + p.pos * CFG.size;
     const liveResult = p => p.cash + futEq(p) + p.physical * G.price + p.revenue - p.startValue;
     // Was hat die Absicherung (Futures inkl. Gebühren) bisher gebracht? Geschäft und Zusatzkosten herausgerechnet.
-    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - ROLES[p.role].physical * CFG.p0) + p.costs + p.researchSpent;
+    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - p.basePhys * G.p0) + p.costs + p.researchSpent;
     function hedgeQuote(p) {
         if (p.role === 'spec' || !p.expN) return 0;
         return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
@@ -94,8 +100,8 @@ const Engine = (() => {
     // Fabrik = effektiver Einkaufspreis pro Tonne Grundbedarf, Fonds = Gewinn.
     function metric(p, res = liveResult(p)) {
         // Bauern: Gesamterlös (Ernte + Direktverkäufe + Futures − Kosten) geteilt durch alle Tonnen inkl. Nachernte.
-        if (p.role === 'producer') return Math.round((res + ROLES.producer.physical * CFG.p0) / Math.max(10, p.physical + p.sales.reduce((s, x) => s + x.t, 0)));
-        if (p.role === 'processor') return Math.round((-ROLES.processor.physical * CFG.p0 - res) / -ROLES.processor.physical);
+        if (p.role === 'producer') return Math.round((res + p.basePhys * G.p0) / Math.max(10, p.physical + p.sales.reduce((s, x) => s + x.t, 0)));
+        if (p.role === 'processor') return Math.round((-p.basePhys * G.p0 - res) / -p.basePhys);
         return Math.round(res);
     }
 
@@ -163,7 +169,7 @@ const Engine = (() => {
     function bounds(p) {
         if (p.role === 'producer') return { min: -Math.floor(Math.max(0, p.physical) / CFG.size), max: 0 };
         if (p.role === 'processor') return { min: 0, max: Math.floor(Math.max(0, -p.physical) / CFG.size) };
-        const lim = ROLES[p.role].limit;
+        const lim = ROLES[p.role].limit + (has(p, "credit") ? 10 : 0);
         return { min: -lim, max: lim };
     }
 
@@ -332,6 +338,7 @@ const Engine = (() => {
                 p.extraAt.shift();
                 const t = 10 + 5 * Math.floor(Math.random() * 3);
                 p.physical += t;
+                p.startValue += t * G.p0;   // die Mitglieder werden zum Planpreis bezahlt – zählt nur die Preisänderung + Marge
                 note(p, 'good', `🚜 Mitglieder liefern Nachernte: +${t} t. Diese Menge ist noch nicht abgesichert!`);
             }
             if (p.buyerOffer || G.clock < p.nextBuyerAt || G.clock > total - 15 || p.physical < 20) continue;
@@ -382,6 +389,7 @@ const Engine = (() => {
             if (p.role !== 'producer') continue;
             let f = def.yield;
             if (f < 1 && p.protect) f = 1 - (1 - f) / 2;
+            if (f < 1 && has(p, "irrigation")) f = 1 - (1 - f) / 2;
             p.lastSky = def.id;
             const before = p.physical;
             p.physical = Math.max(10, Math.round(p.physical * f));
@@ -401,9 +409,9 @@ const Engine = (() => {
             if (p.orderOffer && G.sec >= p.orderOffer.until) p.orderOffer = null;
             if (p.orderOffer || G.clock < p.nextOrderAt || G.clock > total - 15 || -p.physical >= 200) continue;
             const t = 10 * (1 + Math.floor(Math.random() * 3));
-            const margin = Math.round((60 + Math.random() * 160) * mult);
+            const margin = Math.round((60 + Math.random() * 160) * mult * (has(p, "pralines") ? 1.6 : 1));
             p.orderOffer = { id: G.seq++, client: rand(CLIENTS), t, price: Math.round(G.price + margin), until: G.sec + CFG.orderSec };
-            p.nextOrderAt = G.clock + Math.round(CFG.orderEvery * (0.7 + Math.random() * 0.6));
+            p.nextOrderAt = G.clock + Math.round(CFG.orderEvery * (has(p, "marketing") ? 0.55 : 1) * (0.7 + Math.random() * 0.6));
             note(p, 'good', `📦 Neuer Auftrag: ${p.orderOffer.client} will Schokolade aus ${t} t Kakao – fester Erlös ${fmt(p.orderOffer.price)} CHF/t.`);
         }
     }
@@ -425,18 +433,18 @@ const Engine = (() => {
         const p = byId(id);
         if (!p || p.role !== 'spec') return { ok: false, msg: 'Nur für Hedgefonds.' };
         if (G.phase !== 'trading') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
-        if (G.sec - p.researchAt < CFG.researchCooldown) return { ok: false, msg: `Die Analysten brauchen noch ${CFG.researchCooldown - (G.sec - p.researchAt)} s.` };
+        if (G.sec - p.researchAt < cooldown(p)) return { ok: false, msg: `Die Analysten brauchen noch ${cooldown(p) - (G.sec - p.researchAt)} s.` };
         const rumor = G.events.find(e => e.stage === 'rumor');
-        const cost = rumor ? CFG.researchCost : Math.round(CFG.researchCost / 2);
+        const cost = Math.round((rumor ? CFG.researchCost : CFG.researchCost / 2) * (has(p, "network") ? 0.5 : 1));
         if (p.cash < cost) return { ok: false, msg: 'Zu wenig Geld für Research.' };
         p.cash -= cost;
         p.researchSpent += cost;
         p.researchAt = G.sec;
         let text;
         if (rumor) {
-            const says = Math.random() < CFG.researchHit ? rumor.confirmed : !rumor.confirmed;
+            const says = Math.random() < hitRate(p) ? rumor.confirmed : !rumor.confirmed;
             const dir = (says ? rumor.def.impact : -rumor.priced) > 0 ? 'steigen' : 'fallen';
-            text = `«${rumor.def.rumor}»: Unsere Quelle erwartet ein ${says ? 'BESTÄTIGT' : 'DEMENTI'}. Kakao dürfte dann ${dir}. (Trefferquote ca. ${Math.round(CFG.researchHit * 100)} %, Auflösung in ca. ${rumor.resolveAt - G.clock} s)`;
+            text = `«${rumor.def.rumor}»: Unsere Quelle erwartet ein ${says ? 'BESTÄTIGT' : 'DEMENTI'}. Kakao dürfte dann ${dir}. (Trefferquote ca. ${Math.round(hitRate(p) * 100)} %, Auflösung in ca. ${rumor.resolveAt - G.clock} s)`;
         } else {
             text = 'Zurzeit läuft kein Gerücht. Die Analysten sehen nichts Konkretes (halber Preis verrechnet).';
         }
@@ -556,21 +564,158 @@ const Engine = (() => {
         emit('settle', { month: G.month, results });
     }
 
+    // ===== Jahresende (Fälligkeit) =====
     function finish() {
-        G.phase = 'end';
         for (const p of G.players) {
             p.cash += p.margin;
             p.margin = 0;
             p.cash += p.physical * G.price + p.revenue;
             p.orderOffer = null;
+            p.buyerOffer = null;
+            p.call = null;
         }
         G.offers = [];
-        feed({ kind: 'bell', icon: '🔔', text: `Fälligkeit! Schlusskurs ${fmt(G.price)} CHF/t.` });
-        emit('end', debrief());
+        feed({ kind: 'bell', icon: '🔔', text: `Fälligkeit Jahr ${G.year}! Schlusskurs ${fmt(G.price)} CHF/t.` });
+        const d = debrief();
+        // Zusatzerträge aus dem Kerngeschäft (unabhängig vom Handel): Ernte-Marge und Fairtrade-Prämie
+        for (const r of d.rows) {
+            const p = byId(r.id);
+            let extra = 0;
+            if (p.role === 'producer') {
+                const tons = p.physical + p.sales.reduce((s, x) => s + x.t, 0);
+                extra = tons * CFG.farmMargin + (has(p, 'fairtrade') ? tons * CFG.fairPremium : 0);
+            } else if (p.role === 'processor') {
+                extra = -p.basePhys * CFG.chocMargin;   // Verarbeitungsmarge auf den Grundbedarf
+            }
+            // Kasse sauber abschliessen: Ernte bzw. Grundbedarf zum Planwert ist schon im Startwert enthalten,
+            // damit bleibt nach dem Jahr genau «Start + Jahresergebnis» in der Kasse.
+            p.cash -= p.basePhys * G.p0;
+            p.cash += extra;
+            r.extra = Math.round(extra);
+            r.yearResult = r.result + r.extra;
+            p.total += r.yearResult;
+            p.yearPts.push(r.points);
+            p.years.push({ year: G.year, result: r.yearResult, metric: r.metric, points: r.points });
+            const before = p.level;
+            p.level = Math.min(RANKS.length - 1, p.yearPts.filter(x => x >= 0).length);
+            r.promoted = p.level > before;
+            r.level = p.level;
+            r.total = p.total;
+        }
+        G.yearLog.push({ year: G.year, final: G.price, p0: G.p0, star: d.star ? { id: d.star.id, name: d.star.name, role: d.star.role } : null });
+        if (G.year < G.years) {
+            G.phase = 'shop';
+            G.shopLeft = CFG.shopSec;
+            emit('yearEnd', d);
+            // KI-Firmen bauen nach und nach aus (mit Reserve)
+            G.players.filter(p => p.bot).forEach(p => {
+                const opts = (UPGRADES[p.role] || []).filter(u => !has(p, u.id)).sort(() => Math.random() - 0.5);
+                for (const u of opts) {
+                    if (p.cash - u.cost > ROLES[p.role].cash * 0.55 && Math.random() < 0.7) {
+                        setTimeout(() => { if (G.phase === 'shop') buyUpgrade(p.id, u.id); }, 2000 + Math.random() * 15000);
+                    }
+                }
+            });
+        } else {
+            G.phase = 'end';
+            emit('end', finalDebrief(d));
+        }
+    }
+
+    // ===== Ausbauphase =====
+    function buyUpgrade(id, uid) {
+        const p = byId(id);
+        if (!p || G.phase !== 'shop') return { ok: false, msg: 'Ausbauen geht nur zwischen den Jahren.' };
+        const u = (UPGRADES[p.role] || []).find(x => x.id === uid);
+        if (!u) return { ok: false, msg: 'Unbekannter Ausbau.' };
+        if (has(p, uid)) return { ok: false, msg: 'Schon gekauft.' };
+        if (p.cash < u.cost) return { ok: false, msg: `Zu wenig Geld (${fmt(u.cost)} CHF nötig).` };
+        p.cash -= u.cost;
+        p.upSpent += u.cost;
+        p.upgrades.push(uid);
+        emit('upgrade', { pid: p.id, name: p.name, role: p.role, u });
+        return { ok: true, msg: `${u.icon} ${u.name} gekauft!` };
+    }
+
+    function nextYear() {
+        if (G.phase !== 'shop') return;
+        G.year++;
+        G.p0 = G.price;
+        G.ref = G.price;
+        G.month = 1;
+        G.clock = 0;
+        G.history = [{ s: 0, p: G.price }];
+        G.marks = [];
+        G.trades = [];
+        G.tape = [];
+        G.offers = [];
+        G.marginRate = CFG.marginRate;
+        G.pendingRate = null;
+        G.orderBoost = 0;
+        for (const p of G.players) {
+            const R = ROLES[p.role];
+            // Notkredit für Pleitiers – mit saftigem Zins
+            if (p.bankrupt || p.cash < 8000) {
+                p.cash += CFG.loan;
+                p.loans++;
+                p.interest += CFG.loan * CFG.loanRate;
+                p.bankrupt = false;
+                note(p, 'bad', `🏦 Notkredit: ${fmt(CFG.loan)} CHF, aber ${fmt(CFG.loan * CFG.loanRate)} CHF Zins werden am Ende abgezogen.`);
+            }
+            p.pos = 0;
+            p.margin = 0;
+            p.call = null;
+            p.basePhys = R.physical + (p.role === 'producer' && has(p, 'land') ? 30 : 0);
+            p.physical = p.basePhys;
+            p.revenue = 0;
+            p.protect = false;
+            p.harvestLog = [];
+            p.orders = [];
+            p.orderOffer = null;
+            p.sales = [];
+            p.buyerOffer = null;
+            p.costs = 0;
+            p.researchSpent = 0;
+            p.reports = [];
+            p.bank = null;
+            p.bankPaid = 0;
+            p.expAcc = 0;
+            p.expN = 0;
+            p.fees = 0;
+            p.liquidations = 0;
+            p.cancels = 0;
+            p.lastSky = null;
+            p.nextOrderAt = 8 + Math.floor(Math.random() * CFG.orderEvery);
+            p.nextBuyerAt = 10 + Math.floor(Math.random() * CFG.buyerEvery);
+            p.nextCancelAt = 40 + Math.floor(Math.random() * 30);
+            p.extraAt = [];
+            if (p.role === 'producer') {
+                const n = 1 + (Math.random() < 0.5 ? 1 : 0);
+                for (let i = 0; i < n; i++) p.extraAt.push(0.1 + Math.random() * 0.6);
+            }
+            p.startValue = p.cash + p.physical * G.p0;
+            if (p.role === 'processor' && has(p, 'contract')) {
+                const price = G.p0 + 150;
+                p.physical -= 30;
+                p.revenue += 30 * price;
+                p.orders.push({ client: 'Grosskunde (Vertrag)', t: 30, price, at: G.price });
+            }
+        }
+        scheduleNews();
+        G.phase = 'trading';
+        feed({ kind: 'bell', icon: '🔔', text: `Jahr ${G.year} beginnt! Neuer Planpreis: ${fmt(G.p0)} CHF/t.` });
+        emit('year', { year: G.year });
+        emit('open', { month: 1 });
     }
 
     function tick() {
         if (!G || G.phase === 'lobby' || G.phase === 'end') return;
+        if (G.phase === 'shop') {
+            G.sec++;
+            G.shopLeft--;
+            if (G.shopLeft <= 0) nextYear();
+            return;
+        }
         G.sec++;
         if (G.phase === 'trading') {
             G.clock++;
@@ -627,14 +772,15 @@ const Engine = (() => {
     }
 
     function ranking() {
-        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, pos: p.pos, bankrupt: p.bankrupt, connected: p.connected }))
+        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, level: p.level, total: Math.round(p.total), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected }))
             .sort((a, b) => b.score - a.score);
     }
 
     function publicState(full = false) {
         return {
             phase: G.phase, month: G.month, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
-            price: G.price, ref: G.ref, p0: CFG.p0, marginRate: G.marginRate, pendingRate: G.pendingRate,
+            year: G.year, years: G.years, shopLeft: G.shopLeft,
+            price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate, pendingRate: G.pendingRate,
             history: full ? G.history : G.history.slice(-90).map(h => h.p),
             offers: G.offers.map(o => ({ id: o.id, by: o.by, byName: o.byName, role: o.role, side: o.side, qty: o.qty, price: o.price, left: o.until - G.sec })),
             tape: G.tape.slice(0, full ? 12 : 5),
@@ -661,11 +807,13 @@ const Engine = (() => {
             physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
-            reports: p.reports.slice(-2), researchReady: Math.max(0, CFG.researchCooldown - (G.sec - p.researchAt)),
+            reports: p.reports.slice(-2), researchReady: Math.max(0, cooldown(p) - (G.sec - p.researchAt)), researchCostNow: Math.round(CFG.researchCost * (has(p, "network") ? 0.5 : 1)), hitRate: hitRate(p),
             rumorActive: G.events.some(e => e.stage === 'rumor'),
             sky: ((G.events.find(e => e.stage === 'rumor' && e.def.yield) || {}).def || {}).id || p.lastSky || 'sun',
             skyRumor: G.events.some(e => e.stage === 'rumor' && e.def.yield),
-            month: G.month,
+            month: G.month, year: G.year, years: G.years, shopLeft: G.shopLeft,
+            upgrades: p.upgrades.slice(), level: p.level, total: Math.round(p.total), upSpent: p.upSpent, interest: p.interest, loans: p.loans,
+            yearsDone: p.years.slice(),
         };
     }
 
@@ -673,7 +821,7 @@ const Engine = (() => {
         const rows = G.players.map(p => {
             const R = ROLES[p.role];
             // Effect of price, harvest size and customer orders on the physical business (vs. plan).
-            const physPL = p.physical * G.price + p.revenue - R.physical * CFG.p0;
+            const physPL = p.physical * G.price + p.revenue - p.basePhys * G.p0;
             const result = p.cash - p.startValue;
             return {
                 id: p.id, name: p.name, role: p.role, bot: p.bot, result: Math.round(result), physPL: Math.round(physPL),
@@ -686,7 +834,7 @@ const Engine = (() => {
         }).sort((a, b) => b.score - a.score);
         // Trader des Tages: Punkte = wie viel besser als der Durchschnitt der eigenen Rolle,
         // geteilt durch die typische Streuung der Rolle (damit alle Rollen gleiche Chancen haben).
-        const SCALE = { producer: 35, processor: 60, spec: 10000 };
+        const SCALE = { producer: 110, processor: 60, spec: 10000 };
         const avg = a => a.reduce((s, x) => s + x, 0) / a.length;
         for (const r of rows) {
             const peers = rows.filter(x => x.role === r.role);
@@ -699,12 +847,24 @@ const Engine = (() => {
             }
         }
         const star = rows.filter(r => !r.bankrupt).sort((a, b) => b.points - a.points)[0] || null;
-        return { rows, star, trades: G.trades, final: G.price, p0: CFG.p0, change: G.price / CFG.p0 - 1, history: G.history, marks: G.marks, feed: G.feed.slice(0, 20) };
+        return { rows, star, trades: G.trades, final: G.price, p0: G.p0, change: G.price / G.p0 - 1, history: G.history, marks: G.marks, feed: G.feed.slice(0, 20) };
+    }
+
+    // ===== Karriere-Auswertung über alle Jahre =====
+    function finalDebrief(last) {
+        const career = G.players.map(p => ({
+            id: p.id, name: p.name, role: p.role, bot: p.bot, level: p.level,
+            years: p.years.slice(), upgrades: p.upgrades.slice(), upSpent: p.upSpent, interest: p.interest, loans: p.loans,
+            points: p.yearPts.reduce((s, x) => s + x, 0),
+            final: Math.round(p.total - p.upSpent - p.interest),
+        })).sort((a, b) => b.final - a.final);
+        const star = career.slice().sort((a, b) => b.points - a.points)[0] || null;
+        return { ...last, career, careerStar: star, yearLog: G.yearLog.slice(), years: G.years };
     }
 
     return {
         create, addPlayer, setRole, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
-        protect, answerOrder, research, answerBuyer, protectPrice,
+        protect, answerOrder, research, answerBuyer, protectPrice, buyUpgrade, nextYear,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId,
         get G() { return G; },
     };

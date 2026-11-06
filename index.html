@@ -52,6 +52,9 @@
                     <label>Spieldauer
                         <div class="seg" id="seg-len"><button data-len="kurz">Kurz · 4 Min.</button><button data-len="normal" class="active">Normal · 6 Min.</button><button data-len="lang">Lang · 8 Min.</button></div>
                     </label>
+                    <label>Karriere
+                        <div class="seg" id="seg-years"><button data-years="1">1 Jahr</button><button data-years="2">2 Jahre</button><button data-years="3" class="active">3 Jahre</button></div>
+                    </label>
                     <button class="btn btn-ghost btn-big" id="btn-host">Raum erstellen</button>
                     <p class="err" id="host-err"></p>
                 </div>
@@ -90,6 +93,7 @@
         <header class="h-top">
             <div class="logo tiny"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
             <div class="h-code">Code <b id="h-code"></b></div>
+            <div class="h-year" id="h-year"></div>
             <div class="h-months" id="h-months"></div>
             <div class="h-timer" id="h-timer">1:30</div>
             <div class="h-price"><span class="dim">KAKAO DEZ</span><b id="h-price">2'400</b><span id="h-change" class="chg">±0.0 %</span></div>
@@ -106,6 +110,8 @@
         </footer>
         <div id="flash" class="flash hidden"></div>
         <div id="settle-ov" class="settle-ov hidden"></div>
+        <div id="year-ov" class="year-ov hidden"></div>
+        <div id="year-intro" class="year-intro hidden"></div>
     </section>
 
     <!-- ===== HOST: END ===== -->
@@ -178,6 +184,12 @@
         <div id="p-toasts"></div>
         <div id="call-ov" class="call-ov hidden"></div>
         <div id="p-flash" class="p-flash hidden"></div>
+        <div id="p-yearban" class="p-yearban hidden"></div>
+    </section>
+
+    <section id="v-shop" class="view">
+        <header class="p-top shop-top"><div class="p-role">🏗️ <b>Ausbauphase</b></div><div class="p-clock"><span>Weiter in</span><b id="shop-timer">1:15</b></div></header>
+        <div class="p-scroll" id="shop-body"></div>
     </section>
 
     <section id="v-pend" class="view"><div class="p-end" id="p-end"></div></section>

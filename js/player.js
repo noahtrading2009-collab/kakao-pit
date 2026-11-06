@@ -92,12 +92,31 @@ const Player = (() => {
         if (msg.t === 's') {
             pub = msg.pub;
             me = msg.me;
+            if (pub.phase === 'shop' && !ended) {
+                if (!$('v-shop').classList.contains('active')) {
+                    App.show('v-shop');
+                    shopKey = '';
+                }
+                renderShop();
+                return;
+            }
             if (pub.phase !== 'lobby' && !ended && !$('v-player').classList.contains('active')) {
+                const fromShop = $('v-shop').classList.contains('active');
                 App.show('v-player');
                 Sound.play('bell');
                 renderInfo();
+                if (fromShop) {
+                    panelKey = '';
+                    yearBanner(pub.year);
+                }
             }
             if (pub.phase !== 'lobby') render();
+            return;
+        }
+        if (msg.t === 'yearEnd') {
+            yearInfo = msg;
+            Sound.play('end');
+            if (msg.rank === 1) setTimeout(() => confetti(3000), 300);
             return;
         }
         if (msg.t === 'news') {
@@ -173,8 +192,8 @@ const Player = (() => {
         if (!me || !pub) return;
         const R = ROLES[me.role];
         document.body.dataset.role = me.role;
-        if ($('p-role').dataset.k !== me.role + me.name) $('p-role').dataset.k = me.role + me.name, $('p-role').innerHTML = `<span class="p-emb">${roleIcon(me.role, 26)}</span><span><b>${esc(me.name)}</b><small>${R.job}</small></span>`;
-        $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `Monat ${pub.month}/${pub.months}`;
+        if ($('p-role').dataset.k !== me.role + me.name + me.level) $('p-role').dataset.k = me.role + me.name + me.level, $('p-role').innerHTML = `<span class="p-emb">${roleIcon(me.role, 26)}</span><span><b>${esc(me.name)}</b><small>${RANKS[me.level].icon} ${RANKS[me.level].name} · ${R.job}</small></span>`;
+        $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `J${pub.year} · M${pub.month}/${pub.months}`;
         $('p-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('p-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
         $('p-rank').textContent = `#${me.rank}/${me.roleCount}`;
@@ -217,11 +236,11 @@ const Player = (() => {
         if (me.role === 'producer') {
             $('p-result-l').textContent = 'Dein erzielter Preis';
             $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
-            $('p-result').className = me.metric >= CFG.p0 ? 'up' : 'down';
+            $('p-result').className = me.metric >= pub.p0 ? 'up' : 'down';
         } else if (me.role === 'processor') {
             $('p-result-l').textContent = 'Dein Einkaufspreis';
             $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
-            $('p-result').className = me.metric <= CFG.p0 ? 'up' : 'down';
+            $('p-result').className = me.metric <= pub.p0 ? 'up' : 'down';
         } else {
             $('p-result-l').textContent = 'Gewinn';
             $('p-result').textContent = signed(me.result);
@@ -306,7 +325,7 @@ const Player = (() => {
                 <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em class="bankmark" style="left:${CFG.bankQuota * 100}%"></em><em style="left:100%"></em></div>
                 ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}
                 <div class="hedge-effect ${me.hedgeEffect >= 0 ? 'good' : 'bad'}">🛡️ Deine Absicherung hat dir bisher <b>${me.hedgeEffect >= 0 ? `+${fmt(me.hedgeEffect)} CHF gerettet` : `${fmt(-me.hedgeEffect)} CHF gekostet`}</b><small>${me.hedgeEffect >= 0 ? 'Ohne Futures stündest du so viel schlechter da.' : 'Ohne Futures stündest du besser da – dafür warst du geschützt.'}</small></div>
-                <div class="score-line"><span>🎯 ${me.role === 'producer' ? 'Dein Preis bisher' : 'Dein Einkauf bisher'}</span><b class="${(me.role === 'producer' ? me.metric >= CFG.p0 : me.metric <= CFG.p0) ? 'good' : 'bad'}">${fmt(me.metric)} CHF/t</b><span class="rank-pill">#${me.rank} von ${me.roleCount}</span></div>
+                <div class="score-line"><span>🎯 ${me.role === 'producer' ? 'Dein Preis bisher' : 'Dein Einkauf bisher'}</span><b class="${(me.role === 'producer' ? me.metric >= pub.p0 : me.metric <= pub.p0) ? 'good' : 'bad'}">${fmt(me.metric)} CHF/t</b><span class="rank-pill">#${me.rank} von ${me.roleCount}</span></div>
                 ${me.bank === 'ok' ? '<div class="bank-line ok">🏦 Bankauflage erfüllt ✔</div>'
                     : me.bank === 'fail' ? `<div class="bank-line bad">🏦 Bankauflage verfehlt – ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt</div>`
                     : `<div class="bank-line ${q >= CFG.bankQuota ? 'ok' : 'warn'}">🏦 Bank: bis Ende Monat ${CFG.bankMonth} mind. ${Math.round(CFG.bankQuota * 100)} % absichern${q >= CFG.bankQuota ? ' ✔' : ` – sonst ${fmt(CFG.bankFee)} CHF Zuschlag`}</div>`}`;
@@ -517,27 +536,76 @@ const Player = (() => {
 
     // ===== Ende =====
 
+    // ===== Jahresende & Ausbau (Handy) =====
+
+    let yearInfo = null;
+    let shopKey = '';
+
+    function renderShop() {
+        if (!me || !pub) return;
+        const R = ROLES[me.role];
+        const ups = UPGRADES[me.role] || [];
+        const yi = yearInfo;
+        const last = me.yearsDone[me.yearsDone.length - 1];
+        const key = JSON.stringify([me.upgrades, me.cash, me.level, last, yi && yi.rank]);
+        $('shop-timer').textContent = `${Math.floor(Math.max(0, pub.shopLeft) / 60)}:${String(Math.max(0, pub.shopLeft) % 60).padStart(2, '0')}`;
+        if (key === shopKey) return;
+        shopKey = key;
+        const metricTxt = !last ? '' : me.role === 'producer' ? `${fmt(last.metric)} CHF/t erzielt` : me.role === 'processor' ? `${fmt(last.metric)} CHF/t Einkauf` : `${signed(last.result)} CHF Gewinn`;
+        $('shop-body').innerHTML = `
+            <div class="card sh-year" style="--rc:${R.color}">
+                <div class="sy-k">JAHR ${pub.year} VON ${pub.years} ABGESCHLOSSEN</div>
+                <div class="sy-res ${last && last.result >= 0 ? 'up' : 'down'}">${last ? signed(last.result) : '–'} <small>CHF</small></div>
+                <div class="sy-m">${metricTxt}${yi ? ` · Platz <b>${yi.rank}</b> von ${yi.total}` : ''}</div>
+                <div class="sy-rank"><span class="rank-badge l${me.level}">${RANKS[me.level].icon} ${RANKS[me.level].name}</span>${yi && yi.row && yi.row.promoted ? '<span class="promo-me">⬆️ Aufgestiegen!</span>' : ''}</div>
+                <div class="sy-tot">Karriere bisher: <b class="${me.total - me.upSpent >= 0 ? 'up' : 'down'}">${signed(me.total - me.upSpent - me.interest)}</b> CHF</div>
+            </div>
+            <div class="shop-h"><span>🏗️ Ausbau</span><b>💰 ${fmt(me.cash)} CHF</b></div>
+            <p class="dim small">Investiere in deine Firma. Jede Investition kostet jetzt Geld – und muss sich in den nächsten Jahren auszahlen.</p>
+            <div class="shop-cards">${ups.map(u => {
+                const own = me.upgrades.includes(u.id);
+                const can = !own && me.cash >= u.cost;
+                return `<div class="shop-card ${own ? 'own' : ''}" style="--rc:${R.color}"><div class="sc-ico">${u.icon}</div><div class="sc-body"><b>${u.name}</b><p>${u.desc}</p></div>
+                    ${own ? '<div class="sc-own">✔ Gekauft</div>' : `<button class="btn ${can ? 'btn-primary' : 'btn-ghost'} sc-buy" data-up="${u.id}" ${can ? '' : 'disabled'}>${fmt(u.cost)} CHF</button>`}</div>`;
+            }).join('')}</div>
+            <div class="dim small pulse">Der Host startet das nächste Jahr – oder es geht automatisch weiter, wenn die Zeit abläuft.</div>`;
+        $('shop-body').querySelectorAll('[data-up]').forEach(b => b.addEventListener('click', () => {
+            send({ t: 'upgrade', id: b.dataset.up });
+            Sound.play('buy');
+        }));
+    }
+
+    function yearBanner(year) {
+        const el = $('p-yearban');
+        el.innerHTML = `<small>ERNTEJAHR</small><b>${year}</b>`;
+        el.classList.remove('hidden', 'go');
+        void el.offsetWidth;
+        el.classList.add('go');
+        setTimeout(() => el.classList.add('hidden'), 2400);
+    }
+
+    // ===== Ende (Karriere) =====
+
     function showEnd(msg) {
         App.show('v-pend');
-        if (msg.rank === 1 || (msg.star && msg.star.id === msg.row.id)) setTimeout(() => confetti(4000), 400);
-        const r = msg.row;
-        const R = ROLES[r.role];
+        const c = msg.career;
+        const R = ROLES[c.role];
+        const isStar = msg.star && msg.star.id === c.id;
+        if (msg.rank === 1 || isStar) setTimeout(() => confetti(4500), 500);
         Sound.play('end');
-        const hedgeTxt = r.role === 'spec'
-            ? `Als Hedgefonds hast du ${r.futPL >= 0 ? 'mit' : 'beim'} Spekulieren <b>${signed(r.futPL)} CHF</b> ${r.futPL >= 0 ? 'verdient' : 'verloren'}.`
-            : `${r.role === 'producer' ? `Ernte: <b>${r.physical} t</b>. ` : `Aufträge: ${r.orders} (${r.orderT} t). `}Ohne Futures hätte dir dein Geschäft <b>${signed(r.physPL)} CHF</b> gebracht. Deine Futures: <b>${signed(r.futPL)} CHF</b>. Zusammen: <b>${signed(r.result)} CHF</b>.${r.bank === 'fail' ? ` Bankzuschlag: −${fmt(r.bankPaid)} CHF.` : ''}`;
-        $('p-end').innerHTML = `<div class="card">
+        $('p-end').innerHTML = `<div class="card end-card" style="--rc:${R.color}">
+            <div class="end-emb">${roleIcon(c.role, 72)}</div>
             <div class="end-rank">#${msg.rank}<span class="dim">/${msg.total}</span></div>
-            <div class="role-badge" style="color:${R.color}">${R.icon} ${R.name}</div>
-            <h2>${esc(r.name)}</h2>
-            <div class="end-score ${r.role === 'spec' ? (r.score >= 0 ? 'up' : 'down') : ''}">${r.role === 'producer' ? `${fmt(r.metric)} CHF/t erzielt` : r.role === 'processor' ? `${fmt(r.metric)} CHF/t Einkauf` : `${signed(r.score)} CHF`}</div>
-            <div class="dim small">Platz ${msg.rank} von ${msg.total} ${r.role === 'spec' ? 'Hedgefonds' : r.role === 'producer' ? 'Kooperativen' : 'Fabriken'}</div>
-            <p>Schlusskurs ${fmt(msg.final)} CHF/t (${pct(msg.final / msg.p0 - 1)}).</p>
-            <p>${hedgeTxt}</p>
-            ${r.liquidations ? `<p class="bad">📞 ${r.liquidations}× zwangsweise glattgestellt.</p>` : ''}
-            ${msg.star ? (msg.star.id === r.id ? `<div class="star-me">⭐ Du bist TRADER DES TAGES! (${signed(msg.star.points)} Punkte)</div>` : `<p class="dim small">⭐ Trader des Tages: <b>${esc(msg.star.name)}</b> · deine Punkte: ${signed(r.points)}</p>`) : ''}
-            <h3>🏆 Top 3 deiner Rolle</h3><ol class="top3">${msg.top.map(t => `<li>${ROLES[t.role].icon} ${esc(t.name)} <b>${t.role === 'spec' ? signed(t.score) : `${fmt(t.metric)}/t`}</b></li>`).join('')}</ol>
-            <p class="dim small">Die ausführliche Auswertung steht auf dem grossen Bildschirm.</p></div>`;
+            <div class="dim small">Platz ${msg.rank} von ${msg.total} ${c.role === 'spec' ? 'Hedgefonds' : c.role === 'producer' ? 'Kooperativen' : 'Fabriken'}</div>
+            <h2>${esc(c.name)}</h2>
+            <span class="rank-badge l${c.level}">${RANKS[c.level].icon} ${RANKS[c.level].name}</span>
+            <div class="end-score ${c.final >= 0 ? 'up' : 'down'}">${signed(c.final)} CHF</div>
+            <div class="end-years">${c.years.map(y => `<div><small>Jahr ${y.year}</small><b class="${y.result >= 0 ? 'up' : 'down'}">${signed(y.result)}</b></div>`).join('')}</div>
+            ${c.upgrades.length ? `<p class="small">Ausbau: ${c.upgrades.map(u => { const x = UPGRADES[c.role].find(z => z.id === u); return x ? `${x.icon} ${x.name}` : ''; }).join(' · ')} <span class="dim">(−${fmt(c.upSpent)} CHF)</span></p>` : '<p class="small dim">Kein Ausbau gekauft.</p>'}
+            ${c.interest ? `<p class="small bad">🏦 Zinsen für Notkredite: −${fmt(c.interest)} CHF</p>` : ''}
+            ${msg.star ? (isStar ? `<div class="star-me">⭐ Du bist TRADER DES TAGES! (${signed(msg.star.points)} Punkte)</div>` : `<p class="dim small">⭐ Trader des Tages: <b>${esc(msg.star.name)}</b> · deine Punkte: ${signed(c.points)}</p>`) : ''}
+            <h3>🏆 Top 3 deiner Rolle</h3><ol class="top3">${msg.top.map(t => `<li>${esc(t.name)} <b>${signed(t.final)}</b></li>`).join('')}</ol>
+            <p class="dim small">Die Preisverleihung läuft auf dem grossen Bildschirm!</p></div>`;
     }
 
     // ===== Bedienelemente =====

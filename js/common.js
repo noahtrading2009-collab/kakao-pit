@@ -15,6 +15,13 @@ const CFG = {
     impact: 0.00025,       // Preiswirkung pro netto gehandeltem Kontrakt (klein: einzelne Trades bewegen den Markt kaum)
     offerSec: 35,          // Laufzeit eines Angebots auf dem Board
     offerBand: 0.04,       // Angebote max. ±4 % vom Marktpreis
+    years: 3,              // Karriere: so viele Erntejahre
+    shopSec: 75,           // Ausbauphase zwischen den Jahren (Sekunden)
+    farmMargin: 250,       // Kooperative: Gewinn pro geernteter Tonne (Produktionskosten tiefer als Planpreis)
+    chocMargin: 250,       // Fabrik: Verarbeitungsmarge pro Tonne Grundbedarf
+    fairPremium: 120,      // Fairtrade-Prämie pro Tonne
+    loan: 25000,           // Notkredit nach einer Pleite …
+    loanRate: 0.3,         // … mit 30 % Zins
     bankMonth: 2,          // Bankprüfung am Ende dieses Monats …
     bankQuota: 0.5,        // … mindestens so viel muss abgesichert sein
     bankFee: 6000,         // sonst Risikozuschlag
@@ -285,6 +292,8 @@ const Sound = (() => {
         join: () => { tone(523, 0.1, 'triangle', 0.15); tone(784, 0.18, 'triangle', 0.15, 0.08); },
         error: () => tone(180, 0.25, 'square', 0.08),
         end: () => [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone(f, 0.3, 'triangle', 0.15, i * 0.13)),
+        drum: () => { for (let i = 0; i < 18; i++) tone(90 + (i % 2) * 20, 0.08, 'square', 0.05 + i * 0.006, i * 0.11); tone(60, 0.6, 'sine', 0.3, 2.0); },
+        fanfare: () => [523, 659, 784, 1046].forEach((f, i) => { tone(f, 0.45, 'sawtooth', 0.07, i * 0.12); tone(f * 2, 0.4, 'triangle', 0.05, i * 0.12); }),
     };
     return {
         init,
@@ -293,3 +302,29 @@ const Sound = (() => {
         muted: () => muted,
     };
 })();
+
+// ===== Karriere: Ausbau zwischen den Jahren =====
+const UPGRADES = {
+    producer: [
+        { id: 'land', icon: '🌳', name: 'Mehr Land', cost: 20000, desc: '+30 t Ernte pro Jahr. Mehr Kakao = mehr Gewinn – aber auch mehr abzusichern.' },
+        { id: 'irrigation', icon: '💧', name: 'Bewässerung', cost: 12000, desc: 'Dürre und Krankheit treffen dich nur noch halb so hart – jedes Jahr, ohne Versicherung.' },
+        { id: 'fairtrade', icon: '🤝', name: 'Fairtrade-Zertifikat', cost: 15000, desc: `+${CFG.fairPremium} CHF Prämie für jede verkaufte Tonne.` },
+    ],
+    processor: [
+        { id: 'pralines', icon: '🍫', name: 'Pralinen-Linie', cost: 12000, desc: 'Kundenaufträge bringen 60 % mehr Marge.' },
+        { id: 'contract', icon: '📜', name: 'Grosskunden-Vertrag', cost: 9000, desc: 'Jedes Jahr ein sicherer Auftrag: 30 t zu Planpreis + 150 CHF/t.' },
+        { id: 'marketing', icon: '📣', name: 'Marketing', cost: 10000, desc: 'Kunden bestellen deutlich häufiger.' },
+    ],
+    spec: [
+        { id: 'analysts', icon: '🧠', name: 'Analysten-Team', cost: 18000, desc: 'Research-Berichte stimmen zu 93 % statt 80 %.' },
+        { id: 'credit', icon: '🏦', name: 'Kreditlinie', cost: 22000, desc: 'Positionslimit +10 Kontrakte (30 statt 20).' },
+        { id: 'network', icon: '📡', name: 'Netzwerk', cost: 12000, desc: 'Research halb so teuer und doppelt so schnell verfügbar.' },
+    ],
+};
+
+const RANKS = [
+    { name: 'Junior', icon: '🌱' },
+    { name: 'Trader', icon: '📈' },
+    { name: 'Senior', icon: '💼' },
+    { name: 'Legende', icon: '👑' },
+];

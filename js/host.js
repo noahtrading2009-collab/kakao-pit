@@ -15,10 +15,10 @@ const Host = (() => {
         return `${location.origin}${location.pathname}?join=${code}`;
     }
 
-    function create(length) {
+    function create(length, years) {
         len = length;
         code = Net.makeCode();
-        Engine.create(len, onEngine);
+        Engine.create(len, onEngine, years);
         Bots.reset();
         botCount = 0;
         App.show('v-lobby');
@@ -120,6 +120,7 @@ const Host = (() => {
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'research') r = Engine.research(e.pid);
+        else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
         if (r.ok && (msg.t === 'offer' || msg.t === 'accept')) conns.forEach(push);
@@ -138,16 +139,35 @@ const Host = (() => {
             showSettle(data);
         } else if (type === 'trade') {
             Sound.play('tick');
-        } else if (type === 'end') {
-            clearInterval(loopTimer);
-            const rows = data.rows;
+        } else if (type === 'yearEnd') {
+            showYearEnd(data);
             conns.forEach(e => {
-                const row = rows.find(r => r.id === e.pid);
+                const row = data.rows.find(r => r.id === e.pid);
                 if (!row) return;
                 const B = BOARDS.find(b => b.role === row.role);
-                const peers = rows.filter(r => r.role === row.role).sort(B.sort);
-                send(e, { t: 'end', row, rank: peers.indexOf(row) + 1, total: peers.length, final: data.final, p0: data.p0, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, score: r.score, metric: r.metric })), star: data.star ? { id: data.star.id, name: data.star.name, role: data.star.role, points: data.star.points } : null });
+                const peers = data.rows.filter(r => r.role === row.role).sort(B.sort);
+                send(e, { t: 'yearEnd', row, rank: peers.indexOf(row) + 1, total: peers.length, year: Engine.G.year, final: data.final });
             });
+        } else if (type === 'upgrade') {
+            shopFeed.unshift(data);
+            renderShopFeed();
+            Sound.play('cash');
+        } else if (type === 'year') {
+            $('year-ov').classList.add('hidden');
+            axis.lo = null;
+            anim.cur = null;
+            volCache.n = -1;
+            yearIntro(data.year);
+        } else if (type === 'end') {
+            clearInterval(loopTimer);
+            const career = data.career;
+            conns.forEach(e => {
+                const row = career.find(r => r.id === e.pid);
+                if (!row) return;
+                const peers = career.filter(r => r.role === row.role);
+                send(e, { t: 'end', career: row, rank: peers.indexOf(row) + 1, total: peers.length, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, final: r.final })), star: data.careerStar ? { id: data.careerStar.id, name: data.careerStar.name, role: data.careerStar.role, points: data.careerStar.points } : null, years: data.years });
+            });
+            $('year-ov').classList.add('hidden');
             setTimeout(() => showEnd(data), 1500);
         }
     }
@@ -228,6 +248,13 @@ const Host = (() => {
 
     function render() {
         const S = Engine.publicState(true);
+        $('h-year').innerHTML = `<small>Jahr</small><b>${S.year}</b><small>/ ${S.years}</small>`;
+        if (S.phase === 'shop') {
+            const t = $('yo-timer');
+            if (t) t.textContent = mmss(Math.max(0, S.shopLeft));
+            $('h-timer').textContent = 'AUSBAU';
+            return;
+        }
         $('h-months').innerHTML = Array.from({ length: S.months }, (_, i) => `<span class="${i + 1 < S.month ? 'done' : i + 1 === S.month ? 'now' : ''}">M${i + 1}</span>`).join('') + '<span class="due">DEZ</span>';
         $('h-timer').textContent = S.phase === 'settle' ? 'ABRECHNUNG' : mmss(S.secLeft);
         $('h-timer').classList.toggle('urgent', S.phase === 'trading' && S.secLeft <= 10);
@@ -278,8 +305,8 @@ const Host = (() => {
     // Jede Rolle hat ihre eigene Rangliste: Bauern um den besten Verkaufspreis,
     // Fabriken um den günstigsten Einkauf, Fonds um den höchsten Gewinn.
     const BOARDS = [
-        { role: 'producer', title: 'Bester Verkaufspreis', sort: (a, b) => b.metric - a.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric >= CFG.p0 ? 'up' : 'down') },
-        { role: 'processor', title: 'Günstigster Einkauf', sort: (a, b) => a.metric - b.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric <= CFG.p0 ? 'up' : 'down') },
+        { role: 'producer', title: 'Bester Verkaufspreis', sort: (a, b) => b.metric - a.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric >= Engine.G.p0 ? 'up' : 'down') },
+        { role: 'processor', title: 'Günstigster Einkauf', sort: (a, b) => a.metric - b.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric <= Engine.G.p0 ? 'up' : 'down') },
         { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
     ];
 
@@ -704,7 +731,7 @@ const Host = (() => {
     function showSettle(data) {
         const G = Engine.G;
         const calls = G.players.filter(p => p.call).map(p => esc(p.name));
-        const prev = G.marks.length > 1 ? G.marks[G.marks.length - 2].price : CFG.p0;
+        const prev = G.marks.length > 1 ? G.marks[G.marks.length - 2].price : G.p0;
         const el = $('settle-ov');
         el.innerHTML = `<div class="settle-card card"><div class="dim">MONATSENDE · MARK-TO-MARKET</div><h2>Abrechnung Monat ${data.month}</h2>
             <div class="settle-price">${fmt(G.price)} <span class="${G.price >= prev ? 'up' : 'down'}">${pct(G.price / prev - 1)}</span></div>
@@ -749,38 +776,145 @@ const Host = (() => {
         return out;
     }
 
+    // ===== Jahresende & Ausbauphase =====
+
+    let shopFeed = [];
+
+    function yearRowVal(r) {
+        if (r.role === 'spec') return signed(r.yearResult);
+        return `${fmt(r.metric)}<small>/t</small>`;
+    }
+
+    function showYearEnd(d) {
+        const G = Engine.G;
+        shopFeed = [];
+        $('settle-ov').classList.add('hidden');
+        $('flash').classList.add('hidden');
+        Sound.play('end');
+        setTimeout(() => confetti(2500), 300);
+        const cols = BOARDS.map(B => {
+            const list = d.rows.filter(r => r.role === B.role).sort(B.sort);
+            if (!list.length) return '';
+            const R = ROLES[B.role];
+            return `<div class="yo-col" style="--rc:${R.color}"><div class="yo-col-h">${roleIcon(B.role, 30)}<div><b>${R.short}</b><small>${B.title}</small></div></div>
+                ${list.slice(0, 4).map((r, i) => `<div class="yo-row ${i === 0 ? 'win' : ''}" style="animation-delay:${0.25 + i * 0.12}s"><span class="yo-rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="yo-n">${esc(r.name)}${r.bot ? ' 🤖' : ''}</span><span class="yo-v ${B.cls(r)}">${yearRowVal(r)}</span><span class="yo-res ${r.yearResult >= 0 ? 'up' : 'down'}">${signed(r.yearResult)}</span></div>`).join('')}</div>`;
+        }).join('');
+        const promos = d.rows.filter(r => r.promoted).map(r => `<span class="promo">${RANKS[r.level].icon} <b>${esc(r.name)}</b> steigt auf: <b>${RANKS[r.level].name}</b></span>`).join('');
+        const el = $('year-ov');
+        el.innerHTML = `<div class="yo-card">
+            <div class="yo-top"><div><div class="yo-kicker">JAHR ${G.year} VON ${G.years} ABGESCHLOSSEN</div><h2>Schlusskurs ${fmt(d.final)} CHF/t <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h2></div>
+                ${d.star ? `<div class="yo-star">⭐ Trader des Jahres<b>${roleIcon(d.star.role, 22)} ${esc(d.star.name)}</b></div>` : ''}</div>
+            <div class="yo-cols">${cols}</div>
+            ${promos ? `<div class="yo-promos">${promos}</div>` : ''}
+            <div class="yo-shop"><div class="yo-shop-h"><span>🏗️ AUSBAUPHASE</span><b id="yo-timer">${Math.floor(CFG.shopSec / 60)}:${String(CFG.shopSec % 60).padStart(2, '0')}</b></div>
+                <p>Investiert euren Gewinn am Handy in eure Firma. Jede Investition muss sich in den nächsten Jahren auszahlen!</p>
+                <div id="yo-feed" class="yo-feed"><div class="dim small">Noch keine Investitionen …</div></div>
+                <button class="btn btn-primary btn-big" id="yo-next">Weiter zu Jahr ${G.year + 1} ▶</button></div>
+        </div>`;
+        el.classList.remove('hidden');
+        $('yo-next').onclick = () => {
+            Engine.nextYear();
+            render();
+            conns.forEach(push);
+        };
+    }
+
+    function renderShopFeed() {
+        const f = $('yo-feed');
+        if (!f) return;
+        f.innerHTML = shopFeed.slice(0, 8).map((x, i) => `<div class="yo-buy ${i === 0 ? 'fresh' : ''}" style="--rc:${ROLES[x.role].color}">${x.u.icon} <b>${esc(x.name)}</b> kauft <b>${x.u.name}</b><span>−${fmt(x.u.cost)}</span></div>`).join('');
+    }
+
+    function yearIntro(year) {
+        const el = $('year-intro');
+        el.innerHTML = `<div class="yi-k">ERNTEJAHR</div><div class="yi-n">${year}</div><div class="yi-s">Neuer Planpreis ${fmt(Engine.G.p0)} CHF/t · neue Ernte, neue Gerüchte</div>`;
+        el.classList.remove('hidden', 'go');
+        void el.offsetWidth;
+        el.classList.add('go');
+        Sound.play('bell');
+        setTimeout(() => el.classList.add('hidden'), 2900);
+    }
+
+    // ===== Preisverleihung (Schluss-Show) =====
+
     function showEnd(d) {
         App.show('v-end');
-        Sound.play('end');
-        setTimeout(() => confetti(5000), 600);
-        // Sieger pro Rolle
-        const winners = BOARDS.map(B => ({ B, r: d.rows.filter(x => x.role === B.role).sort(B.sort)[0] })).filter(x => x.r);
-        const podium = winners.map(({ B, r }, i) => `<div class="pod p${i === 1 ? 1 : i === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-emb">${roleIcon(r.role, 56)}</div><div class="pod-role">${B.title}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${B.cls(r)}">${B.val(r)}</div></div>`).join('');
-        const awards = '';
-        const order = BOARDS.flatMap(B => d.rows.filter(r => r.role === B.role).sort(B.sort).map((r, i) => ({ r, i, B })));
-        const table = order.map(({ r, i, B }) => `<tr class="${r.bankrupt ? 'dead' : ''}"><td>${i + 1}</td><td>${ROLES[r.role].icon} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</td>
-            <td class="num ${B.cls(r)}"><b>${B.val(r)}</b></td>
-            <td class="num ${r.physPL >= 0 ? 'up' : 'down'}">${r.role === 'spec' ? '–' : signed(r.physPL)}</td>
-            <td class="num ${r.futPL >= 0 ? 'up' : 'down'}">${signed(r.futPL)}</td>
-            <td class="num">${r.role === 'spec' ? '–' : r.bank === 'fail' ? `<span class="down">−${fmt(r.bankPaid)}</span>` : '✔'}</td>
-            <td class="num ${r.score >= 0 ? 'up' : 'down'}">${signed(r.score)}</td>
+        const career = d.career;
+        const stages = [];
+        stages.push(() => `<div class="sh-stage sh-intro"><div class="sh-kicker">NACH ${d.years} ${d.years === 1 ? 'JAHR' : 'JAHREN'} KAKAO-HANDEL</div><h1 class="sh-title">Die Preisverleihung</h1><div class="sh-drum">🥁</div></div>`);
+        for (const B of BOARDS) {
+            const list = career.filter(r => r.role === B.role);
+            if (!list.length) continue;
+            const w = list[0];
+            const R = ROLES[B.role];
+            stages.push(() => {
+                setTimeout(() => confetti(2600, [R.color, '#ffffff', '#ffd27a']), 900);
+                return `<div class="sh-stage sh-award" style="--rc:${R.color}"><div class="sh-kicker">BESTE${B.role === 'spec' ? 'R' : ''} ${R.name.toUpperCase()}</div>
+                    <div class="sh-envelope">✉️</div>
+                    <div class="sh-reveal"><div class="sh-emb">${roleIcon(B.role, 120)}</div><div class="sh-name">${esc(w.name)}</div>
+                    <div class="sh-rank">${RANKS[w.level].icon} ${RANKS[w.level].name}</div>
+                    <div class="sh-val ${w.final >= 0 ? 'up' : 'down'}">${signed(w.final)} CHF</div>
+                    <div class="sh-sub">${w.years.map(y => `Jahr ${y.year}: <b class="${y.result >= 0 ? 'up' : 'down'}">${signed(y.result)}</b>`).join(' · ')}</div></div></div>`;
+            });
+        }
+        if (d.careerStar) {
+            const s = d.careerStar;
+            stages.push(() => {
+                setTimeout(() => confetti(5500), 1000);
+                Sound.play('end');
+                return `<div class="sh-stage sh-starstage"><div class="sh-kicker">UND JETZT DER WICHTIGSTE PREIS</div><div class="sh-bigstar">⭐</div>
+                    <div class="sh-reveal"><div class="sh-title">Trader des Tages</div><div class="sh-name">${roleIcon(s.role, 64)} ${esc(s.name)}</div>
+                    <div class="sh-sub">${signed(s.points)} Punkte · über alle Jahre am deutlichsten besser als die eigene Rolle</div></div></div>`;
+            });
+        }
+        let i = 0;
+        let timer = null;
+        const wrap = $('end-wrap');
+        const next = () => {
+            if (i >= stages.length) return board(d);
+            wrap.innerHTML = `<div class="show">${stages[i]()}<button class="btn btn-ghost sh-skip" id="sh-skip">Überspringen ⏭</button></div>`;
+            $('sh-skip').onclick = () => {
+                clearTimeout(timer);
+                board(d);
+            };
+            Sound.play(i === 0 ? 'drum' : 'fanfare');
+            i++;
+            timer = setTimeout(next, i === 1 ? 3200 : 4600);
+        };
+        next();
+    }
+
+    function board(d) {
+        const career = d.career;
+        const order = BOARDS.flatMap(B => career.filter(r => r.role === B.role).map((r, i) => ({ r, i })));
+        const ys = Array.from({ length: d.years }, (_, k) => k + 1);
+        const table = order.map(({ r, i }) => `<tr><td>${['🥇', '🥈', '🥉'][i] || i + 1}</td><td><span class="tb-n">${roleIcon(r.role, 18)} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</span></td>
+            <td><span class="rank-badge l${r.level}">${RANKS[r.level].icon} ${RANKS[r.level].name}</span></td>
+            ${ys.map(y => { const yy = r.years.find(x => x.year === y); return `<td class="num ${yy && yy.result >= 0 ? 'up' : 'down'}">${yy ? signed(yy.result) : '–'}</td>`; }).join('')}
+            <td class="num">${r.upgrades.map(u => (UPGRADES[r.role].find(x => x.id === u) || {}).icon || '').join(' ') || '–'}${r.upSpent ? `<small class="dim"> −${fmt(r.upSpent)}</small>` : ''}</td>
+            <td class="num ${r.final >= 0 ? 'up' : 'down'}"><b>${signed(r.final)}</b></td>
             <td class="num ${r.points >= 0 ? 'up' : 'down'}">${signed(r.points)}</td></tr>`).join('');
+        const winners = BOARDS.map(B => ({ B, r: career.filter(x => x.role === B.role)[0] })).filter(x => x.r);
+        const podium = winners.map(({ B, r }, k) => `<div class="pod p${k === 1 ? 1 : k === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-emb">${roleIcon(r.role, 56)}</div><div class="pod-role">Beste${B.role === 'spec' ? 'r' : ''} ${ROLES[B.role].short}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${r.final >= 0 ? 'up' : 'down'}">${signed(r.final)}</div></div>`).join('');
         $('end-wrap').innerHTML = `
-            <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Fälligkeit · Schlusskurs ${fmt(d.final)} <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h1></div>
-            ${d.star ? `<div class="star card" style="--rc:${ROLES[d.star.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${roleIcon(d.star.role, 36)} ${esc(d.star.name)}</div>
-                <div class="star-d">${d.star.points >= 0 ? '+' : ''}${fmt(d.star.points)} Punkte · war am deutlichsten besser als der Durchschnitt der eigenen Rolle</div></div></div>` : ''}
+            <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Karriere-Bilanz · ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h1></div>
+            ${d.careerStar ? `<div class="star card" style="--rc:${ROLES[d.careerStar.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${roleIcon(d.careerStar.role, 36)} ${esc(d.careerStar.name)}</div>
+                <div class="star-d">${signed(d.careerStar.points)} Punkte über alle Jahre</div></div></div>` : ''}
             <div class="podium">${podium}</div>
-            <div class="awards">${awards}</div>
             <div class="end-grid">
-                <div class="card"><h3>📈 Der Kursverlauf</h3><canvas id="end-chart"></canvas>
+                <div class="card wide"><h3>📊 Alle Firmen über ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h3>
+                    <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Endergebnis</th><th>⭐</th></tr></thead><tbody>${table}</tbody></table>
+                    <p class="dim small">Endergebnis = Summe der Jahresergebnisse − Ausbau-Investitionen − Zinsen für Notkredite. Hat sich der Ausbau gelohnt?</p></div>
+                <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
-                <div class="card"><h3>📊 Alle Trader</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Trader</th><th title="Kooperative: erzielter Preis pro Tonne · Fabrik: effektiver Einkaufspreis · Fonds: Gewinn">Wertung</th><th title="Ergebnis des Kerngeschäfts gegenüber Plan: Preis, Erntemenge, Kundenaufträge">Geschäft</th><th title="Gewinn/Verlust aus Futures inkl. Gebühren">Futures</th><th>Bank</th><th>Total</th><th title="Wie viel besser als der Durchschnitt der eigenen Rolle (fair über alle Rollen)">⭐ Punkte</th></tr></thead><tbody>${table}</tbody></table>
-                    <p class="dim small">Geschäft = Ernte bzw. Einkauf und Kundenaufträge gegenüber dem Plan. Futures = Gewinn/Verlust aus allen Kontrakten (inkl. Gebühren). Bei guten Hedgern heben sich beide weitgehend auf.</p>
-                    <h3>🗣️ Diskussion</h3><ol class="lessons"><li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – und war das Können oder Glück?</li><li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li><li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li><li>Wann hat ein Gerücht den Preis bewegt – vor oder nach der Bestätigung?</li></ol>
-                </div>
+                <div class="card"><h3>🗣️ Diskussion</h3><ol class="lessons">
+                    <li>Welche Investition hat sich am meisten gelohnt – und welche nicht?</li>
+                    <li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – Können oder Glück?</li>
+                    <li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li>
+                    <li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li></ol>
+                    <h3>🗓️ Die Jahre im Überblick</h3>${d.yearLog.map(y => `<div class="yl-row"><b>Jahr ${y.year}</b><span>${fmt(y.p0)} → ${fmt(y.final)} CHF/t</span><span class="${y.final >= y.p0 ? 'up' : 'down'}">${pct(y.final / y.p0 - 1)}</span>${y.star ? `<span>⭐ ${esc(y.star.name)}</span>` : ''}</div>`).join('')}</div>
             </div>
-            <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neue Runde</button></div>`;
+            <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neues Spiel</button></div>`;
         const ec = $('end-chart');
         const r = ec.parentElement.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;

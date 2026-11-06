@@ -46,7 +46,7 @@ const Bots = (() => {
         if (p.buyerOffer && Math.random() < 0.15) Engine.answerBuyer(p.id, p.buyerOffer.price >= G.price * (0.995 + Math.random() * 0.03));
         if (p.orderOffer && Math.random() < 0.15) Engine.answerOrder(p.id, Math.random() < 0.6 + (m.ratio - 0.7));
         // Timing: Bauern sichern mehr ab, wenn der Preis hoch ist, Fabriken, wenn er tief ist.
-        const rel = G.price / CFG.p0 - 1;
+        const rel = G.price / G.p0 - 1;
         let ratio = clamp(m.ratio * 0.55 + (p.role === 'producer' ? rel : -rel) * 3.5, 0.1, 1);
         // Bankauflage nicht verpassen
         const left = G.monthSec - (G.clock % G.monthSec);

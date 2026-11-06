@@ -63,3 +63,19 @@ Auf jedem Handy erscheint eine persönliche Auswertung.
 | `js/host.js` | Beamer: Lobby, Live-Chart, Rangliste, News, Auswertung |
 | `js/player.js` | Handy: Handel, Board, Margin Call, persönliche Auswertung |
 | `js/app.js` | Start und Navigation |
+
+
+## Karriere-Modus (bis zu 3 Jahre)
+
+Der Host wählt 1, 2 oder 3 Erntejahre. Nach jedem Jahr:
+
+1. **Jahresbericht** auf dem Beamer: Sieger pro Rolle, Trader des Jahres, Aufstiege im Rang.
+2. **Ausbauphase** (75 s, Host kann früher weiter): Jede Firma investiert ihren Gewinn.
+   - 🌱 Kooperative: Mehr Land (+30 t), Bewässerung (halbe Ernteverluste), Fairtrade (+120 CHF/t)
+   - 🏭 Fabrik: Pralinen-Linie (+60 % Auftragsmarge), Grosskunden-Vertrag (sicherer Auftrag), Marketing (mehr Aufträge)
+   - 🦈 Fonds: Analysten (93 % Trefferquote), Kreditlinie (+10 Kontrakte), Netzwerk (Research billiger und schneller)
+3. **Neues Jahr**: neuer Planpreis = Schlusskurs des Vorjahres, neue Ernte, neue Gerüchte.
+
+Ränge: Junior → Trader → Senior → Legende (ein Aufstieg für jedes Jahr, in dem man mindestens so gut war wie der Durchschnitt der eigenen Rolle). Wer pleite ist, bekommt einen Notkredit (25'000 CHF, 30 % Zins).
+
+**Endergebnis** = Summe der Jahresergebnisse − Ausbau − Zinsen. Am Ende läuft eine **Preisverleihung**: Beste Kooperative, beste Fabrik, bester Hedgefonds und der Trader des Tages, danach die ganze Karriere-Bilanz.

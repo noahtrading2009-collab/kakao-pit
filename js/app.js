@@ -2,6 +2,7 @@
 
 const App = (() => {
     let len = 'normal';
+    let years = 3;
 
     function show(id) {
         document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
@@ -20,6 +21,7 @@ const App = (() => {
             <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
+                <li>🏆 <b>Karriere:</b> Gespielt werden bis zu 3 Erntejahre. Nach jedem Jahr gibt es einen Jahresbericht und eine <b>Ausbauphase</b>: Investiert euren Gewinn in eure Firma (mehr Land, Pralinen-Linie, Analysten …). Gute Jahre bringen Ränge: Junior → Trader → Senior → Legende. Am Schluss: die grosse Preisverleihung.</li>
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
                 <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>
                 <li>News kommen zuerst als <b>Gerücht</b>, dann als Bestätigung oder Dementi. Der Preis reagiert schon auf das Gerücht.</li>
@@ -56,6 +58,10 @@ const App = (() => {
         if (last) $('in-name').value = last.name;
         if (joinCode) document.body.classList.add('joining');
 
+        $('seg-years').querySelectorAll('[data-years]').forEach(b => b.addEventListener('click', () => {
+            years = Number(b.dataset.years);
+            $('seg-years').querySelectorAll('[data-years]').forEach(x => x.classList.toggle('active', x === b));
+        }));
         $('seg-len').querySelectorAll('[data-len]').forEach(b => b.addEventListener('click', () => {
             len = b.dataset.len;
             $('seg-len').querySelectorAll('[data-len]').forEach(x => x.classList.toggle('active', x === b));
@@ -86,7 +92,7 @@ const App = (() => {
         });
         $('btn-host').addEventListener('click', () => {
             Sound.init();
-            Host.create(len);
+            Host.create(len, years);
         });
         $('btn-start').addEventListener('click', () => Host.start());
         $('bot-plus').addEventListener('click', () => Host.addBot());
