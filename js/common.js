@@ -20,6 +20,15 @@ const CFG = {
     farmMargin: 250,       // Kooperative: Gewinn pro geernteter Tonne (Produktionskosten tiefer als Planpreis)
     chocMargin: 250,       // Fabrik: Verarbeitungsmarge pro Tonne Grundbedarf
     fairPremium: 120,      // Fairtrade-Prämie pro Tonne
+    sugarYear: 2,          // ab diesem Jahr gibt es den Zucker-Markt
+    sSize: 50,             // Tonnen pro Zucker-Kontrakt
+    sP0: 650,              // Zucker-Startpreis CHF/t
+    sVol: 0.005,           // Zucker-Schwankung pro Sekunde
+    sNeed: 200,            // Fabrik: Zuckerbedarf pro Jahr (t)
+    sLimit: 10,            // Fonds: Zucker-Positionslimit (Kontrakte)
+    sFee: 6,               // Gebühr pro Zucker-Kontrakt
+    storeMax: 60,          // Kooperative mit Lagerhaus: so viel darf eingelagert werden
+    storeFee: 60,          // Lagerkosten pro Tonne und Jahr
     loan: 25000,           // Notkredit nach einer Pleite …
     loanRate: 0.3,         // … mit 30 % Zins
     bankMonth: 2,          // Bankprüfung am Ende dieses Monats …
@@ -193,15 +202,15 @@ const ROLES = {
 
 // News: Gerücht → (bestätigt | dementiert). impact = Preisänderung bei Bestätigung.
 const NEWS = [
-    { id: 'drought', icon: '☀️', impact: 0.12, prob: 0.65, yield: 0.88, rumor: 'Wetterdienst warnt vor Trockenheit in Westafrika', yes: 'Dürre bestätigt: Ernte in Ghana bricht ein', no: 'Entwarnung: Regenzeit setzt pünktlich ein' },
+    { id: 'drought', icon: '☀️', impact: 0.12, prob: 0.65, yield: 0.88, rumor: 'Wetterdienst warnt vor Trockenheit', yes: 'Dürre bestätigt: Ernte bricht ein', no: 'Entwarnung: Regenzeit setzt pünktlich ein' },
     { id: 'blackpod', icon: '🍂', impact: 0.09, prob: 0.6, yield: 0.9, rumor: 'Pilzkrankheit «Black Pod» auf Plantagen gemeldet', yes: 'Black Pod breitet sich aus: Ernteausfälle bestätigt', no: 'Black Pod lokal begrenzt, keine Ernteausfälle' },
-    { id: 'record', icon: '🌾', impact: -0.1, prob: 0.6, yield: 1.12, rumor: 'Insider: Elfenbeinküste erwartet Rekordernte', yes: 'Offiziell: Rekordernte an der Elfenbeinküste', no: 'Rekordernte-Gerücht falsch: Ernte im Durchschnitt' },
+    { id: 'record', icon: '🌾', impact: -0.1, prob: 0.6, yield: 1.12, rumor: 'Insider: Rekordernte erwartet', yes: 'Offiziell: Rekordernte eingefahren', no: 'Rekordernte-Gerücht falsch: Ernte im Durchschnitt' },
     { id: 'export', icon: '🚫', impact: 0.08, prob: 0.5, rumor: 'Ghana erwägt Exportstopp für Rohkakao', yes: 'Ghana verhängt Exportstopp für 30 Tage', no: 'Regierung dementiert Exportstopp' },
     { id: 'asia', icon: '🍫', impact: 0.06, prob: 0.7, orders: 1.6, rumor: 'Asiatische Konzerne bestellen massiv Schokolade', yes: 'Rekordnachfrage aus Asien bestätigt', no: 'Nachfrage aus Asien bleibt flach' },
     { id: 'diet', icon: '🥗', impact: -0.05, prob: 0.6, rumor: 'EU plant Zuckersteuer auf Süsswaren', yes: 'Zuckersteuer beschlossen: Schokoladenabsatz sinkt', no: 'EU verzichtet auf Zuckersteuer' },
     { id: 'strike', icon: '⚓', impact: 0.05, prob: 0.55, rumor: 'Hafenarbeiter in Abidjan drohen mit Streik', yes: 'Hafenstreik: Kakaoschiffe stecken fest', no: 'Einigung im Hafen von Abidjan, kein Streik' },
     { id: 'ecuador', icon: '🌴', impact: -0.07, prob: 0.6, rumor: 'Neue Grossplantagen in Ecuador sollen bald liefern', yes: 'Ecuador liefert erste Grossernte aus', no: 'Plantagen in Ecuador verzögern sich um ein Jahr' },
-    { id: 'rain', icon: '🌧️', impact: -0.06, prob: 0.65, yield: 1.12, rumor: 'Prognose: ideales Regenwetter in Westafrika', yes: 'Perfekte Wachstumsbedingungen: Ernte steigt', no: 'Wetter normalisiert sich, keine Rekordernte' },
+    { id: 'rain', icon: '🌧️', impact: -0.06, prob: 0.65, yield: 1.12, rumor: 'Prognose: ideales Regenwetter', yes: 'Perfekte Wachstumsbedingungen: Ernte steigt', no: 'Wetter normalisiert sich, keine Rekordernte' },
     { id: 'fund', icon: '🏦', impact: -0.06, prob: 0.5, rumor: 'Grosser Rohstofffonds soll Kakao-Positionen abbauen', yes: 'Fonds verkauft: Kakao unter Druck', no: 'Fonds hält Positionen, Gerücht falsch' },
 ];
 const SURPRISES = [
@@ -215,6 +224,12 @@ const MARGIN_HIKE = { id: 'hike', icon: '⚖️', text: 'BÖRSENAUFSICHT: Einsch
 const BUYERS = ['Barry Callebaut', 'Lindt & Sprüngli', 'Cargill', 'Nestlé', 'Ferrero', 'Olam Food', 'Touton Trading'];
 const CLIENTS = ['Alpenmarkt', 'Kaufhaus Helvetia', 'Bahnhofkiosk AG', 'Pralinen-Boutique', 'Export Asien', 'Hotelkette Seeblick', 'Discounter Spar-Fix', 'Café-Kette Bohne'];
 
+const REGION_BOTS = {
+    ghana: ['Ghana Cocoa Coop', 'Kumasi Kakao', 'Ashanti Farmers'],
+    ivory: ['Côte Farmers', 'Akwaba Kakao', 'Abidjan Coop'],
+    ecuador: ['Ecuador Verde', 'Cacao Andino', 'Guayas Coop'],
+    indonesia: ['Sulawesi Kakao', 'Nusantara Coop', 'Makassar Farmers'],
+};
 const BOT_NAMES = {
     producer: ['Ghana Cocoa Coop', 'Côte Farmers', 'Ecuador Verde', 'Akwaba Kakao'],
     processor: ['Alpenschoko AG', 'Choco Suisse', 'Nordcacao', 'Praliné & Co'],
@@ -241,6 +256,13 @@ const signed = n => `${n > 0 ? '+' : n < 0 ? '−' : '±'}${fmt(Math.abs(n))}`;
 const pct = x => `${x > 0 ? '+' : x < 0 ? '−' : '±'}${Math.abs(x * 100).toFixed(1)} %`;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+function shuffleArr(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function gauss() {
@@ -309,6 +331,7 @@ const UPGRADES = {
         { id: 'land', icon: '🌳', name: 'Mehr Land', cost: 20000, desc: '+30 t Ernte pro Jahr. Mehr Kakao = mehr Gewinn – aber auch mehr abzusichern.' },
         { id: 'irrigation', icon: '💧', name: 'Bewässerung', cost: 12000, desc: 'Dürre und Krankheit treffen dich nur noch halb so hart – jedes Jahr, ohne Versicherung.' },
         { id: 'fairtrade', icon: '🤝', name: 'Fairtrade-Zertifikat', cost: 15000, desc: `+${CFG.fairPremium} CHF Prämie für jede verkaufte Tonne.` },
+        { id: 'storage', icon: '🏚️', name: 'Lagerhaus', cost: 10000, desc: `Ernte am Jahresende einlagern statt verkaufen (bis ${CFG.storeMax} t, ${CFG.storeFee} CHF/t Lagerkosten) – und nächstes Jahr hoffentlich teurer verkaufen.` },
     ],
     processor: [
         { id: 'pralines', icon: '🍫', name: 'Pralinen-Linie', cost: 12000, desc: 'Kundenaufträge bringen 60 % mehr Marge.' },
@@ -327,4 +350,57 @@ const RANKS = [
     { name: 'Trader', icon: '📈' },
     { name: 'Senior', icon: '💼' },
     { name: 'Legende', icon: '👑' },
+];
+
+
+// ===== Weltkarte: Anbauregionen (Längen-/Breitengrad) =====
+const REGIONS = {
+    ghana: { name: 'Ghana', lon: -1.5, lat: 7, crop: 'cocoa' },
+    ivory: { name: 'Elfenbeinküste', lon: -5.5, lat: 7.5, crop: 'cocoa' },
+    ecuador: { name: 'Ecuador', lon: -79, lat: -1.5, crop: 'cocoa' },
+    indonesia: { name: 'Indonesien', lon: 120.5, lat: -2, crop: 'cocoa' },
+    brazil: { name: 'Brasilien', lon: -48, lat: -21, crop: 'sugar' },
+    india: { name: 'Indien', lon: 77, lat: 22, crop: 'sugar' },
+    thailand: { name: 'Thailand', lon: 101, lat: 15, crop: 'sugar' },
+};
+// Stark vereinfachte Landmasse für die Punkte-Weltkarte: [Breitengrad, [[von, bis] Längengrad, …]]
+const LAND = [
+    [75, [[-120, -70], [-70, -20], [55, 60], [95, 110]]],
+    [70, [[-165, -140], [-125, -65], [-55, -20], [60, 180]]],
+    [65, [[-168, -60], [-52, -25], [-24, -14], [10, 180]]],
+    [60, [[-165, -95], [-78, -62], [-48, -42], [5, 180]]],
+    [55, [[-133, -92], [-78, -58], [-8, 2], [8, 140], [155, 163]]],
+    [50, [[-128, -55], [-5, 140], [142, 145]]],
+    [45, [[-124, -62], [-1, 135], [140, 145]]],
+    [40, [[-124, -74], [-9, 3], [8, 18], [20, 120], [125, 130], [139, 142]]],
+    [35, [[-120, -76], [-8, 11], [33, 120], [130, 140]]],
+    [30, [[-115, -81], [-10, 32], [34, 122]]],
+    [25, [[-112, -97], [-82, -80], [-16, 35], [37, 57], [60, 122]]],
+    [20, [[-106, -87], [-17, 40], [40, 58], [70, 88], [92, 110]]],
+    [15, [[-92, -83], [-17, 42], [43, 52], [74, 80], [97, 109], [120, 122]]],
+    [10, [[-86, -60], [-15, 50], [76, 80], [98, 107], [122, 126]]],
+    [5, [[-78, -52], [-10, 48], [100, 104], [115, 119]]],
+    [0, [[-80, -48], [9, 42], [100, 105], [109, 119], [120, 125]]],
+    [-5, [[-81, -35], [12, 40], [105, 115], [120, 123], [135, 150]]],
+    [-10, [[-78, -35], [13, 40], [120, 125], [142, 145]]],
+    [-15, [[-76, -39], [12, 41], [44, 50], [125, 145]]],
+    [-20, [[-70, -40], [13, 35], [44, 48], [114, 150]]],
+    [-25, [[-70, -45], [15, 33], [44, 47], [113, 153]]],
+    [-30, [[-72, -50], [17, 31], [115, 153]]],
+    [-35, [[-72, -57], [18, 21], [116, 140], [142, 150]]],
+    [-40, [[-74, -62], [145, 148], [172, 178]]],
+    [-45, [[-75, -65], [167, 172]]],
+    [-50, [[-75, -68]]],
+    [-55, [[-72, -64]]],
+];
+const COCOA_REGIONS = Object.keys(REGIONS).filter(k => REGIONS[k].crop === 'cocoa');
+
+// Zucker-News (ab Jahr 2): springen direkt auf den Zuckerpreis
+const SUGAR_NEWS = [
+    { id: 'frostbr', icon: '❄️', impact: 0.12, region: 'brazil', text: 'ZUCKER: Frost in Brasilien zerstört Zuckerrohr' },
+    { id: 'ethanol', icon: '⛽', impact: 0.06, region: 'brazil', text: 'ZUCKER: Brasilien macht mehr Ethanol statt Zucker' },
+    { id: 'indiaban', icon: '🚫', impact: 0.11, region: 'india', text: 'ZUCKER: Indien stoppt Zuckerexporte' },
+    { id: 'monsoon', icon: '🌧️', impact: -0.1, region: 'india', text: 'ZUCKER: Starker Monsun – Indien erwartet Rekordernte' },
+    { id: 'thai', icon: '🌾', impact: -0.09, region: 'thailand', text: 'ZUCKER: Thailand meldet Riesenernte' },
+    { id: 'sugartax', icon: '🥤', impact: -0.08, region: null, text: 'ZUCKER: Mehrere Länder führen Zuckersteuern ein' },
 ];

@@ -21,6 +21,8 @@ const App = (() => {
             <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
+                <li>🌍 <b>Weltkarte:</b> Jede Kooperative liegt in einer Region (Ghana, Elfenbeinküste, Ecuador, Indonesien). Dürre, Krankheit oder Rekordernten treffen nur die betroffene Region.</li>
+                <li>🍬 <b>Zucker ab Jahr 2:</b> Ein zweiter Markt. Fabriken brauchen 200 t Zucker pro Jahr und können ihn absichern, Hedgefonds können darauf spekulieren.</li>
                 <li>🏆 <b>Karriere:</b> Gespielt werden bis zu 3 Erntejahre. Nach jedem Jahr gibt es einen Jahresbericht und eine <b>Ausbauphase</b>: Investiert euren Gewinn in eure Firma (mehr Land, Pralinen-Linie, Analysten …). Gute Jahre bringen Ränge: Junior → Trader → Senior → Legende. Am Schluss: die grosse Preisverleihung.</li>
                 <li><b>4 Monate</b> Handel, am Ende jedes Monats wird abgerechnet (Mark-to-Market). Danach ist Fälligkeit.</li>
                 <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>

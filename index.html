@@ -97,6 +97,7 @@
             <div class="h-months" id="h-months"></div>
             <div class="h-timer" id="h-timer">1:30</div>
             <div class="h-price"><span class="dim">KAKAO DEZ</span><b id="h-price">2'400</b><span id="h-change" class="chg">±0.0 %</span></div>
+            <div class="h-sugar hidden" id="h-sugar"></div>
             <button class="icon" id="h-sound" title="Ton">🔊</button>
         </header>
         <main class="h-main">
@@ -106,7 +107,7 @@
         <footer class="h-bottom">
             <div class="card h-news"><h3>📰 Newsfeed</h3><div id="h-news"></div></div>
             <div class="card h-offers"><h3>🎯 Absicherung <span class="dim small">Kooperativen &amp; Fabriken</span></h3><div id="h-offers"></div></div>
-            <div class="card h-tape"><h3>⚡ Abschlüsse</h3><div id="h-tape"></div></div>
+            <div class="card h-map"><h3>🌍 Weltkarte <span class="dim small">Anbauregionen & Ereignisse</span></h3><div id="h-map"></div></div>
         </footer>
         <div id="flash" class="flash hidden"></div>
         <div id="settle-ov" class="settle-ov hidden"></div>
@@ -145,12 +146,14 @@
                 <div><div class="dim small">Kakao Dezember · CHF/t</div><div class="big-price" id="p-price">2'400</div><div class="chg" id="p-change"></div></div>
                 <canvas id="p-spark"></canvas>
             </div>
+            <div class="sugar-line hidden" id="p-sugar"></div>
             <div class="p-news" id="p-news"></div>
             <div class="card p-rolepanel" id="p-rolepanel"></div>
             <div class="card p-trade">
+                <div class="seg mkt-seg hidden" id="p-mkt"><button data-mkt="cocoa" class="active">🍫 Kakao</button><button data-mkt="sugar">🍬 Zucker</button></div>
                 <div class="tr-head"><span id="p-trade-title">Handel</span><span class="dim small" id="p-trade-sub"></span></div>
                 <div class="hmeter" id="p-hmeter"></div>
-                <div class="qty" id="p-qty"><button data-q="1" class="active">1</button><button data-q="2">2</button><button data-q="5">5</button><button data-q="10">10</button><span class="dim small">Kontrakte à 10 t</span></div>
+                <div class="qty" id="p-qty"><button data-q="1" class="active">1</button><button data-q="2">2</button><button data-q="5">5</button><button data-q="10">10</button><span class="dim small" id="p-qty-unit">Kontrakte à 10 t</span></div>
                 <div class="trade-btns" id="p-tbtns">
                     <button class="tbtn buy" id="p-buy"><span id="p-buy-l">KAUFEN</span><b id="p-ask">2'404</b><small id="p-buy-s">Long</small></button>
                     <button class="tbtn sell" id="p-sell"><span id="p-sell-l">VERKAUFEN</span><b id="p-bid">2'396</b><small id="p-sell-s">Short</small></button>

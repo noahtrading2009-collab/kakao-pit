@@ -52,6 +52,13 @@ const Bots = (() => {
         const left = G.monthSec - (G.clock % G.monthSec);
         if (G.month > CFG.bankMonth || (G.month === CFG.bankMonth && left < G.monthSec * 0.6)) ratio = Math.max(ratio, CFG.bankQuota + 0.08);
         const target = Math.round((-p.physical / CFG.size) * ratio);
+        // Zucker: Fabriken sichern ihren Zuckerbedarf ähnlich ab
+        if (p.role === 'processor' && G.sug.on && p.sphys < 0 && Math.random() < m.pace * 0.6) {
+            const srel = G.sug.price / G.sug.p0 - 1;
+            const sr = clamp(m.ratio * 0.55 - srel * 3, 0.1, 1);
+            const st = Math.round((-p.sphys / CFG.sSize) * Math.max(sr, G.month > CFG.bankMonth ? 0.5 : 0));
+            if (st !== p.spos) Engine.trade(p.id, Math.sign(st - p.spos), 'sugar');
+        }
         const gap = target - p.pos;
         // Gute Angebote anderer Spieler in die richtige Richtung annehmen.
         const good = G.offers.find(o => o.by !== p.id
@@ -90,6 +97,13 @@ const Bots = (() => {
             if (Math.sign(want - p.pos) !== 0 && Math.random() < 0.25) return Engine.trade(p.id, Math.sign(want - p.pos) * Math.min(3, Math.abs(want - p.pos)));
         } else if (Math.random() < 0.04) {
             Engine.trade(p.id, (Math.random() < 0.55 ? m.bias : -m.bias) * (1 + Math.floor(Math.random() * 2)));
+        }
+        // Zucker: Fonds handeln die Zucker-News mit
+        if (G.sug.on && Math.random() < 0.03) {
+            const h = G.sug.history;
+            const mom = h.length > 6 ? h[h.length - 1].p - h[h.length - 6].p : 0;
+            const want = clamp(Math.sign(mom) * 3 + (Math.random() < 0.5 ? 1 : -1), -6, 6);
+            if (want !== p.spos) Engine.trade(p.id, Math.sign(want - p.spos), 'sugar');
         }
         if (false && pl > 5000) { // Board ist ausgeblendet
             const side = Math.random() < 0.5 ? 'buy' : 'sell';

@@ -49,6 +49,7 @@ const Scenes = (() => {
         const d = me.physical - 100;
         return `<div class="scene farm">${svg}
             <div class="sc-chip tl">${me.skyRumor ? '📡 Prognose: ' : ''}${sky.label}</div>
+            ${me.region ? `<div class="sc-chip tl2">📍 ${REGIONS[me.region].name}</div>` : ''}
             <div class="sc-chip tr">Börse <b class="sc-price"></b></div>
             <div class="sc-big"><small>Erwartete Ernte</small><b>${me.physical} t</b>${d ? `<em class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${Math.abs(d)} t</em>` : ''}</div></div>`;
     }

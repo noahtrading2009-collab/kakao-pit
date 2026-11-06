@@ -10,6 +10,7 @@ const Player = (() => {
     let me = null;
     let pub = null;
     let qty = 1;
+    let mkt = 'cocoa';   // gewählter Markt: 'cocoa' oder 'sugar'
     let rid = 1;
     let ofSide = 'sell';
     let ofQty = 2;
@@ -205,6 +206,12 @@ const Player = (() => {
         const ch = pub.price / pub.p0 - 1;
         $('p-change').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span> <span class="dim">seit Start · Plan ${fmt(pub.p0)}</span>`;
         spark(pub.history);
+        const sl = $('p-sugar');
+        sl.classList.toggle('hidden', !(pub.sugar && pub.sugar.on));
+        if (pub.sugar && pub.sugar.on) {
+            const sc = pub.sugar.price / pub.sugar.p0 - 1;
+            sl.innerHTML = `<span>🍬 Zucker</span><b>${fmt(pub.sugar.price)}</b><span class="${sc >= 0 ? 'up' : 'down'}">${pct(sc)}</span>${me.role === 'producer' ? '' : `<span class="dim">Pos. ${me.spos > 0 ? '+' : ''}${me.spos}</span>`}`;
+        }
         if (pub.feed && pub.feed[0]) $('p-news').innerHTML = `<span>${pub.feed[0].icon}</span> ${esc(pub.feed[0].text)}`;
 
         // Risiko in Tonnen
@@ -267,9 +274,15 @@ const Player = (() => {
 
     // Erlaubte Menge für Kauf (q>0) bzw. Verkauf (q<0) gemäss Mandat.
     function room(dir) {
-        const b = me.bounds;
-        if (dir > 0) return me.pos < b.max ? b.max - me.pos : (me.pos < 0 ? -me.pos : 0);
-        return me.pos > b.min ? me.pos - b.min : (me.pos > 0 ? me.pos : 0);
+        const sug = mkt === 'sugar';
+        const b = sug ? me.sbounds : me.bounds;
+        const pos = sug ? me.spos : me.pos;
+        if (dir > 0) return pos < b.max ? b.max - pos : (pos < 0 ? -pos : 0);
+        return pos > b.min ? pos - b.min : (pos > 0 ? pos : 0);
+    }
+
+    function canSugar() {
+        return pub && pub.sugar && pub.sugar.on && me.role !== 'producer';
     }
 
     function setBtn(id, label, sub) {
@@ -278,6 +291,16 @@ const Player = (() => {
     }
 
     function renderTrade(closed) {
+        if (!canSugar()) mkt = 'cocoa';
+        const seg = $('p-mkt');
+        seg.classList.toggle('hidden', !canSugar());
+        seg.querySelectorAll('[data-mkt]').forEach(x => x.classList.toggle('active', x.dataset.mkt === mkt));
+        if (mkt === 'sugar') return renderSugarTrade(closed);
+        const ask = Math.round(pub.price * (1 + CFG.spread));
+        const bid = Math.round(pub.price * (1 - CFG.spread));
+        $('p-ask').textContent = fmt(ask);
+        $('p-bid').textContent = fmt(bid);
+        $('p-qty-unit').textContent = `Kontrakte à ${CFG.size} t`;
         const b = me.bounds;
         const tb = $('p-tbtns');
         let hedged;
@@ -330,6 +353,50 @@ const Player = (() => {
                     : me.bank === 'fail' ? `<div class="bank-line bad">🏦 Bankauflage verfehlt – ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt</div>`
                     : `<div class="bank-line ${q >= CFG.bankQuota ? 'ok' : 'warn'}">🏦 Bank: bis Ende Monat ${CFG.bankMonth} mind. ${Math.round(CFG.bankQuota * 100)} % absichern${q >= CFG.bankQuota ? ' ✔' : ` – sonst ${fmt(CFG.bankFee)} CHF Zuschlag`}</div>`}`;
         }
+        if ($('p-hmeter').dataset.h !== html) {
+            $('p-hmeter').dataset.h = html;
+            $('p-hmeter').innerHTML = html;
+        }
+    }
+
+    // Zucker-Variante der Handelskarte (Fabrik: nur kaufen bis Bedarf, Fonds: frei)
+    function renderSugarTrade(closed) {
+        const s = pub.sugar;
+        const b = me.sbounds;
+        const tb = $('p-tbtns');
+        $('p-ask').textContent = fmt(Math.round(s.price * (1 + CFG.spread * 1.5)));
+        $('p-bid').textContent = fmt(Math.round(s.price * (1 - CFG.spread * 1.5)));
+        $('p-qty-unit').textContent = `Kontrakte à ${CFG.sSize} t`;
+        tb.classList.remove('rev');
+        let html;
+        if (me.role === 'processor') {
+            $('p-trade-title').textContent = '🍬 Zucker-Einkauf sichern';
+            $('p-trade-sub').textContent = `Bedarf ${-me.sphys} t pro Jahr`;
+            setBtn('p-buy', 'ABSICHERN', 'Zucker kaufen');
+            setBtn('p-sell', 'AUFLÖSEN', 'Verkauf');
+            $('p-buy').classList.add('primary');
+            $('p-sell').classList.add('secondary');
+            $('p-buy').classList.remove('secondary');
+            $('p-sell').classList.remove('primary');
+            const need = Math.max(0, -me.sphys);
+            const hedged = Math.max(0, me.spos * CFG.sSize);
+            const q = need ? hedged / need : 0;
+            html = `<div class="hm-row"><span>Zucker abgesichert</span><b class="${q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
+                <div class="hm-bar sugar"><i class="fill" style="width:${Math.min(100, q * 100)}%"></i><em style="left:100%"></em></div>
+                <div class="small dim">Zucker heute ${fmt(s.price)} CHF/t (Plan ${fmt(s.p0)}). Steigt Zucker, wird deine Schokolade teurer – ausser du hast abgesichert.</div>`;
+        } else {
+            $('p-trade-title').textContent = '🍬 Zucker-Desk';
+            $('p-trade-sub').textContent = `Long & Short · Limit ±${b.max}`;
+            setBtn('p-buy', 'KAUFEN', 'Long Zucker');
+            setBtn('p-sell', 'VERKAUFEN', 'Short Zucker');
+            ['p-buy', 'p-sell'].forEach(id => $(id).classList.remove('primary', 'secondary'));
+            const w = (Math.abs(me.spos) / Math.max(1, b.max)) * 50;
+            html = `<div class="hm-row"><span>Short ${b.max}</span><b class="${me.spos > 0 ? 'up' : me.spos < 0 ? 'down' : ''}">${me.spos > 0 ? 'Long ' : me.spos < 0 ? 'Short ' : ''}${Math.abs(me.spos)}</b><span>Long ${b.max}</span></div>
+                <div class="hm-bar mid sugar"><i class="${me.spos >= 0 ? 'long' : 'short'}" style="left:${me.spos >= 0 ? 50 : 50 - w}%;width:${w}%"></i></div>
+                <div class="small">Offener Gewinn Zucker: <b class="${me.sunreal >= 0 ? 'up' : 'down'}">${signed(me.sunreal)}</b></div>`;
+        }
+        $('p-buy').disabled = closed || room(1) <= 0;
+        $('p-sell').disabled = closed || room(-1) <= 0;
         if ($('p-hmeter').dataset.h !== html) {
             $('p-hmeter').dataset.h = html;
             $('p-hmeter').innerHTML = html;
@@ -547,7 +614,7 @@ const Player = (() => {
         const ups = UPGRADES[me.role] || [];
         const yi = yearInfo;
         const last = me.yearsDone[me.yearsDone.length - 1];
-        const key = JSON.stringify([me.upgrades, me.cash, me.level, last, yi && yi.rank]);
+        const key = JSON.stringify([me.upgrades, me.cash, me.level, last, yi && yi.rank, me.stored]);
         $('shop-timer').textContent = `${Math.floor(Math.max(0, pub.shopLeft) / 60)}:${String(Math.max(0, pub.shopLeft) % 60).padStart(2, '0')}`;
         if (key === shopKey) return;
         shopKey = key;
@@ -568,7 +635,14 @@ const Player = (() => {
                 return `<div class="shop-card ${own ? 'own' : ''}" style="--rc:${R.color}"><div class="sc-ico">${u.icon}</div><div class="sc-body"><b>${u.name}</b><p>${u.desc}</p></div>
                     ${own ? '<div class="sc-own">✔ Gekauft</div>' : `<button class="btn ${can ? 'btn-primary' : 'btn-ghost'} sc-buy" data-up="${u.id}" ${can ? '' : 'disabled'}>${fmt(u.cost)} CHF</button>`}</div>`;
             }).join('')}</div>
+            ${me.role === 'producer' && me.upgrades.includes('storage') ? `<div class="card store-card"><div class="shop-h"><span>🏚️ Lagerhaus</span><b>${me.stored} t eingelagert</b></div>
+                <p class="small">Statt zum Schlusskurs von <b>${fmt(pub.price)} CHF/t</b> zu verkaufen, kannst du Kakao einlagern und nächstes Jahr verkaufen. Lohnt sich nur, wenn der Preis um mehr als ${CFG.storeFee} CHF/t (Lagerkosten) steigt!</p>
+                <div class="store-btns">${[0, 20, 40, 60].filter(t => t <= CFG.storeMax).map(t => `<button class="btn ${me.stored === t ? 'btn-primary' : 'btn-ghost'}" data-store="${t}">${t} t</button>`).join('')}</div></div>` : ''}
             <div class="dim small pulse">Der Host startet das nächste Jahr – oder es geht automatisch weiter, wenn die Zeit abläuft.</div>`;
+        $('shop-body').querySelectorAll('[data-store]').forEach(b => b.addEventListener('click', () => {
+            send({ t: 'store', t2: Number(b.dataset.store) });
+            Sound.play('tick');
+        }));
         $('shop-body').querySelectorAll('[data-up]').forEach(b => b.addEventListener('click', () => {
             send({ t: 'upgrade', id: b.dataset.up });
             Sound.play('buy');
@@ -616,8 +690,14 @@ const Player = (() => {
             $('p-qty').querySelectorAll('[data-q]').forEach(x => x.classList.toggle('active', x === b));
         }));
         // Menge automatisch aufs Mandat begrenzen (z. B. nur noch 3 Kontrakte bis zur vollen Absicherung).
-        $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
-        $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
+        $('p-buy').addEventListener('click', () => send({ t: 'trade', mkt, q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
+        $('p-sell').addEventListener('click', () => send({ t: 'trade', mkt, q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
+        $('p-mkt').querySelectorAll('[data-mkt]').forEach(b => b.addEventListener('click', () => {
+            mkt = b.dataset.mkt;
+            $('p-hmeter').dataset.h = '';
+            Sound.play('tick');
+            if (me && pub) render();
+        }));
         $('of-side').querySelectorAll('[data-side]').forEach(b => b.addEventListener('click', () => {
             ofSide = b.dataset.side;
             $('of-side').querySelectorAll('[data-side]').forEach(x => x.classList.toggle('active', x === b));

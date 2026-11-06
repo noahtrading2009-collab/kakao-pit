@@ -110,17 +110,18 @@ const Host = (() => {
         }
         let r = { ok: false, msg: 'Unbekannte Aktion.' };
         const p = Engine.byId(e.pid);
-        if (msg.t === 'trade') r = Engine.trade(e.pid, Number(msg.q));
+        if (msg.t === 'trade') r = Engine.trade(e.pid, Number(msg.q), msg.mkt === 'sugar' ? 'sugar' : 'cocoa');
         else if (msg.t === 'offer') r = Engine.postOffer(e.pid, msg.side === 'buy' ? 'buy' : 'sell', Number(msg.qty), Number(msg.price));
         else if (msg.t === 'accept') r = Engine.acceptOffer(e.pid, Number(msg.id));
         else if (msg.t === 'cancel') r = Engine.cancelOffer(e.pid, Number(msg.id));
         else if (msg.t === 'topup') r = Engine.topUp(e.pid);
-        else if (msg.t === 'reduce' && p && p.pos) r = Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2));
+        else if (msg.t === 'reduce' && p && (p.pos || p.spos)) r = p.pos ? Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2)) : Engine.trade(e.pid, -Math.sign(p.spos) * Math.ceil(Math.abs(p.spos) / 2), 'sugar');
         else if (msg.t === 'protect') r = Engine.protect(e.pid);
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'research') r = Engine.research(e.pid);
         else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
+        else if (msg.t === 'store') r = Engine.storeHarvest(e.pid, Number(msg.t2));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
         if (r.ok && (msg.t === 'offer' || msg.t === 'accept')) conns.forEach(push);
@@ -132,6 +133,7 @@ const Host = (() => {
         if (type === 'news') {
             conns.forEach(e => send(e, { t: 'news', item: data }));
             if (['rumor', 'yes', 'no', 'flash', 'alert'].includes(data.kind)) flash(data);
+            if (data.region) addMapPin(data);
             if (data.kind === 'bell') Sound.play('bell');
         } else if (type === 'note') {
             conns.forEach(e => { if (e.pid === data.pid) send(e, { t: 'note', kind: data.kind, text: data.text }); });
@@ -208,7 +210,12 @@ const Host = (() => {
         const role = Object.keys(counts).sort((a, b) => counts[a] - counts[b])[0];
         const used = new Set(G.players.map(p => p.name));
         const name = BOT_NAMES[role].find(n => !used.has(n)) || `${ROLES[role].short} ${G.players.length + 1}`;
-        Engine.addPlayer(name, `bot-${Math.random()}`, true, role);
+        const bot = Engine.addPlayer(name, `bot-${Math.random()}`, true, role);
+        // Kooperativen-Bots heissen nach ihrer Anbauregion
+        if (bot && role === 'producer' && bot.region) {
+            const pool = REGION_BOTS[bot.region] || [];
+            bot.name = pool.find(n => !used.has(n)) || bot.name;
+        }
         botCount++;
         renderLobby();
     }
@@ -282,6 +289,8 @@ const Host = (() => {
         renderNews(S);
         renderHedges(S);
         renderTape(S);
+        renderMap(S);
+        renderSugar(S);
     }
 
     const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
@@ -389,7 +398,105 @@ const Host = (() => {
             : '<div class="dim small">Noch keine Angebote. Spieler können auf dem Handy eigene Preise aufs Board stellen.</div>';
     }
 
+    function renderSugar(S) {
+        const el = $('h-sugar');
+        if (!el) return;
+        const on = S.sugar && S.sugar.on;
+        el.classList.toggle('hidden', !on);
+        if (!on) return;
+        const ch = S.sugar.price / S.sugar.p0 - 1;
+        const h = S.sugar.history.map(x => x.p);
+        const lo = Math.min(...h);
+        const hi = Math.max(...h);
+        const pts = h.slice(-60).map((v, i, a) => `${(i / Math.max(1, a.length - 1)) * 70},${22 - ((v - lo) / Math.max(1, hi - lo)) * 20}`).join(' ');
+        el.innerHTML = `<span class="hs-l">🍬 ZUCKER</span><b>${fmt(S.sugar.price)}</b><span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '▲' : '▼'} ${pct(ch)}</span><svg viewBox="0 0 70 24" class="hs-spark"><polyline points="${pts}" class="${ch >= 0 ? 'up' : 'down'}"/></svg>`;
+    }
+
+    // ===== Weltkarte (Punkte-Karte) mit Regionen und Ereignissen =====
+    const MAP_W = 360;
+    const MAP_H = 140;
+    const mx = lon => lon + 180;
+    const my = lat => 80 - lat;
+    const mapPins = [];
+    let mapBaseKey = '';
+    let mapPinKey = '';
+
+    function landAt(lat, lon) {
+        let best = null;
+        for (const row of LAND) if (best === null || Math.abs(row[0] - lat) < Math.abs(best[0] - lat)) best = row;
+        if (!best || Math.abs(best[0] - lat) > 2.5) return false;
+        return best[1].some(([a, b]) => lon >= a && lon <= b);
+    }
+
+    let mapDots = null;
+    function dots() {
+        if (mapDots) return mapDots;
+        let out = '';
+        for (let lat = 77.5; lat >= -57.5; lat -= 2.5) {
+            for (let lon = -178.75; lon <= 178.75; lon += 2.5) {
+                if (landAt(lat, lon)) out += `<circle cx="${mx(lon).toFixed(1)}" cy="${my(lat).toFixed(1)}" r="0.85"/>`;
+            }
+        }
+        mapDots = out;
+        return out;
+    }
+
+    function addMapPin(item) {
+        if (!item.region || !REGIONS[item.region]) return;
+        mapPins.push({ region: item.region, icon: item.yieldIcon || item.icon, kind: item.kind, sugar: !!item.sugar, at: Date.now() });
+        while (mapPins.length > 12) mapPins.shift();
+    }
+
+    function renderMap(S) {
+        const el = $('h-map');
+        if (!el) return;
+        const G = Engine.G;
+        const coops = G.players.filter(p => p.role === 'producer');
+        const baseKey = `${coops.map(p => p.id + p.region).join(',')}|${S.sugar && S.sugar.on}`;
+        if (baseKey !== mapBaseKey) {
+            mapBaseKey = baseKey;
+            mapPinKey = '';
+            const regs = Object.entries(REGIONS).filter(([, r]) => r.crop === 'cocoa' || (S.sugar && S.sugar.on)).map(([k, r]) => {
+                const here = coops.filter(p => p.region === k);
+                const x = mx(r.lon);
+                const y = my(r.lat);
+                const sug = r.crop === 'sugar';
+                const below = r.lat < 0 || k === 'ivory';
+                const lx = k === 'ivory' ? x - 3 : k === 'ghana' ? x + 3 : x;
+                const anchor = k === 'ivory' ? 'end' : k === 'ghana' ? 'start' : 'middle';
+                return `<g class="reg ${sug ? 'sug' : 'coc'}"><circle class="reg-glow" cx="${x}" cy="${y}" r="5"/><circle class="reg-dot" cx="${x}" cy="${y}" r="2"/>
+                    <text x="${lx}" y="${below ? y + 9 : y - 5}" text-anchor="${anchor}" class="reg-l">${sug ? '🍬 ' : ''}${r.name}${here.length ? ` · ${here.length}` : ''}</text>
+                    ${here.length ? `<text x="${lx}" y="${below ? y + 15 : y - 10.5}" text-anchor="${anchor}" class="reg-p">${here.slice(0, 3).map(p => esc(p.name.slice(0, 8))).join(', ')}</text>` : ''}</g>`;
+            }).join('');
+            el.innerHTML = `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="xMidYMid meet" class="worldmap">
+                <defs><radialGradient id="mapglow"><stop offset="0" stop-color="rgba(255,181,71,.25)"/><stop offset="1" stop-color="rgba(255,181,71,0)"/></radialGradient></defs>
+                <rect x="0" y="${my(23.5)}" width="${MAP_W}" height="${my(-23.5) - my(23.5)}" class="tropics"/>
+                <line x1="0" x2="${MAP_W}" y1="${my(0)}" y2="${my(0)}" class="equator"/>
+                <g class="land">${dots()}</g>
+                <g class="regs">${regs}</g><g id="map-pins"></g></svg>`;
+        }
+        // Ereignis-Marker (pulsieren 25 Sekunden lang)
+        const now = Date.now();
+        const live = mapPins.filter(p => now - p.at < 25000);
+        const pinKey = live.map(p => p.at).join(',');
+        if (pinKey !== mapPinKey) {
+            mapPinKey = pinKey;
+            const g = $('map-pins');
+            if (g) {
+                g.innerHTML = live.map(p => {
+                    const r = REGIONS[p.region];
+                    const x = mx(r.lon);
+                    const y = my(r.lat);
+                    const col = p.kind === 'yes' ? '#22e58a' : p.kind === 'no' ? '#a78bfa' : p.kind === 'rumor' ? '#ffb547' : '#ff4d6a';
+                    return `<g class="pin"><circle cx="${x}" cy="${y}" r="3" stroke="${col}" class="pin-ring"/><circle cx="${x}" cy="${y}" r="3" stroke="${col}" class="pin-ring d2"/>
+                        <text x="${x + 4}" y="${y + 2}" class="pin-ico">${p.icon}</text></g>`;
+                }).join('');
+            }
+        }
+    }
+
     function renderTape(S) {
+        if (!$('h-tape')) return;
         $('h-tape').innerHTML = S.tape.slice(0, 8).map(t => `<div class="tape ${t.kind} ${Engine.G.sec - t.sec < 1 ? 'fresh' : ''}"><span class="${t.q > 0 ? 'up' : 'down'}">${t.q > 0 ? '▲' : '▼'} ${Math.abs(t.q)}</span><span>${esc(t.who)}</span><b>${fmt(t.price)}</b></div>`).join('');
     }
 

@@ -845,3 +845,49 @@ body.typing .bg-aurora i, body.typing .ticker-track, body.typing .hero-emblem, b
     .sh-title { font-size: 52px; }
     .year-intro .yi-n { font-size: 140px; }
 }
+
+/* =====================================================================
+   ETAPPE 2: Weltkarte, Zucker, Lagerhaus
+   ===================================================================== */
+.h-map { padding: 10px 12px !important; display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+#h-map { min-height: 0; display: grid; }
+.worldmap { width: 100%; height: 100%; display: block; }
+.worldmap .land circle { fill: rgba(140, 170, 220, .38); }
+.worldmap .tropics { fill: rgba(255, 181, 71, .05); }
+.worldmap .equator { stroke: rgba(255, 181, 71, .3); stroke-width: .4; stroke-dasharray: 2 2; }
+.worldmap .reg-glow { fill: url(#mapglow); animation: regpulse 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.worldmap .reg.sug .reg-glow { fill: rgba(244, 114, 182, .2); }
+.worldmap .reg-dot { fill: #ffb547; stroke: #0b1020; stroke-width: .8; }
+.worldmap .reg.sug .reg-dot { fill: #f472b6; }
+.worldmap .reg-l { font: 700 5.4px "Space Grotesk", sans-serif; fill: #f3f6fb; paint-order: stroke; stroke: rgba(5, 8, 15, .9); stroke-width: 1.6px; }
+.worldmap .reg-p { font: 600 4.3px "Space Grotesk", sans-serif; fill: #ffcf8a; paint-order: stroke; stroke: rgba(5, 8, 15, .9); stroke-width: 1.4px; }
+@keyframes regpulse { 50% { transform: scale(1.6); opacity: .5; } }
+.worldmap .pin-ring { fill: none; stroke-width: .9; animation: pinring 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.worldmap .pin-ring.d2 { animation-delay: .8s; }
+@keyframes pinring { from { transform: scale(.6); opacity: 1; } to { transform: scale(3.4); opacity: 0; } }
+.worldmap .pin-ico { font-size: 7px; animation: pop .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+
+.h-sugar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 12px; background: linear-gradient(160deg, rgba(244, 114, 182, .16), rgba(244, 114, 182, .03)); border: 1px solid rgba(244, 114, 182, .45); font-family: var(--mono); animation: pop .5s; }
+.h-sugar .hs-l { font-size: 11px; letter-spacing: 1.5px; color: #f9a8d4; font-weight: 800; }
+.h-sugar b { font-size: 22px; }
+.h-sugar span:not(.hs-l) { font-size: 13px; font-weight: 700; }
+.hs-spark { width: 70px; height: 24px; }
+.hs-spark polyline { fill: none; stroke-width: 1.6; }
+.hs-spark polyline.up { stroke: var(--up); }
+.hs-spark polyline.down { stroke: var(--down); }
+
+/* Handy */
+.mkt-seg { margin: 0 0 4px; }
+.mkt-seg button.active { background: linear-gradient(160deg, rgba(244, 114, 182, .25), rgba(255, 181, 71, .15)); color: #fff; }
+.sugar-line { display: flex; gap: 10px; align-items: baseline; padding: 8px 12px; border-radius: 12px; font-size: 13px; background: linear-gradient(90deg, rgba(244, 114, 182, .14), rgba(244, 114, 182, .02)); border-left: 3px solid #f472b6; }
+.sugar-line b { font-family: var(--mono); font-size: 18px; }
+.sugar-line span:nth-child(3) { font-family: var(--mono); font-weight: 700; }
+.hm-bar.sugar i.fill { background: linear-gradient(90deg, rgba(244, 114, 182, .5), #f472b6); box-shadow: 0 0 14px #f472b6; }
+.sc-chip.tl2 { left: 10px; top: 42px; }
+.store-card { padding: 12px 14px; display: grid; gap: 8px; border-color: rgba(255, 181, 71, .4) !important; }
+.store-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.store-btns .btn { padding: 9px 4px; font-family: var(--mono); }
+.h-bottom { grid-template-columns: 1.2fr 1fr 1.35fr; }
+.worldmap .reg-l { font-size: 7px; }
+.worldmap .reg-p { font-size: 5.4px; }
+.worldmap .pin-ico { font-size: 9px; }
