@@ -678,7 +678,23 @@ const Engine = (() => {
             r.level = p.level;
             r.total = p.total;
         }
-        G.yearLog.push({ year: G.year, final: G.price, p0: G.p0, star: d.star ? { id: d.star.id, name: d.star.name, role: d.star.role } : null });
+        // Jahresüberblick: Kurs, Sieger pro Rolle, wichtigste Meldungen
+        const best = (role, cmp) => d.rows.filter(r => r.role === role).sort(cmp)[0];
+        const pick = r => (r ? { id: r.id, name: r.name, role: r.role, metric: r.metric, result: r.yearResult, bot: r.bot } : null);
+        const step = Math.max(1, Math.floor(G.history.length / 120));
+        G.yearLog.push({
+            year: G.year, final: G.price, p0: G.p0,
+            hi: Math.max(...G.history.map(h => h.p)), lo: Math.min(...G.history.map(h => h.p)),
+            history: G.history.filter((h, i) => i % step === 0 || i === G.history.length - 1).map(h => h.p),
+            star: d.star ? { id: d.star.id, name: d.star.name, role: d.star.role } : null,
+            winners: {
+                producer: pick(best('producer', (a, b) => b.metric - a.metric)),
+                processor: pick(best('processor', (a, b) => a.metric - b.metric)),
+                spec: pick(best('spec', (a, b) => b.result - a.result)),
+            },
+            events: G.feed.filter(f => f.sec >= (G.yearStartSec || 0) && ['yes', 'flash'].includes(f.kind)).slice(0, 4).map(f => ({ icon: f.yieldIcon || f.icon, text: f.text, dir: f.dir || 0 })),
+            upgrades: G.players.reduce((n, p) => n + p.upgrades.length, 0),
+        });
         if (G.year < G.years) {
             G.phase = 'shop';
             G.shopLeft = CFG.shopSec;
@@ -740,6 +756,7 @@ const Engine = (() => {
         G.month = 1;
         G.clock = 0;
         G.history = [{ s: 0, p: G.price }];
+        G.yearStartSec = G.sec;
         G.marks = [];
         G.trades = [];
         G.tape = [];

@@ -892,6 +892,46 @@ const Host = (() => {
         return `${fmt(r.metric)}<small>/t</small>`;
     }
 
+    // ===== Überblick über alle gespielten Jahre =====
+    function yearSpark(y, w = 220, h = 64) {
+        const hs = y.history && y.history.length > 1 ? y.history : [y.p0, y.final];
+        const lo = Math.min(...hs, y.p0);
+        const hi = Math.max(...hs, y.p0);
+        const span = Math.max(1, hi - lo);
+        const X = i => (i / (hs.length - 1)) * w;
+        const Y = v => h - 4 - ((v - lo) / span) * (h - 8);
+        const pts = hs.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+        const up = y.final >= y.p0;
+        const col = up ? '#22e58a' : '#ff4d6a';
+        const gid = `ys${y.year}${Math.random().toString(36).slice(2, 6)}`;
+        return `<svg viewBox="0 0 ${w} ${h}" class="yc-spark" preserveAspectRatio="none">
+            <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+            <line x1="0" x2="${w}" y1="${Y(y.p0).toFixed(1)}" y2="${Y(y.p0).toFixed(1)}" class="yc-plan"/>
+            <polygon points="0,${h} ${pts} ${w},${h}" fill="url(#${gid})"/>
+            <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round"/>
+            <circle cx="${X(hs.length - 1).toFixed(1)}" cy="${Y(hs[hs.length - 1]).toFixed(1)}" r="3.5" fill="${col}"/></svg>`;
+    }
+
+    function yearCards(log, compact = false) {
+        return log.map((y, i) => {
+            const ch = y.final / y.p0 - 1;
+            const w = y.winners || {};
+            const win = [
+                ['producer', w.producer, r => `${fmt(r.metric)}<small>/t</small>`],
+                ['processor', w.processor, r => `${fmt(r.metric)}<small>/t</small>`],
+                ['spec', w.spec, r => signed(r.result)],
+            ].filter(([, r]) => r).map(([role, r, v]) => `<div class="yc-w" style="--rc:${ROLES[role].color}">${roleIcon(role, 16)}<span>${esc(r.name)}</span><b>${v(r)}</b></div>`).join('');
+            return `<div class="yc ${compact ? 'compact' : ''}" style="animation-delay:${i * 0.12}s">
+                <div class="yc-h"><b>Jahr ${y.year}</b><span class="yc-ch ${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '▲' : '▼'} ${pct(ch)}</span></div>
+                ${yearSpark(y)}
+                <div class="yc-px"><span>${fmt(y.p0)} → <b>${fmt(y.final)}</b> CHF/t</span>${y.hi ? `<small>Hoch ${fmt(y.hi)} · Tief ${fmt(y.lo)}</small>` : ''}</div>
+                ${compact ? '' : `<div class="yc-wins">${win}</div>`}
+                ${y.star ? `<div class="yc-star">⭐ ${esc(y.star.name)}</div>` : ''}
+                ${!compact && y.events && y.events.length ? `<div class="yc-ev">${y.events.map(e => `<span title="${esc(e.text)}" class="${e.dir > 0 ? 'up' : e.dir < 0 ? 'down' : ''}">${e.icon} ${esc(e.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, '').slice(0, 42))}</span>`).join('')}</div>` : ''}
+            </div>`;
+        }).join('');
+    }
+
     function showYearEnd(d) {
         const G = Engine.G;
         shopFeed = [];
@@ -913,6 +953,7 @@ const Host = (() => {
                 ${d.star ? `<div class="yo-star">⭐ Trader des Jahres<b>${roleIcon(d.star.role, 22)} ${esc(d.star.name)}</b></div>` : ''}</div>
             <div class="yo-cols">${cols}</div>
             ${promos ? `<div class="yo-promos">${promos}</div>` : ''}
+            ${G.yearLog.length > 1 ? `<div class="yo-prev"><div class="yo-prev-h">🗓️ Bisherige Jahre</div><div class="yc-grid compact">${yearCards(G.yearLog, true)}</div></div>` : ''}
             <div class="yo-shop"><div class="yo-shop-h"><span>🏗️ AUSBAUPHASE</span><b id="yo-timer">${Math.floor(CFG.shopSec / 60)}:${String(CFG.shopSec % 60).padStart(2, '0')}</b></div>
                 <p>Investiert euren Gewinn am Handy in eure Firma. Jede Investition muss sich in den nächsten Jahren auszahlen!</p>
                 <div id="yo-feed" class="yo-feed"><div class="dim small">Noch keine Investitionen …</div></div>
@@ -1012,14 +1053,14 @@ const Host = (() => {
                 <div class="card wide"><h3>📊 Alle Firmen über ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h3>
                     <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Endergebnis</th><th>⭐</th></tr></thead><tbody>${table}</tbody></table>
                     <p class="dim small">Endergebnis = Summe der Jahresergebnisse − Ausbau-Investitionen − Zinsen für Notkredite. Hat sich der Ausbau gelohnt?</p></div>
+                <div class="card wide"><h3>🗓️ Alle Jahre im Überblick</h3><div class="yc-grid">${yearCards(d.yearLog)}</div></div>
                 <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
                 <div class="card"><h3>🗣️ Diskussion</h3><ol class="lessons">
                     <li>Welche Investition hat sich am meisten gelohnt – und welche nicht?</li>
                     <li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – Können oder Glück?</li>
                     <li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li>
-                    <li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li></ol>
-                    <h3>🗓️ Die Jahre im Überblick</h3>${d.yearLog.map(y => `<div class="yl-row"><b>Jahr ${y.year}</b><span>${fmt(y.p0)} → ${fmt(y.final)} CHF/t</span><span class="${y.final >= y.p0 ? 'up' : 'down'}">${pct(y.final / y.p0 - 1)}</span>${y.star ? `<span>⭐ ${esc(y.star.name)}</span>` : ''}</div>`).join('')}</div>
+                    <li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li></ol></div>
             </div>
             <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neues Spiel</button></div>`;
         const ec = $('end-chart');
