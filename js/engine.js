@@ -44,7 +44,7 @@ const Engine = (() => {
         const p = {
             id: G.seq++, name: String(name || 'Trader').slice(0, 18), key, bot, role, connected: true,
             cash: R.cash, margin: 0, pos: 0, fees: 0, trades: 0, liquidations: 0, bankrupt: false,
-            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * G.p0, notes: [],
+            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * G.p0, planValue: R.physical * G.p0, notes: [],
             physical: R.physical, basePhys: R.physical, revenue: 0, protect: false, harvestLog: [],
             upgrades: [], total: 0, yearPts: [], years: [], upSpent: 0, interest: 0, loans: 0, level: 0,
             spos: 0, sphys: 0, sbase: 0, region: null, stored: 0, storedNow: 0, storeFee: 0,
@@ -82,6 +82,7 @@ const Engine = (() => {
         p.basePhys = R.physical;
         p.region = role === 'producer' ? (p.region || pickRegion()) : null;
         p.startValue = R.cash + R.physical * G.p0;
+        p.planValue = R.physical * G.p0;
         return true;
     }
 
@@ -101,7 +102,7 @@ const Engine = (() => {
     const exposure = p => p.physical + p.pos * CFG.size;
     const liveResult = p => p.cash + futEq(p) + p.physical * G.price + p.sphys * G.sug.price + p.revenue - p.startValue;
     // Was hat die Absicherung (Futures inkl. Gebühren) bisher gebracht? Geschäft und Zusatzkosten herausgerechnet.
-    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - p.basePhys * G.p0 + p.sphys * G.sug.price - p.sbase * G.sug.p0) + p.costs + p.researchSpent;
+    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - p.planValue + p.sphys * G.sug.price - p.sbase * G.sug.p0) + p.costs + p.researchSpent;
     function hedgeQuote(p) {
         if (p.role === 'spec' || !p.expN) return 0;
         return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
@@ -113,8 +114,8 @@ const Engine = (() => {
     // Fabrik = effektiver Einkaufspreis pro Tonne Grundbedarf, Fonds = Gewinn.
     function metric(p, res = liveResult(p)) {
         // Bauern: Gesamterlös (Ernte + Direktverkäufe + Futures − Kosten) geteilt durch alle Tonnen inkl. Nachernte.
-        if (p.role === 'producer') return Math.round((res + p.basePhys * G.p0) / Math.max(10, p.physical + p.sales.reduce((s, x) => s + x.t, 0)));
-        if (p.role === 'processor') return Math.round((-p.basePhys * G.p0 - res) / -p.basePhys);
+        if (p.role === 'producer') return Math.round((res + p.planValue) / Math.max(10, p.physical + p.sales.reduce((s, x) => s + x.t, 0)));
+        if (p.role === 'processor') return Math.round((-p.planValue - res) / Math.max(10, -p.basePhys));
         return Math.round(res);
     }
 
@@ -408,7 +409,8 @@ const Engine = (() => {
                 p.extraAt.shift();
                 const t = 10 + 5 * Math.floor(Math.random() * 3);
                 p.physical += t;
-                p.startValue += t * G.p0;   // die Mitglieder werden zum Planpreis bezahlt – zählt nur die Preisänderung + Marge
+                p.startValue += t * G.p0;
+                p.planValue += t * G.p0;   // die Mitglieder werden zum Planpreis bezahlt – zählt nur die Preisänderung + Marge
                 note(p, 'good', `🚜 Mitglieder liefern Nachernte: +${t} t. Diese Menge ist noch nicht abgesichert!`);
             }
             if (p.buyerOffer || G.clock < p.nextBuyerAt || G.clock > total - 15 || p.physical < 20) continue;
@@ -796,6 +798,7 @@ const Engine = (() => {
                 for (let i = 0; i < n; i++) p.extraAt.push(0.1 + Math.random() * 0.6);
             }
             p.startValue = p.cash + p.physical * G.p0 + p.sphys * G.sug.p0 + p.storeFee;
+            p.planValue = p.physical * G.p0;
             if (p.stored) note(p, 'good', `🏚️ Aus dem Lager: ${p.stored} t vom letzten Jahr sind wieder im Verkauf (Einstand ${fmt(G.p0)} CHF/t).`);
             p.stored = 0;
             p.storeFee = 0;
