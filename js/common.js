@@ -20,7 +20,7 @@ const CFG = {
     farmMargin: 250,       // Kooperative: Gewinn pro geernteter Tonne (Produktionskosten tiefer als Planpreis)
     chocMargin: 250,       // Fabrik: Verarbeitungsmarge pro Tonne Grundbedarf
     fairPremium: 120,      // Fairtrade-Prämie pro Tonne
-    sugarYear: 2,          // ab diesem Jahr gibt es den Zucker-Markt
+    sugarYear: 99,         // Zucker-Markt ist ausgeschaltet (nie erreicht)
     sSize: 50,             // Tonnen pro Zucker-Kontrakt
     sP0: 650,              // Zucker-Startpreis CHF/t
     sVol: 0.005,           // Zucker-Schwankung pro Sekunde

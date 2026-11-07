@@ -81,8 +81,7 @@ Ränge: Junior → Trader → Senior → Legende (ein Aufstieg für jedes Jahr, 
 **Endergebnis** = Summe der Jahresergebnisse − Ausbau − Zinsen. Am Ende läuft eine **Preisverleihung**: Beste Kooperative, beste Fabrik, bester Hedgefonds und der Trader des Tages, danach die ganze Karriere-Bilanz.
 
 
-## Etappe 2: Weltkarte, Zucker, Lagerhaus
+## Etappe 2: Weltkarte, Lagerhaus
 
-- **🌍 Weltkarte** auf dem Beamer (statt der Abschlussliste): Punkte-Karte mit den Kakao-Regionen Ghana, Elfenbeinküste, Ecuador und Indonesien (ab Jahr 2 auch Zucker-Regionen Brasilien, Indien, Thailand). Jede Kooperative bekommt eine Region; Ernte-Ereignisse treffen nur diese Region. Gerüchte und Meldungen erscheinen als pulsierende Marker auf der Karte.
-- **🍬 Zucker-Futures ab Jahr 2**: 50 t pro Kontrakt, Startpreis 650 CHF/t, eigene Zucker-News. Fabriken brauchen 200 t Zucker pro Jahr und dürfen nur kaufen (absichern), Hedgefonds handeln Long und Short (Limit 10, mit Kreditlinie 15). Am Handy schaltet man oben in der Handelskarte zwischen 🍫 Kakao und 🍬 Zucker um.
+- **🌍 Weltkarte** auf dem Beamer (statt der Abschlussliste): Punkte-Karte mit den Kakao-Regionen Ghana, Elfenbeinküste, Ecuador und Indonesien. Jede Kooperative bekommt eine Region; Ernte-Ereignisse treffen nur diese Region. Gerüchte und Meldungen erscheinen als pulsierende Marker auf der Karte.
 - **🏚️ Lagerhaus** (Ausbau für Kooperativen, 10'000 CHF): In der Ausbauphase bis zu 60 t Ernte zum Schlusskurs einlagern (60 CHF/t Lagerkosten) und im nächsten Jahr zum dann gültigen Preis verkaufen. Lohnt sich nur, wenn der Preis um mehr als die Lagerkosten steigt.
