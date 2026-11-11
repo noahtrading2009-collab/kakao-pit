@@ -53,6 +53,7 @@ const Player = (() => {
                 conn.send({ t: 'join', name, key, role: wish });
             },
             onData,
+            onStatus: s => { $('join-err').textContent = s; },
             onClose: () => { if (!ended) $('conn-lost').classList.remove('hidden'); },
             onError: msg => {
                 $('join-err').textContent = msg;

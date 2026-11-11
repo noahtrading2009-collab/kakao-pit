@@ -42,6 +42,9 @@ const Host = (() => {
     function connect() {
         peer = Net.host(code, {
             onOpen: () => { $('net-status').innerHTML = '<span class="good">● Raum ist offen.</span> Spieler können beitreten.'; },
+            onStatus: s => {
+                if (s === 'reconnect') $('net-status').innerHTML = '<span class="bad">● Verbindung zum Vermittler unterbrochen</span> – verbinde automatisch neu … (Spiel läuft weiter)';
+            },
             onConn: c => { conns.set(c.peer, { conn: c, pid: null }); },
             onData: handle,
             onClose: c => {
