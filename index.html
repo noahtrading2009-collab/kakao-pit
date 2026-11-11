@@ -2,13 +2,27 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
+    <script>
+    // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
+    window.KP_V='8';
+    fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
+        v = (v || '').trim();
+        try {
+            if (!v || v === window.KP_V || sessionStorage.getItem('kpv' + v)) return;
+            sessionStorage.setItem('kpv' + v, '1');
+        } catch (e) { return; }
+        const u = new URL(location.href);
+        u.searchParams.set('v', v);
+        location.replace(u.toString());
+    }).catch(() => {});
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#070b14">
     <title>KAKAO PIT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -205,13 +219,13 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js"></script>
-    <script src="js/engine.js"></script>
-    <script src="js/bots.js"></script>
-    <script src="js/net.js"></script>
-    <script src="js/host.js"></script>
-    <script src="js/scenes.js"></script>
-    <script src="js/player.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/common.js?v=8"></script>
+    <script src="js/engine.js?v=8"></script>
+    <script src="js/bots.js?v=8"></script>
+    <script src="js/net.js?v=8"></script>
+    <script src="js/host.js?v=8"></script>
+    <script src="js/scenes.js?v=8"></script>
+    <script src="js/player.js?v=8"></script>
+    <script src="js/app.js?v=8"></script>
 </body>
 </html>
