@@ -14,12 +14,12 @@ const Scenes = (() => {
 
     function tree(x, y, s, sky, sick, ripe) {
         const pod = sick ? '#3b2a2a' : ripe;
-        return `<g transform="translate(${x} ${y}) scale(${s})">
+        return `<g class="tree-g" style="animation-delay:${(-(x * 7) % 45) / 10}s"><g transform="translate(${x} ${y}) scale(${s})">
             <path d="M-3 4 L-2 -30 L2 -30 L3 4 Z" fill="#5b3a1f"/>
             <circle cx="0" cy="-40" r="16" fill="${sky.leaf}"/><circle cx="-12" cy="-31" r="11" fill="${sky.leaf2}"/><circle cx="12" cy="-31" r="11" fill="${sky.leaf}"/>
             <circle cx="-4" cy="-46" r="6" fill="rgba(255,255,255,.12)"/>
             <ellipse cx="-5" cy="-17" rx="3.4" ry="6" fill="${pod}"/><ellipse cx="5" cy="-12" rx="3.4" ry="6" fill="${pod}"/><ellipse cx="0" cy="-22" rx="3" ry="5.4" fill="${pod}"/>
-        </g>`;
+        </g></g>`;
     }
 
     // ---------- Kooperative: Plantage ----------
@@ -38,7 +38,15 @@ const Scenes = (() => {
             weather = `<g class="clouds"><ellipse cx="90" cy="38" rx="44" ry="16" fill="rgba(235,240,250,.85)"/><ellipse cx="120" cy="30" rx="30" ry="16" fill="rgba(235,240,250,.9)"/><ellipse cx="250" cy="44" rx="50" ry="17" fill="rgba(225,232,245,.8)"/><ellipse cx="280" cy="34" rx="28" ry="15" fill="rgba(235,240,250,.9)"/></g>`;
             if (me.sky === 'rain') weather += `<g class="rain">${Array.from({ length: 26 }, (_, i) => `<line x1="${10 + i * 14}" y1="${50 + (i % 3) * 8}" x2="${4 + i * 14}" y2="${66 + (i % 3) * 8}"/>`).join('')}</g>`;
             else weather += `<g class="spores">${Array.from({ length: 18 }, (_, i) => `<circle cx="${(i * 47) % 350 + 5}" cy="${70 + ((i * 29) % 70)}" r="${1.5 + (i % 3)}"/>`).join('')}</g>`;
-        } else weather = `<circle cx="296" cy="40" r="17" fill="#fff1a8" class="sun-glow"/>${me.sky === 'record' ? '<path d="M40 130 A 140 110 0 0 1 320 130" fill="none" stroke="url(#rb)" stroke-width="10" opacity=".55"/>' : ''}`;
+        } else {
+            // Sonne in der Mitte (rechts oben steht der Börsenpreis), dazu ziehende Wolken und Vögel
+            weather = `<circle cx="196" cy="34" r="17" fill="#fff1a8" class="sun-glow"/>
+                <g class="drift"><ellipse cx="60" cy="58" rx="30" ry="9" fill="rgba(255,255,255,.75)"/><ellipse cx="80" cy="52" rx="18" ry="9" fill="rgba(255,255,255,.85)"/></g>
+                <g class="drift d2"><ellipse cx="20" cy="76" rx="24" ry="7" fill="rgba(255,255,255,.55)"/><ellipse cx="36" cy="71" rx="14" ry="7" fill="rgba(255,255,255,.65)"/></g>
+                <g class="bird"><path d="M20 62 q5 -5 10 0 q5 -5 10 0" fill="none" stroke="#2b3a4a" stroke-width="1.6" stroke-linecap="round"/></g>
+                <g class="bird" style="animation-delay:-6s"><path d="M0 74 q4 -4 8 0 q4 -4 8 0" fill="none" stroke="#2b3a4a" stroke-width="1.4" stroke-linecap="round"/></g>
+                ${me.sky === 'record' ? '<path d="M40 130 A 140 110 0 0 1 320 130" fill="none" stroke="url(#rb)" stroke-width="10" opacity=".55"/>' : ''}`;
+        }
         const svg = `<svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMid slice">
             <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky.a}"/><stop offset="1" stop-color="${sky.b}"/></linearGradient>
             <linearGradient id="rb" x1="0" x2="1"><stop offset="0" stop-color="#ff5e5e"/><stop offset=".3" stop-color="#ffd84d"/><stop offset=".6" stop-color="#5eff8a"/><stop offset="1" stop-color="#5ea8ff"/></linearGradient></defs>

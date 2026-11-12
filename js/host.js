@@ -11,6 +11,69 @@ const Host = (() => {
     let lastPrice = CFG.p0;
     let flashTimer = null;
 
+    // Avatar: Initialen auf einem Farbverlauf, der aus dem Namen berechnet wird (immer gleich für denselben Namen)
+    function avatar(name, bot) {
+        let hsh = 0;
+        for (const ch of String(name)) hsh = (hsh * 31 + ch.codePointAt(0)) >>> 0;
+        const hue = hsh % 360;
+        const ini = String(name).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+        return `<i class="av ${bot ? 'bot' : ''}" style="--h:${hue}">${esc(ini)}</i>`;
+    }
+
+    // Schwebender Kakao-Staub hinter dem Beamer (30 Bilder/s, pausiert im Hintergrund)
+    const Ambient = (() => {
+        let cv = null;
+        let c = null;
+        let parts = [];
+        let last = 0;
+        const spawn = any => ({
+            x: Math.random() * innerWidth,
+            y: any ? Math.random() * innerHeight : innerHeight + 20,
+            r: 0.8 + Math.random() * 2.6,
+            v: 6 + Math.random() * 20,
+            w: Math.random() * 6.28,
+            a: 0.12 + Math.random() * 0.33,
+            col: Math.random() < 0.7 ? '255,170,90' : Math.random() < 0.5 ? '255,226,170' : '140,170,255',
+        });
+        function size() {
+            const d = Math.min(1.5, window.devicePixelRatio || 1);
+            cv.width = innerWidth * d;
+            cv.height = innerHeight * d;
+            c.setTransform(d, 0, 0, d, 0, 0);
+        }
+        function step(t) {
+            requestAnimationFrame(step);
+            if (document.hidden || t - last < 33) return;
+            const dt = Math.min(0.1, (t - last) / 1000);
+            last = t;
+            c.clearRect(0, 0, innerWidth, innerHeight);
+            for (const p of parts) {
+                p.y -= p.v * dt;
+                p.w += dt * 0.7;
+                p.x += Math.sin(p.w) * 9 * dt;
+                if (p.y < -20) Object.assign(p, spawn(false));
+                const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+                g.addColorStop(0, `rgba(${p.col},${p.a})`);
+                g.addColorStop(1, `rgba(${p.col},0)`);
+                c.fillStyle = g;
+                c.fillRect(p.x - p.r * 4, p.y - p.r * 4, p.r * 8, p.r * 8);
+            }
+        }
+        return {
+            start() {
+                if (cv || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+                cv = document.createElement('canvas');
+                cv.id = 'ambient';
+                document.body.prepend(cv);
+                c = cv.getContext('2d');
+                size();
+                window.addEventListener('resize', size);
+                parts = Array.from({ length: 48 }, () => spawn(true));
+                requestAnimationFrame(step);
+            },
+        };
+    })();
+
     function joinUrl() {
         return `${location.origin}${location.pathname}?join=${code}`;
     }
@@ -19,6 +82,7 @@ const Host = (() => {
         len = length;
         code = Net.makeCode();
         Engine.create(len, onEngine, years);
+        Ambient.start();
         Bots.reset();
         botCount = 0;
         App.show('v-lobby');
@@ -183,22 +247,36 @@ const Host = (() => {
     const seenInLobby = new Set();
     let lobbyHtml = '';
 
+    // Kleine Welt-Szene pro Rolle als Kopf der Lobby-Spalte
+    const LOBBY_SCENE = {
+        producer: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3e8fd6"/><stop offset="1" stop-color="#f5d9a0"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls1)"/><circle cx="235" cy="26" r="13" fill="#fff3b0" class="ls-sun"/><g class="ls-cloud"><ellipse cx="60" cy="22" rx="26" ry="8" fill="rgba(255,255,255,.8)"/><ellipse cx="78" cy="17" rx="16" ry="8" fill="rgba(255,255,255,.9)"/></g><path d="M0 62 Q 80 40 160 58 T 300 52 V90 H0Z" fill="#2d6e2c"/><path d="M0 76 Q 100 60 200 74 T 300 70 V90 H0Z" fill="#3c8c3a"/>${[30, 80, 130, 180, 230, 275].map((x, i) => `<g class="ls-tree" style="animation-delay:${i * -0.7}s" transform="translate(${x} ${66 + (i % 2) * 8})"><rect x="-1.5" y="-14" width="3" height="16" fill="#5b3a1f"/><circle cy="-20" r="9" fill="#2f9e44"/><circle cx="-6" cy="-15" r="6" fill="#3fbf55"/><circle cx="6" cy="-15" r="6" fill="#2f9e44"/><ellipse cx="2" cy="-8" rx="2" ry="3.4" fill="#f0a63a"/></g>`).join('')}</svg>`,
+        processor: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset="1" stop-color="#4a3a2c"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls2)"/><g class="ls-smoke"><circle cx="232" cy="18" r="7"/><circle cx="240" cy="9" r="9"/><circle cx="250" cy="2" r="11"/></g><rect x="226" y="22" width="12" height="40" fill="#5b6576"/><path d="M70 62 V44 L100 30 V44 L130 30 V44 L160 30 V44 L190 30 V44 L220 30 V62Z" fill="#4a5568"/><rect x="70" y="62" width="150" height="28" fill="#2d3748"/>${[0, 1, 2, 3].map(i => `<rect x="${82 + i * 34}" y="68" width="20" height="10" rx="2" fill="#ffcf6b" class="ls-win" style="animation-delay:${i * 0.5}s"/>`).join('')}<rect x="18" y="26" width="36" height="64" rx="6" fill="#aeb8c6"/><rect x="21" y="52" width="30" height="36" rx="4" fill="#c86a12"/><g class="ls-belt">${Array.from({ length: 14 }, (_, i) => `<rect x="${i * 30}" y="82" width="18" height="8" rx="2" fill="#7a4320"/>`).join('')}</g></svg>`,
+        spec: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#140d2a"/><stop offset="1" stop-color="#2a1b4f"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls3)"/>${[[20, 50], [44, 34], [70, 58], [96, 40], [122, 26], [148, 46], [174, 30], [200, 18], [226, 38], [252, 22], [278, 12]].map(([x, yy], i) => `<g class="ls-candle" style="animation-delay:${i * 0.12}s"><line x1="${x}" x2="${x}" y1="${yy - 8}" y2="${yy + 22}" stroke="${i % 3 === 1 ? '#ff4d6a' : '#22e58a'}" stroke-width="1.5"/><rect x="${x - 5}" y="${yy}" width="10" height="${12 + (i % 3) * 3}" fill="${i % 3 === 1 ? '#ff4d6a' : '#22e58a'}" rx="1.5"/></g>`).join('')}<polyline points="20,64 70,70 122,48 174,52 226,40 278,26" fill="none" stroke="#ffb547" stroke-width="2" class="ls-line"/><rect y="78" width="300" height="12" fill="rgba(0,0,0,.35)"/></svg>`,
+    };
+
     function renderLobby() {
         const G = Engine.G;
         if (!G || G.phase !== 'lobby') return;
         const key = G.players.map(p => `${p.id}:${p.role}:${p.name}`).join('|');
         if (key !== lobbyHtml) {
             lobbyHtml = key;
-            const cols = Object.keys(ROLES).map(k => {
+            // Nur die Spielerlisten neu zeichnen – die Szenen bleiben stehen und laufen weiter.
+            if (!$('lobby-roles').querySelector('.role-col')) {
+                $('lobby-roles').innerHTML = Object.keys(ROLES).map(k => `<div class="role-col" data-role="${k}" style="--rc:${ROLES[k].color}">
+                    <div class="rc-world">${LOBBY_SCENE[k]}<span class="rc-emb">${roleIcon(k, 44)}</span></div>
+                    <h4>${ROLES[k].name} <span class="rc-n">0</span></h4><div class="rc-job">${esc(ROLES[k].job)}</div>
+                    <div class="rc-list"></div></div>`).join('');
+            }
+            Object.keys(ROLES).forEach(k => {
+                const col = $('lobby-roles').querySelector(`[data-role="${k}"]`);
                 const ps = G.players.filter(p => p.role === k);
-                return `<div class="role-col" style="--rc:${ROLES[k].color}"><h4>${roleIcon(k, 22)} ${ROLES[k].name} <span class="dim">${ps.length}</span></h4>
-                    ${ps.map(p => {
-                        const fresh = !seenInLobby.has(`${p.id}:${p.role}`);
-                        seenInLobby.add(`${p.id}:${p.role}`);
-                        return `<div class="lobby-player ${p.bot ? 'bot' : ''} ${fresh ? 'fresh' : ''}">${p.bot ? '🤖 ' : ''}${esc(p.name)}</div>`;
-                    }).join('') || '<div class="dim small">–</div>'}</div>`;
-            }).join('');
-            $('lobby-roles').innerHTML = cols;
+                col.querySelector('.rc-n').textContent = ps.length;
+                col.querySelector('.rc-list').innerHTML = ps.map(p => {
+                    const fresh = !seenInLobby.has(`${p.id}:${p.role}`);
+                    seenInLobby.add(`${p.id}:${p.role}`);
+                    return `<div class="lobby-player ${p.bot ? 'bot' : ''} ${fresh ? 'fresh' : ''}">${avatar(p.name, p.bot)}<span>${esc(p.name)}</span>${p.bot ? '<em>KI</em>' : ''}</div>`;
+                }).join('') || '<div class="rc-empty">Wartet auf Trader …</div>';
+            });
         }
         $('lobby-count').textContent = G.players.length;
         $('bot-count').textContent = botCount;
@@ -277,6 +355,8 @@ const Host = (() => {
         // Chart und Preis werden flüssig (60 fps) zum neuen Wert animiert.
         anim.from = anim.cur === null ? S.price : anim.to;
         anim.to = S.price;
+        const jump = anim.from ? S.price / anim.from - 1 : 0;
+        if (Math.abs(jump) > 0.0015) sparkKick = { n: Math.min(30, 8 + Math.round(Math.abs(jump) * 6000)), dir: Math.sign(jump) };
         anim.t0 = performance.now();
         anim.S = S;
         if (!anim.running) {
@@ -346,8 +426,8 @@ const Host = (() => {
         el.innerHTML = groups.map(({ B, list }) => {
             const R = ROLES[B.role];
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
-                ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
-                    <span class="rn">${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
+                ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''} ${i === 0 ? 'lead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
+                    <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
                     <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}</div>`;
         }).join('');
         el.querySelectorAll('[data-k]').forEach(n => {
@@ -521,6 +601,9 @@ const Host = (() => {
     }
 
     const axis = { lo: null, hi: null };
+    const sparks = [];
+    let sparkKick = null;
+    let sparkT = 0;
     const volCache = { n: -1, bins: [], max: 0 };
 
     function volumeBins() {
@@ -638,17 +721,31 @@ const Host = (() => {
         if (h.length > 1) {
             const up = h[h.length - 1].p >= S.p0;
             const col = up ? '#22e58a' : '#ff4d6a';
-            const grad = c.createLinearGradient(0, T, 0, H - B);
-            grad.addColorStop(0, up ? 'rgba(34,229,138,.28)' : 'rgba(255,77,106,.28)');
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-            c.beginPath();
-            h.forEach((pt, i) => (i ? c.lineTo(x(pt.s), y(pt.p)) : c.moveTo(x(pt.s), y(pt.p))));
-            c.lineTo(x(h[h.length - 1].s), H - B);
-            c.lineTo(x(h[0].s), H - B);
-            c.closePath();
-            c.fillStyle = grad;
-            c.fill();
-            // Weiche Linie (Kurven durch die Mittelpunkte) mit Leuchten
+            const yPlan = y(S.p0);
+            const xNow = x(h[h.length - 1].s);
+            // Zukunft: schraffiert, damit klar ist, wie viel Handelszeit noch bleibt
+            if (!target && xNow < W - R - 4) {
+                c.save();
+                c.beginPath();
+                c.rect(xNow, T, W - R - xNow, H - T - B);
+                c.clip();
+                c.strokeStyle = 'rgba(140,170,230,.11)';
+                c.lineWidth = 1;
+                for (let d = -H; d < W; d += 14) {
+                    c.beginPath();
+                    c.moveTo(d, H);
+                    c.lineTo(d + H, 0);
+                    c.stroke();
+                }
+                c.restore();
+                const ng = c.createLinearGradient(0, T, 0, H - B);
+                ng.addColorStop(0, 'rgba(255,255,255,0)');
+                ng.addColorStop(0.5, 'rgba(255,255,255,.28)');
+                ng.addColorStop(1, 'rgba(255,255,255,0)');
+                c.fillStyle = ng;
+                c.fillRect(xNow - 0.5, T, 1, H - T - B);
+            }
+            // Weiche Linie (Kurven durch die Mittelpunkte)
             const path = () => {
                 c.beginPath();
                 c.moveTo(x(h[0].s), y(h[0].p));
@@ -659,22 +756,98 @@ const Host = (() => {
                 }
                 c.lineTo(x(h[h.length - 1].s), y(h[h.length - 1].p));
             };
-            path();
-            c.strokeStyle = col;
-            c.globalAlpha = 0.25;
-            c.lineWidth = 9;
-            c.stroke();
-            c.globalAlpha = 1;
-            path();
-            c.lineWidth = 2.6;
-            c.shadowColor = col;
-            c.shadowBlur = 14;
-            c.stroke();
-            c.shadowBlur = 0;
+            // Über dem Plan grün, darunter rot – Fläche jeweils zwischen Kurve und Planlinie
+            const halves = [
+                { clip: [0, 0, W, yPlan], c1: '#22e58a', a: 'rgba(34,229,138,.30)', g0: T, g1: yPlan, rev: false },
+                { clip: [0, yPlan, W, H], c1: '#ff4d6a', a: 'rgba(255,77,106,.30)', g0: H - B, g1: yPlan, rev: true },
+            ];
+            for (const hv of halves) {
+                c.save();
+                c.beginPath();
+                c.rect(...hv.clip);
+                c.clip();
+                path();
+                c.lineTo(x(h[h.length - 1].s), yPlan);
+                c.lineTo(x(h[0].s), yPlan);
+                c.closePath();
+                const g = c.createLinearGradient(0, hv.g0, 0, hv.g1);
+                g.addColorStop(0, hv.a);
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                c.fillStyle = g;
+                c.fill();
+                path();
+                c.strokeStyle = hv.c1;
+                c.globalAlpha = 0.22;
+                c.lineWidth = 10;
+                c.stroke();
+                c.globalAlpha = 1;
+                path();
+                c.lineWidth = 2.8;
+                c.shadowColor = hv.c1;
+                c.shadowBlur = 16;
+                c.stroke();
+                c.shadowBlur = 0;
+                c.restore();
+            }
+            // Hoch und Tief des Jahres
+            if (!target && h.length > 8) {
+                let hiI = 0;
+                let loI = 0;
+                h.forEach((pt, i) => {
+                    if (pt.p > h[hiI].p) hiI = i;
+                    if (pt.p < h[loI].p) loI = i;
+                });
+                c.font = 'bold 11px "JetBrains Mono", monospace';
+                for (const [i, isHi] of [[hiI, true], [loI, false]]) {
+                    if (i >= h.length - 3) continue;
+                    const px = x(h[i].s);
+                    const py = y(h[i].p);
+                    c.fillStyle = isHi ? '#22e58a' : '#ff4d6a';
+                    c.beginPath();
+                    if (isHi) { c.moveTo(px, py - 6); c.lineTo(px - 5, py - 13); c.lineTo(px + 5, py - 13); }
+                    else { c.moveTo(px, py + 6); c.lineTo(px - 5, py + 13); c.lineTo(px + 5, py + 13); }
+                    c.fill();
+                    const lab = `${isHi ? 'H' : 'T'} ${fmt(h[i].p)}`;
+                    const tw = c.measureText(lab).width;
+                    c.fillStyle = 'rgba(5,8,15,.75)';
+                    c.fillRect(px - tw / 2 - 5, isHi ? py - 31 : py + 15, tw + 10, 16);
+                    c.fillStyle = isHi ? '#7dffc0' : '#ff9aac';
+                    c.fillText(lab, px - tw / 2, isHi ? py - 19 : py + 27);
+                }
+            }
             const last = h[h.length - 1];
             const lx = x(last.s);
             const ly = y(last.p);
             if (!target) {
+                // Funken bei starken Kurssprüngen
+                if (sparkKick) {
+                    for (let i = 0; i < sparkKick.n; i++) {
+                        const a = (sparkKick.dir > 0 ? -Math.PI / 2 : Math.PI / 2) + (Math.random() - 0.5) * 2.4;
+                        const v = 40 + Math.random() * 120;
+                        sparks.push({ x: lx, y: ly, vx: Math.cos(a) * v - 30, vy: Math.sin(a) * v, life: 1, col: sparkKick.dir > 0 ? '125,255,192' : '255,140,160' });
+                    }
+                    sparkKick = null;
+                }
+                const t = now || performance.now();
+                const dt = Math.min(0.05, (t - (sparkT || t)) / 1000);
+                sparkT = t;
+                if (sparks.length) {
+                    c.save();
+                    c.globalCompositeOperation = 'lighter';
+                    for (let i = sparks.length - 1; i >= 0; i--) {
+                        const s = sparks[i];
+                        s.life -= dt * 1.4;
+                        if (s.life <= 0) { sparks.splice(i, 1); continue; }
+                        s.vy += 160 * dt * (s.vy < 0 ? 0.6 : 1);
+                        s.x += s.vx * dt;
+                        s.y += s.vy * dt;
+                        c.fillStyle = `rgba(${s.col},${s.life})`;
+                        c.beginPath();
+                        c.arc(s.x, s.y, 1.2 + s.life * 2.2, 0, Math.PI * 2);
+                        c.fill();
+                    }
+                    c.restore();
+                }
                 // pulsierender Ring am aktuellen Kurs
                 const ph = ((now || performance.now()) % 1400) / 1400;
                 c.beginPath();
@@ -831,8 +1004,15 @@ const Host = (() => {
         const el = $('flash');
         if (!el) return;
         const label = { rumor: 'GERÜCHT', yes: 'BESTÄTIGT', no: 'DEMENTI', flash: 'EILMELDUNG', alert: 'ACHTUNG' }[n.kind];
-        el.className = `flash ${n.kind}`;
-        el.innerHTML = `<div class="fl-label">${label}</div><div class="fl-text">${n.icon} ${esc(n.text.replace(/^[A-ZÄÖÜ ]+: /, ''))}</div>`;
+        // «k-»-Präfix: Die Klasse «flash» trägt jeder Banner – sonst wären alle rot.
+        el.className = `flash k-${n.kind}`;
+        const region = (n.text.match(/^[A-ZÄÖÜ ]+\(([^)]*)\)/) || [])[1];
+        const sub = n.kind === 'rumor' ? 'Noch nicht bestätigt – der Markt spekuliert'
+            : n.kind === 'yes' ? 'Das Gerücht stimmt' : n.kind === 'no' ? 'Falscher Alarm' : n.kind === 'alert' ? 'Börsenaufsicht' : 'Soeben gemeldet';
+        el.innerHTML = `<div class="fl-icon">${n.icon}</div>
+            <div class="fl-body"><div class="fl-label"><i></i>${label}${region ? ` · ${esc(region)}` : ''}<span>${sub}</span></div>
+            <div class="fl-text">${esc(n.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}</div></div>
+            <div class="fl-bar"></div>`;
         Sound.play(n.kind === 'alert' ? 'alarm' : 'news');
         clearTimeout(flashTimer);
         flashTimer = setTimeout(() => el.classList.add('hidden'), 5000);

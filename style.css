@@ -151,10 +151,10 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 .tape.liq { color: var(--down); }
 
 .flash { position: absolute; left: 50%; top: 92px; transform: translateX(-50%); width: min(1100px, 90%); padding: 18px 26px; border-radius: 16px; text-align: center; z-index: 5; animation: drop .5s cubic-bezier(.2, 1.4, .4, 1); box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
-.flash.rumor { background: linear-gradient(135deg, #3a2a08, #1f1604); border: 2px solid var(--amber); }
-.flash.yes { background: linear-gradient(135deg, #07301f, #041a11); border: 2px solid var(--up); }
-.flash.no { background: linear-gradient(135deg, #24183f, #140d24); border: 2px solid var(--violet); }
-.flash.flash, .flash.alert { background: linear-gradient(135deg, #3d0a14, #1f050a); border: 2px solid var(--down); }
+.flash.k-rumor { background: linear-gradient(135deg, #3a2a08, #1f1604); border: 2px solid var(--amber); }
+.flash.k-yes { background: linear-gradient(135deg, #07301f, #041a11); border: 2px solid var(--up); }
+.flash.k-no { background: linear-gradient(135deg, #24183f, #140d24); border: 2px solid var(--violet); }
+.flash.k-flash, .flash.k-alert { background: linear-gradient(135deg, #3d0a14, #1f050a); border: 2px solid var(--down); }
 .fl-label { font-family: var(--mono); font-weight: 800; letter-spacing: 6px; font-size: 16px; opacity: .85; }
 .fl-text { font-size: 36px; font-weight: 700; margin-top: 4px; }
 @keyframes drop { from { transform: translate(-50%, -40px); opacity: 0; } }
@@ -688,10 +688,10 @@ body.typing .bg-aurora i, body.typing .ticker-track, body.typing .hero-emblem, b
 .flash::before { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; left: -40%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .22), transparent); animation: sweep 1.4s .2s ease-out; }
 @keyframes sweep { to { left: 120%; } }
 .flash .fl-label { display: inline-block; padding: 3px 12px; border-radius: 6px; background: rgba(0, 0, 0, .35); }
-.flash.yes .fl-label { color: var(--up); }
-.flash.no .fl-label { color: var(--violet); }
-.flash.rumor .fl-label { color: var(--amber); }
-.flash.flash .fl-label, .flash.alert .fl-label { color: var(--down); }
+.flash.k-yes .fl-label { color: var(--up); }
+.flash.k-no .fl-label { color: var(--violet); }
+.flash.k-rumor .fl-label { color: var(--amber); }
+.flash.k-flash .fl-label, .flash.k-alert .fl-label { color: var(--down); }
 .flash .fl-text { animation: rise .6s cubic-bezier(.2, 1.3, .4, 1) both .1s; }
 .h-price b { font-variant-numeric: tabular-nums; }
 #h-price { display: inline-block; min-width: 4.2ch; text-align: right; }
@@ -915,3 +915,113 @@ body.typing .bg-aurora i, body.typing .ticker-track, body.typing .hero-emblem, b
 .yc.compact .yc-spark { height: 44px; }
 .yo-prev { display: grid; gap: 8px; }
 .yo-prev-h { font-family: var(--mono); letter-spacing: 3px; font-weight: 800; color: var(--dim); font-size: 12px; }
+
+/* =====================================================================
+   GRAFIK-MAXIMUM
+   ===================================================================== */
+
+/* ---------- Eilmeldungen als Kino-Banner ---------- */
+.flash { --fc: var(--amber); display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: center; text-align: left; padding: 20px 30px 26px 24px; border-width: 0 !important; border-radius: 20px; animation: flashIn .6s cubic-bezier(.16, 1.3, .3, 1); box-shadow: 0 0 0 2px var(--fc), 0 0 60px color-mix(in srgb, var(--fc) 45%, transparent), 0 40px 90px rgba(0, 0, 0, .7); }
+.flash.hidden { display: none; }
+.flash.k-yes { --fc: var(--up); }
+.flash.k-no { --fc: var(--violet); }
+.flash.k-flash, .flash.k-alert { --fc: var(--down); }
+@keyframes flashIn { from { transform: translateX(-50%) translateY(-40px) scale(.9); opacity: 0; } }
+.flash .fl-icon { font-size: 64px; width: 96px; height: 96px; display: grid; place-items: center; border-radius: 22px; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--fc) 55%, transparent), color-mix(in srgb, var(--fc) 8%, #000)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--fc) 60%, transparent) inset, 0 12px 30px rgba(0, 0, 0, .5); animation: flIcon .9s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes flIcon { from { transform: scale(.2) rotate(-25deg); } }
+.flash .fl-label { display: flex; align-items: center; gap: 10px; background: none; padding: 0; color: var(--fc) !important; letter-spacing: 5px; font-size: 15px; }
+.flash .fl-label i { width: 10px; height: 10px; border-radius: 50%; background: var(--fc); box-shadow: 0 0 12px var(--fc); animation: blink 1s infinite; }
+.flash .fl-label span { letter-spacing: .5px; font-family: var(--sans); font-weight: 600; font-size: 14px; color: var(--dim); margin-left: 6px; }
+.flash .fl-text { font-size: 38px; line-height: 1.15; margin-top: 6px; text-shadow: 0 2px 20px rgba(0, 0, 0, .5); }
+.flash .fl-bar { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: var(--fc); box-shadow: 0 0 12px var(--fc); transform-origin: left; animation: flBar 5s linear forwards; }
+@keyframes flBar { to { transform: scaleX(0); } }
+
+/* ---------- Avatare ---------- */
+.av { --h: 30; flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; margin-right: 8px; vertical-align: middle; font: 800 11px/1 var(--sans); font-style: normal; color: #fff; letter-spacing: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); background: linear-gradient(135deg, hsl(var(--h) 80% 62%), hsl(calc(var(--h) + 40) 70% 42%)); box-shadow: 0 0 0 2px rgba(255, 255, 255, .12), 0 4px 10px rgba(0, 0, 0, .35); }
+.av.bot { filter: saturate(.35) brightness(.85); }
+
+/* ---------- Ranglisten ---------- */
+.rk-group .rank-row .rn { display: flex; align-items: center; min-width: 0; }
+.rk-group .rank-row.lead { background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 22%, transparent), rgba(255, 196, 70, .06) 60%, transparent); position: relative; overflow: hidden; box-shadow: 0 0 0 1px color-mix(in srgb, var(--rc) 35%, transparent) inset; }
+.rk-group .rank-row.lead::after { content: ""; position: absolute; top: 0; bottom: 0; width: 30%; left: -40%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .16), transparent); animation: leadShine 4.5s ease-in-out infinite; }
+@keyframes leadShine { 55%, 100% { left: 130%; } }
+.rk-group .rank-row.lead .av { box-shadow: 0 0 0 2px #ffd36b, 0 0 14px rgba(255, 196, 70, .6); }
+
+/* ---------- Lobby ---------- */
+.lobby { height: 100%; align-items: stretch; }
+.lobby-right { display: flex; flex-direction: column; min-height: 0; }
+.role-cols { flex: 1; min-height: 0; }
+.role-col { padding: 0; overflow: hidden; display: flex; flex-direction: column; border-top: 0; box-shadow: 0 0 0 1px color-mix(in srgb, var(--rc) 30%, transparent) inset, 0 24px 60px rgba(0, 0, 0, .45); }
+.rc-world { position: relative; height: 128px; flex: none; overflow: hidden; }
+.rc-world svg { width: 100%; height: 100%; display: block; }
+.rc-world::after { content: ""; position: absolute; inset: auto 0 0; height: 50%; background: linear-gradient(transparent, rgba(12, 18, 33, .95)); }
+.rc-emb { position: absolute; left: 14px; bottom: 4px; z-index: 1; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--rc) 45%, #1b2440), #0c1221); box-shadow: 0 0 0 2px color-mix(in srgb, var(--rc) 70%, transparent), 0 0 30px color-mix(in srgb, var(--rc) 40%, transparent); animation: float 5s ease-in-out infinite; }
+.role-col h4 { display: flex; align-items: center; gap: 10px; font-size: 20px; margin: 14px 16px 2px; }
+.rc-n { font-family: var(--mono); font-size: 15px; color: var(--text); background: color-mix(in srgb, var(--rc) 25%, transparent); border-radius: 8px; padding: 1px 10px; margin-left: auto; }
+.rc-job { margin: 0 16px 10px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+.rc-list { padding: 0 12px 12px; overflow: auto; display: grid; gap: 6px; align-content: start; }
+.rc-empty { color: var(--dim); font-size: 14px; padding: 10px 6px; animation: blink 2.4s infinite; }
+.lobby-player { display: flex; align-items: center; margin: 0; padding: 7px 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); box-shadow: 0 0 0 1px rgba(255, 255, 255, .04) inset; font-size: 15px; }
+.lobby-player span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lobby-player em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.lobby-player:not(.bot) { background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 18%, transparent), rgba(255, 255, 255, .03)); }
+.lobby-player.fresh { animation: joinPop .7s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes joinPop { 0% { transform: translateY(14px) scale(.7); opacity: 0; box-shadow: 0 0 0 2px var(--rc), 0 0 30px var(--rc); } 60% { box-shadow: 0 0 0 2px var(--rc), 0 0 30px var(--rc); } }
+.lobby-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+.lobby-flow div { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding: 14px 16px; border-radius: 16px; background: var(--glass); border: 1px solid rgba(140, 170, 230, .14); animation: lfIn .7s cubic-bezier(.2, 1.3, .4, 1) both; }
+@keyframes lfIn { from { transform: translateY(16px); opacity: 0; } }
+.lobby-flow div:nth-child(2) { animation-delay: .1s; }
+.lobby-flow div:nth-child(3) { animation-delay: .2s; }
+.lobby-flow div:nth-child(4) { animation-delay: .3s; }
+.lobby-flow b { position: absolute; top: 8px; right: 12px; font-family: var(--mono); font-size: 28px; color: rgba(255, 181, 71, .18); }
+.lobby-flow span { grid-row: 1 / 3; font-size: 30px; }
+.lobby-flow strong { font-size: 15px; }
+.lobby-flow small { color: var(--dim); font-size: 12.5px; }
+.join-box { position: relative; overflow: hidden; }
+.join-box::before { content: ""; position: absolute; inset: -50% -50% auto; height: 300px; background: radial-gradient(circle, rgba(255, 181, 71, .22), transparent 60%); pointer-events: none; }
+.room-code { font-size: 92px; letter-spacing: 14px; }
+#qr img, #qr canvas { width: 230px !important; height: 230px !important; border-width: 12px; box-shadow: 0 0 0 1px rgba(255, 181, 71, .35), 0 20px 50px rgba(0, 0, 0, .5); }
+
+/* Lobby-Szenen in Bewegung (nur transform/opacity – schont schwache Geräte) */
+.ls-cloud { animation: lsCloud 18s linear infinite; }
+@keyframes lsCloud { from { transform: translateX(-120px); } to { transform: translateX(380px); } }
+.ls-tree > * { transform-box: view-box; }
+.ls-tree { animation: sway 4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes sway { from { rotate: -2.5deg; } to { rotate: 2.5deg; } }
+.ls-sun { animation: sunPulse 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes sunPulse { 50% { transform: scale(1.18); opacity: .85; } }
+.ls-smoke circle { fill: rgba(200, 210, 225, .35); transform-box: fill-box; transform-origin: center; animation: lsSmoke 3s ease-out infinite; }
+.ls-smoke circle:nth-child(2) { animation-delay: -1s; }
+.ls-smoke circle:nth-child(3) { animation-delay: -2s; }
+@keyframes lsSmoke { from { transform: translateY(10px) scale(.5); opacity: 0; } 30% { opacity: 1; } to { transform: translateY(-14px) scale(1.4); opacity: 0; } }
+.ls-win { animation: winFlick 2.2s ease-in-out infinite; }
+@keyframes winFlick { 50% { opacity: .45; } }
+.ls-belt { animation: lsBelt 3s linear infinite; }
+@keyframes lsBelt { to { transform: translateX(-30px); } }
+.ls-candle { transform-box: fill-box; transform-origin: 50% 100%; animation: candle 2.6s ease-in-out infinite alternate; }
+@keyframes candle { from { transform: scaleY(.75); } to { transform: scaleY(1.08); } }
+.ls-line { stroke-dasharray: 400; stroke-dashoffset: 400; animation: draw 3.5s ease-out infinite; }
+@keyframes draw { 70%, 100% { stroke-dashoffset: 0; } }
+
+/* ---------- Schwebende Kakao-Partikel hinter dem Beamer ---------- */
+#ambient { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+
+/* ---------- Handy: Kopfzeile & lebendige Szenen ---------- */
+.p-role small { white-space: normal; line-height: 1.2; }
+.scene .tree-g { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 4.5s ease-in-out infinite alternate; }
+.scene .drift { animation: lsCloud 26s linear infinite; }
+.scene .drift.d2 { animation-duration: 38s; animation-delay: -14s; }
+.scene .bird { animation: bird 16s linear infinite; }
+@keyframes bird { from { transform: translate(-40px, 0); } 50% { transform: translate(180px, -10px); } to { transform: translate(420px, 4px); } }
+.scene .bird path { animation: flap .35s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes flap { to { transform: scaleY(.3); } }
+
+@media (max-width: 1100px) {
+    .lobby { height: auto; }
+    .lobby-flow { grid-template-columns: 1fr 1fr; }
+    .room-code { font-size: 64px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ls-cloud, .ls-tree, .ls-sun, .ls-smoke circle, .ls-belt, .ls-candle, .ls-line, .scene .tree-g, .scene .drift, .scene .bird, .rk-group .rank-row.lead::after { animation: none; }
+    #ambient { display: none; }
+}
