@@ -355,8 +355,6 @@ const Host = (() => {
         // Chart und Preis werden flüssig (60 fps) zum neuen Wert animiert.
         anim.from = anim.cur === null ? S.price : anim.to;
         anim.to = S.price;
-        const jump = anim.from ? S.price / anim.from - 1 : 0;
-        if (Math.abs(jump) > 0.0015) sparkKick = { n: Math.min(30, 8 + Math.round(Math.abs(jump) * 6000)), dir: Math.sign(jump) };
         anim.t0 = performance.now();
         anim.S = S;
         if (!anim.running) {
@@ -601,9 +599,6 @@ const Host = (() => {
     }
 
     const axis = { lo: null, hi: null };
-    const sparks = [];
-    let sparkKick = null;
-    let sparkT = 0;
     const volCache = { n: -1, bins: [], max: 0 };
 
     function volumeBins() {
@@ -819,35 +814,6 @@ const Host = (() => {
             const lx = x(last.s);
             const ly = y(last.p);
             if (!target) {
-                // Funken bei starken Kurssprüngen
-                if (sparkKick) {
-                    for (let i = 0; i < sparkKick.n; i++) {
-                        const a = (sparkKick.dir > 0 ? -Math.PI / 2 : Math.PI / 2) + (Math.random() - 0.5) * 2.4;
-                        const v = 40 + Math.random() * 120;
-                        sparks.push({ x: lx, y: ly, vx: Math.cos(a) * v - 30, vy: Math.sin(a) * v, life: 1, col: sparkKick.dir > 0 ? '125,255,192' : '255,140,160' });
-                    }
-                    sparkKick = null;
-                }
-                const t = now || performance.now();
-                const dt = Math.min(0.05, (t - (sparkT || t)) / 1000);
-                sparkT = t;
-                if (sparks.length) {
-                    c.save();
-                    c.globalCompositeOperation = 'lighter';
-                    for (let i = sparks.length - 1; i >= 0; i--) {
-                        const s = sparks[i];
-                        s.life -= dt * 1.4;
-                        if (s.life <= 0) { sparks.splice(i, 1); continue; }
-                        s.vy += 160 * dt * (s.vy < 0 ? 0.6 : 1);
-                        s.x += s.vx * dt;
-                        s.y += s.vy * dt;
-                        c.fillStyle = `rgba(${s.col},${s.life})`;
-                        c.beginPath();
-                        c.arc(s.x, s.y, 1.2 + s.life * 2.2, 0, Math.PI * 2);
-                        c.fill();
-                    }
-                    c.restore();
-                }
                 // pulsierender Ring am aktuellen Kurs
                 const ph = ((now || performance.now()) % 1400) / 1400;
                 c.beginPath();
