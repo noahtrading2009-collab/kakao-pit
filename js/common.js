@@ -6,6 +6,7 @@ const CFG = {
     months: 4,             // Handelsmonate bis zur Fälligkeit (Dezember)
     monthSec: { kurz: 60, normal: 90, lang: 120 },
     settleSec: 7,          // Pause für die Abrechnung am Monatsende
+    preSec: 60,            // Pre-Market: Börse noch geschlossen, Einführung auf den Handys
     marginRate: 0.10,      // Einschuss: 10 % des Kontraktwerts
     maintenance: 0.7,      // Margin Call unter 70 % des nötigen Einschusses
     callSec: 25,           // Zeit, um nachzuschiessen

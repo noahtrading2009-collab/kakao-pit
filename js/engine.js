@@ -204,6 +204,7 @@ const Engine = (() => {
 
     function check(p, newPos, fee) {
         if (!p || p.bankrupt) return 'Dein Konto ist gesperrt (Konkurs).';
+        if (G.phase === 'pre') return `Pre-Market: Die Börse öffnet in ${G.preLeft} s.`;
         if (G.phase !== 'trading') return 'Die Börse ist gerade geschlossen.';
         if (G.paused) return 'Pause – die Spielleitung erklärt gerade etwas.';
         const m = mandate(p, newPos);
@@ -510,10 +511,24 @@ const Engine = (() => {
 
     // ===== Ablauf =====
 
-    function start() {
+    // Pre-Market: Die Börse ist noch geschlossen – Zeit für die Einführung auf den Handys.
+    function start(pre = CFG.preSec) {
         if (G.phase !== 'lobby') return;
+        if (pre > 0) {
+            G.phase = 'pre';
+            G.preLeft = pre;
+            feed({ kind: 'bell', icon: '🌅', text: `Pre-Market: Die Börse öffnet in ${pre} Sekunden. Lernt euer Cockpit kennen!` });
+            emit('pre', { left: pre });
+            return;
+        }
+        openMarket();
+    }
+
+    function openMarket() {
+        if (G.phase !== 'pre' && G.phase !== 'lobby') return;
         scheduleNews();
         G.phase = 'trading';
+        G.preLeft = 0;
         feed({ kind: 'bell', icon: '🔔', text: `Die Börse ist eröffnet! Kakao Dezember-Future: ${fmt(G.price)} CHF/t.` });
         emit('open', { month: 1 });
     }
@@ -717,6 +732,12 @@ const Engine = (() => {
             if (G.shopLeft <= 0) nextYear();
             return;
         }
+        if (G.phase === 'pre') {
+            G.sec++;
+            G.preLeft--;
+            if (G.preLeft <= 0) openMarket();
+            return;
+        }
         G.sec++;
         if (G.phase === 'trading') {
             G.clock++;
@@ -766,6 +787,7 @@ const Engine = (() => {
     // ===== Zustand für Bildschirme =====
 
     function secLeft() {
+        if (G.phase === 'pre') return G.preLeft;
         if (G.phase === 'settle') return G.settleLeft;
         if (G.phase !== 'trading') return 0;
         return G.monthSec - (G.clock % G.monthSec);
@@ -880,7 +902,7 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, setRole, removePlayer, start, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
+        create, addPlayer, setRole, removePlayer, start, openMarket, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
         protect, answerOrder, investigate, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },

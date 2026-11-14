@@ -135,11 +135,11 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 .news { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; font-size: 15px; margin-bottom: 4px; }
 .news.fresh, .tape.fresh { animation: slidein .4s; }
 .news .ni { font-size: 18px; }
-.news.rumor { background: rgba(255, 181, 71, .1); }
-.news.yes { background: rgba(34, 229, 138, .08); }
-.news.no { background: rgba(167, 139, 250, .1); }
-.news.flash, .news.alert { background: rgba(255, 77, 106, .12); }
-.news.settle, .news.bell { color: var(--dim); }
+.news.n-rumor { background: rgba(255, 181, 71, .1); }
+.news.n-yes { background: rgba(34, 229, 138, .08); }
+.news.n-no { background: rgba(167, 139, 250, .1); }
+.news.n-flash, .news.n-alert { background: rgba(255, 77, 106, .12); }
+.news.n-settle, .news.n-bell { color: var(--dim); }
 @keyframes slidein { from { transform: translateX(-12px); opacity: 0; } }
 .offer-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; font-size: 14px; padding: 6px 0 2px; position: relative; }
 .offer-row b { font-family: var(--mono); }
@@ -1334,3 +1334,21 @@ body[data-role] #v-player .p-price > div:first-child { display: block; }
 .t-ins-c { font-family: var(--mono); font-size: 8px; letter-spacing: 2px; fill: rgba(169, 186, 208, .5); }
 .t-ins-sea { font-family: var(--mono); font-size: 8px; fill: rgba(79, 209, 255, .45); font-style: italic; }
 .t-loc { left: auto; right: 12px; width: min(440px, 46%); }
+
+/* ===== Pre-Market ===== */
+.pre-ov { position: absolute; inset: 0; z-index: 28; display: grid; place-items: center; background: radial-gradient(900px 500px at 50% 30%, rgba(255, 181, 71, .14), rgba(5, 8, 15, .9) 70%); backdrop-filter: blur(4px); }
+.pre-ov.hidden { display: none; }
+.pre-card { display: grid; justify-items: center; gap: 18px; text-align: center; max-width: 1200px; padding: 30px; }
+.pre-k { font-family: var(--mono); letter-spacing: 5px; color: var(--amber); font-size: 18px; }
+.pre-t { font-size: 46px; font-weight: 800; }
+.pre-t b { font-family: var(--mono); color: var(--amber); text-shadow: 0 0 30px rgba(255, 181, 71, .5); }
+.pre-sub { font-size: 22px; color: var(--dim); }
+.pre-roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 6px 0 10px; }
+.pre-roles div { display: grid; justify-items: center; gap: 8px; padding: 20px; border-radius: 18px; background: var(--glass); box-shadow: 0 0 0 1px color-mix(in srgb, var(--rc) 45%, transparent) inset; font-size: 19px; line-height: 1.35; }
+.pre-roles b { color: var(--rc); font-size: 22px; }
+
+/* Einführung: hervorgehobener Bereich */
+.tour-hl { position: relative; z-index: 23; outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 12px; animation: tourGlow 1.2s ease-in-out infinite alternate; }
+@keyframes tourGlow { from { box-shadow: 0 0 0 0 rgba(255, 181, 71, .0); } to { box-shadow: 0 0 30px 6px rgba(255, 181, 71, .45); } }
+.tour-step { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 2px; color: var(--amber); margin-bottom: 3px; }
+body:has(#v-term.active) .p-coach { bottom: 190px; left: auto; right: 400px; max-width: 460px; }

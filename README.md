@@ -47,10 +47,15 @@ Bei «1 Jahr» gibt es das Kernspiel plus eine Besonderheit pro Rolle (Wetter, A
 
 Alles Wichtige passt ohne Scrollen auf den Bildschirm: Zeile «Was jetzt?» (mit Countdown bei Gerüchten), Preis mit Trend, Ziel-Fortschritt, Rang. Die Handelsknöpfe sind unten fixiert. Kurze Erklärungen erscheinen genau dann, wenn sie gebraucht werden (erster Start, erstes Gerücht, erster Trade, erste Abrechnung, neue Mechaniken). Regeln, Beispiel und Begriffe stehen im einklappbaren Bereich «📖 Hilfe».
 
+## Pre-Market (Einführung)
+
+Nach «Börse eröffnen» ist die Börse zuerst **60 Sekunden geschlossen** (Pre-Market). Der Beamer zeigt den Countdown und das Ziel jeder Rolle, die Spielleitung kann mit «Börse jetzt öffnen» früher starten. Auf jedem Handy (und im Terminal) läuft in dieser Zeit eine kurze Einführung: Schritt für Schritt wird der passende Bereich hervorgehoben (Ziel, Knöpfe, Preis, Gerüchte-Zeile, Pfand und Dezember-Regel).
+
 ## Beamer
 
 - Feste 16:9-Bühne (1600 × 900), die auf jede Auflösung von 1280 × 720 bis 4K skaliert wird – nichts wird abgeschnitten.
-- **Gerüchte als Drama:** Countdown bis zur Auflösung im Chart, Trommelwirbel in den letzten Sekunden, danach Banner «BESTÄTIGT» / «DEMENTI» mit Preissprung.
+- **News-Leiste über dem Chart:** links immer nur eine Meldung (weitere warten in der Schlange), rechts die Gerüchte-Uhr.
+- **Gerüchte als Drama:** Countdown bis zur Auflösung, Trommelwirbel in den letzten Sekunden, danach Banner «BESTÄTIGT» / «DEMENTI» mit Preissprung.
 - **Monatsabrechnung als Show:** Gewinner und Verlierer des Monats, Margin Calls.
 - Ranglisten pro Rolle: Top 3 + «und X weitere».
 - **Pause** (Knopf ⏸ oder Leertaste): Die Zeit steht, die Handys zeigen «Pause».

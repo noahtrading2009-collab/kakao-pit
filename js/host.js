@@ -364,6 +364,7 @@ const Host = (() => {
         }
         $('h-months').innerHTML = Array.from({ length: S.months }, (_, i) => `<span class="${i + 1 < S.month ? 'done' : i + 1 === S.month ? 'now' : ''}">M${i + 1}</span>`).join('') + '<span class="due">DEZ</span>';
         $('h-timer').textContent = S.phase === 'settle' ? 'ABRECHNUNG' : mmss(S.secLeft);
+        renderPre(S);
         $('h-timer').classList.toggle('urgent', S.phase === 'trading' && S.secLeft <= 10);
         const pe = $('h-price');
         pe.className = S.price > lastPrice ? 'up flashup' : S.price < lastPrice ? 'down flashdown' : '';
@@ -395,6 +396,22 @@ const Host = (() => {
     }
 
     const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
+
+    // Pre-Market: Börse noch zu, die Handys zeigen die Einführung
+    function renderPre(S) {
+        const el = $('pre-ov');
+        if (S.phase !== 'pre') { el.classList.add('hidden'); return; }
+        if (el.classList.contains('hidden')) {
+            el.innerHTML = `<div class="pre-card"><div class="pre-k">🌅 PRE-MARKET · DIE BÖRSE IST NOCH GESCHLOSSEN</div>
+                <div class="pre-t">Börse öffnet in <b id="pre-left"></b></div>
+                <p class="pre-sub">Auf den Handys läuft jetzt die Einführung. Lest sie in Ruhe – gehandelt wird gleich.</p>
+                <div class="pre-roles">${Object.entries(ROLES).map(([k, R]) => `<div style="--rc:${R.color}">${roleIcon(k, 40)}<b>${R.short}</b><span>${R.goal}</span></div>`).join('')}</div>
+                <button class="btn btn-primary btn-big" id="pre-go">🔔 Börse jetzt öffnen</button></div>`;
+            $('pre-go').onclick = () => { Engine.openMarket(); render(); conns.forEach(push); };
+            el.classList.remove('hidden');
+        }
+        $('pre-left').textContent = mmss(Math.max(0, S.secLeft));
+    }
 
     let drumFor = '';
     // Leere News-Leiste: ruhiger Hinweis statt Loch
@@ -514,7 +531,7 @@ const Host = (() => {
     }
 
     function newsClass(k) {
-        return { rumor: 'rumor', yes: 'yes', no: 'no', flash: 'flash', alert: 'alert', settle: 'settle', bell: 'bell' }[k] || '';
+        return { rumor: 'n-rumor', yes: 'n-yes', no: 'n-no', flash: 'n-flash', alert: 'n-alert', settle: 'n-settle', bell: 'n-bell' }[k] || '';
     }
 
     function renderNews(S) {
@@ -1006,9 +1023,30 @@ const Host = (() => {
 
     // ===== Overlays =====
 
+    // Linker Platz der News-Leiste: immer nur eine Meldung, weitere warten in der Schlange.
+    // Neue Gerüchte erscheinen nur rechts in der Gerüchte-Uhr (nicht doppelt).
+    const newsQ = [];
+    let newsBusy = false;
     function flash(n) {
+        if (n.kind === 'rumor') {
+            Sound.play('news');
+            return;
+        }
+        newsQ.push(n);
+        if (newsQ.length > 3) newsQ.splice(0, newsQ.length - 3);
+        if (!newsBusy) nextNews();
+    }
+
+    function nextNews() {
         const el = $('flash');
-        if (!el) return;
+        const n = newsQ.shift();
+        if (!n) {
+            newsBusy = false;
+            el.classList.add('hidden');
+            updateIdle();
+            return;
+        }
+        newsBusy = true;
         const label = { rumor: 'GERÜCHT', yes: 'BESTÄTIGT', no: 'DEMENTI', flash: 'EILMELDUNG', alert: 'ACHTUNG' }[n.kind];
         // «k-»-Präfix: Die Klasse «flash» trägt jeder Banner – sonst wären alle rot.
         el.className = `flash k-${n.kind}`;
@@ -1024,7 +1062,10 @@ const Host = (() => {
         Sound.play(n.kind === 'alert' ? 'alarm' : 'news');
         clearTimeout(flashTimer);
         updateIdle();
-        flashTimer = setTimeout(() => { el.classList.add('hidden'); updateIdle(); }, 6000);
+        // Wartet schon die nächste, kommt sie nach 4 s, sonst bleibt die Meldung 6 s stehen.
+        const ms = newsQ.length ? 4000 : 6000;
+        el.querySelector('.fl-bar').style.animationDuration = `${ms / 1000}s`;
+        flashTimer = setTimeout(nextNews, ms);
     }
 
     function showSettle(data) {
