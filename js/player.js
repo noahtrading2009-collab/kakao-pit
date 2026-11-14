@@ -114,7 +114,7 @@ const Player = (() => {
                 renderShop();
                 return;
             }
-            const view = termMode() ? 'v-term' : 'v-player';
+            const view = termMode() ? 'v-term' : deskMode() ? 'v-desk' : 'v-player';
             if (pub.phase !== 'lobby' && !ended && !$(view).classList.contains('active')) {
                 const fromShop = $('v-shop').classList.contains('active');
                 App.show(view);
@@ -125,7 +125,7 @@ const Player = (() => {
                     yearBanner(pub.year);
                 }
             }
-            if (pub.phase !== 'lobby') (view === 'v-term' ? renderTerm() : render());
+            if (pub.phase !== 'lobby') (view === 'v-term' ? renderTerm() : view === 'v-desk' ? renderDesk() : render());
             return;
         }
         if (msg.t === 'yearEnd') {
@@ -304,6 +304,10 @@ const Player = (() => {
 
     // ===== Ziel-Karte: Fortschritt, Preis, Rang, Risiko =====
     function renderGoal() {
+        setHTML($('p-goal'), goalHTML());
+    }
+
+    function goalHTML() {
         const R = ROLES[me.role];
         let html;
         const acct = `<div class="g-acct"><span>Futures <b>${me.pos ? `${me.pos > 0 ? 'Long' : 'Short'} ${Math.abs(me.pos * CFG.size)} t` : '–'}</b></span>
@@ -343,7 +347,7 @@ const Player = (() => {
                 <div class="g-risk ${me.pos ? 'warn' : ''}">${me.pos ? `Bewegt sich Kakao um 100 CHF/t gegen dich, verlierst du ${fmt(Math.abs(me.exposure) * 100)} CHF.` : 'Ohne Wette kein Risiko – aber auch kein Gewinn.'}</div>
                 ${acct}`;
         }
-        setHTML($('p-goal'), html);
+        return html;
     }
 
     // ===== Handelsknöpfe (unten fixiert) =====
@@ -499,9 +503,14 @@ const Player = (() => {
 
     function renderRolePanel() {
         const el = $('p-rolepanel');
+        renderDecision();
+        const html = rolePanelHTML();
+        rolePanelApply(el, html);
+    }
+
+    function rolePanelHTML(withDeals = true) {
         const F = me.feat || {};
         let html = '';
-        renderDecision();
         if (me.role === 'producer') {
             const b = F.buyers && me.buyerOffer;
             const pricey = me.protectPrice > CFG.protectLow;
@@ -522,10 +531,14 @@ const Player = (() => {
             else html += '<div class="small dim">📦 Warte auf den nächsten Kundenauftrag …</div>';
             html += me.orders.slice(-2).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)}</div>`).join('');
         }
-        if (me.role !== 'spec' && F.deals) html += dealsHTML();
+        if (withDeals && me.role !== 'spec' && F.deals) html += dealsHTML();
         if (me.role === 'spec') {
             html += '<div class="small">💻 <b>Tipp:</b> Öffne das Spiel am Laptop. Dort hast du das Hedgefonds-Terminal mit Weltkarte, Berichten und Risiko-Cockpit.</div>';
         }
+        return html;
+    }
+
+    function rolePanelApply(el, html) {
         el.classList.toggle('hidden', !html);
         // Countdown und «neu»-Markierung gehören nicht zum Vergleich – sonst würde die Karte jede Sekunde neu gebaut.
         const tmp = document.createElement('div');
@@ -545,8 +558,13 @@ const Player = (() => {
         el.className = `card p-rolepanel ${me.role}${html ? '' : ' hidden'}`;
         el.innerHTML = html;
         el.querySelectorAll('[data-left]').forEach(s => { s.textContent = `${s.dataset.left}s`; });
-        el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
-            const a = b.dataset.rp;
+        el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => rpAction(b.dataset.rp)));
+    }
+
+    const rerender = () => (deskMode() ? renderDesk() : renderRolePanel());
+
+    // Aktionen aus Rollen-Panel und Leitstand (gleiche Knöpfe)
+    function rpAction(a) {
             if (a === 'protect') send({ t: 'protect' });
             if (a === 'order-yes') send({ t: 'order', accept: true });
             if (a === 'order-no') send({ t: 'order', accept: false });
@@ -559,17 +577,16 @@ const Player = (() => {
                 const d = me.deals.signed.find(x => x.id === Number(a.slice(5)));
                 if (d && confirm(`Vertrag mit ${d.with} brechen? Du zahlst ${fmt(d.fee)} CHF Strafe – und alle sehen es auf dem Beamer.`)) send({ t: 'dealBreak', id: d.id });
             }
-            if (a.startsWith('dt-')) { dealT = Number(a.slice(3)); panelKey = ''; renderRolePanel(); }
+            if (a.startsWith('dt-')) { dealT = Number(a.slice(3)); panelKey = ''; rerender(); }
             if (a === 'dp-m' || a === 'dp-p') {
                 const lo = Math.ceil((pub.price * (1 - CFG.dealBand)) / 10) * 10;
                 const hi = Math.floor((pub.price * (1 + CFG.dealBand)) / 10) * 10;
                 dealP = clamp(dealP + (a === 'dp-p' ? 10 : -10), lo, hi);
                 dealPSet = true;
                 panelKey = '';
-                renderRolePanel();
+                rerender();
             }
             if (a === 'dsend') { send({ t: 'dealOffer', qty: dealT, price: dealP }); dealPSet = false; }
-        }));
     }
 
     let callShown = false;
@@ -724,6 +741,9 @@ const Player = (() => {
         if (tut.i >= 0 || tut.done || !me || !pub || pub.phase !== 'pre') return;
         tut.steps = buildTut();
         tut.i = 0;
+        // Das Tutorial ersetzt die kurzen Start-Hinweise
+        coachSeen.add('start');
+        coachSeen.add('term');
         tutShow();
     }
 
@@ -755,10 +775,9 @@ const Player = (() => {
         if (!st) return;
         tut.wait = st.act || null;
         if (st.enter) st.enter();
-        if (termMode()) renderTerm();
-        else render();
-        if (st.sel) {
-            const t = document.querySelector(st.sel);
+        renderAny();
+        if (st.sel && tutSel(st.sel)) {
+            const t = document.querySelector(tutSel(st.sel));
             if (t && t.offsetParent) {
                 coachHl = t;
                 t.classList.add('tour-hl');
@@ -780,6 +799,15 @@ const Player = (() => {
 
     // Zum nächsten Schritt; optional zuerst eine Rückmeldung zur Übung einschieben
     // Schrittanzeige ohne die eingeschobenen Rückmeldungen
+    function renderAny() {
+        if (termMode()) renderTerm();
+        else if (deskMode()) renderDesk();
+        else render();
+    }
+    // Im Leitstand heissen die Bereiche anders als auf dem Handy
+    const DESK_SEL = { '#p-goal': '#d-goal', '.p-dock': '#d-ticket', '.p-price': '#d-chartp', '#p-now': '#d-now', '#p-rolepanel': '#d-deals', '#p-help': null };
+    const tutSel = sel => (deskMode() && sel in DESK_SEL ? DESK_SEL[sel] : sel);
+
     function tutLabel() {
         const main = tut.steps.filter(x => !x.fb).length;
         const pos = tut.steps.slice(0, tut.i + 1).filter(x => !x.fb).length;
@@ -799,15 +827,14 @@ const Player = (() => {
         send({ t: 'ready' });
         tutAbort();
         toast(skipped ? 'Tutorial übersprungen – du bist bereit.' : 'Super, du bist bereit! Die Börse öffnet, sobald alle fertig sind.', 'good');
-        if (termMode()) renderTerm();
-        else render();
+        renderAny();
     }
 
     // Übungs-Trade (nur auf dem Gerät)
     function tutTrade(dir) {
         if (!tutActive() || !tut.wait || !['buy', 'sell', 'close'].includes(tut.wait)) return false;
         const st = tut.steps[tut.i];
-        const q = termMode() ? tQty : qty;
+        const q = termMode() ? tQty : deskMode() ? dQty : qty;
         const t = q * CFG.size;
         const price = dir > 0 ? Math.round(pub.price * (1 + CFG.spread)) : Math.round(pub.price * (1 - CFG.spread));
         const want = tut.wait === 'buy' ? 1 : tut.wait === 'sell' ? -1 : -Math.sign(tut.practicePos || 1);
@@ -975,6 +1002,177 @@ const Player = (() => {
             { html: `💻 <b>Tipp:</b> Öffne das Spiel am Laptop. Dort hast du das Hedgefonds-Terminal mit Weltkarte und Berichten – so musst du nicht raten.<br>${laterHTML}` },
             { ready: true, html: '✅ <b>Du kennst jetzt alles!</b> Die Börse öffnet, sobald alle bereit sind.' },
         ];
+    }
+
+    // ===== Leitstand für Kooperative und Fabrik (Laptop, Vollbild) =====
+    const deskMode = () => me && (me.role === 'producer' || me.role === 'processor') && window.innerWidth >= 1000;
+    let dQty = 2;
+    let dDecKey = '';
+
+    // Wie viele Tonnen sind wie gesichert? (Grundlage für Dörfer bzw. Silos)
+    function holdings() {
+        const prod = me.role === 'producer';
+        const contract = me.dealsT || 0;
+        const remaining = Math.max(0, prod ? me.physical : -me.physical);
+        const fut = Math.max(0, prod ? -me.pos * CFG.size : me.pos * CFG.size);
+        const futIn = Math.min(fut, remaining);
+        return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
+    }
+
+    // Kooperative: Region mit den Dörfern der Mitglieder (1 Dorf = 10 t)
+    const VILLAGES = [[150, 120], [260, 90], [380, 130], [500, 95], [610, 140], [200, 210], [320, 235], [450, 205], [570, 240], [680, 215], [130, 300], [250, 320], [390, 315], [520, 330], [640, 310], [730, 120]];
+    function farmSVG() {
+        const H = holdings();
+        const tiles = [];
+        const push = (n, k) => { for (let i = 0; i < n; i++) tiles.push(k); };
+        push(Math.round(H.contract / 10), 'deal');
+        push(Math.round(H.futIn / 10), 'fut');
+        push(Math.round(H.open / 10), 'open');
+        push(Math.round(H.lost / 10), 'lost');
+        const smuggle = me.decision && me.decision.kind === 'smuggle';
+        const sky = (Scenes.SKY && Scenes.SKY[me.sky]) || null;
+        const villages = tiles.slice(0, VILLAGES.length).map((k, i) => {
+            const [x, y] = VILLAGES[i];
+            return `<g class="vil ${k}" transform="translate(${x} ${y})" style="animation-delay:${i * 0.04}s">
+                <ellipse class="vil-ground" rx="34" ry="14" cy="16"/>
+                <g class="vil-huts"><path d="M-22 6 L-14 -4 L-6 6Z"/><rect x="-20" y="6" width="12" height="9"/><path d="M-4 2 L6 -10 L16 2Z"/><rect x="-2" y="2" width="16" height="13"/><path d="M14 8 L20 0 L26 8Z"/><rect x="15" y="8" width="10" height="7"/></g>
+                ${k === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
+                <text y="38" class="vil-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'lost' ? '🚚 weg' : 'offen'}</text></g>`;
+        }).join('');
+        return `<svg viewBox="0 0 800 400" class="d-svg farm-map">
+            <defs><radialGradient id="dfl" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#2f6b2a"/><stop offset="1" stop-color="#16321a"/></radialGradient>
+            <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="3" fill="rgba(80,170,70,.35)"/><circle cx="16" cy="15" r="4" fill="rgba(60,140,60,.3)"/></pattern></defs>
+            <rect width="800" height="400" fill="url(#dfl)"/><rect width="800" height="400" fill="url(#dft)"/>
+            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river"/>
+            <path d="M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360" class="road"/>
+            <line x1="12" y1="0" x2="12" y2="400" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
+            <g class="port" transform="translate(735 360)"><rect x="-26" y="-14" width="52" height="24" rx="4"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
+            ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="368">🚚</text><text class="truck t2" x="420" y="362">🚚</text><path d="M560 360 C 400 300, 200 330, 14 300" class="smug-path"/></g>` : ''}
+            ${villages}
+            <text x="785" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''} ${sky ? '' : ''}</text>
+        </svg>`;
+    }
+
+    // Fabrik: Silo-Wand (1 Silo = 10 t Bedarf) und Produktionslinie
+    function plantSVG() {
+        const H = holdings();
+        const tiles = [];
+        const push = (n, k) => { for (let i = 0; i < n; i++) tiles.push(k); };
+        push(Math.round(H.contract / 10), 'deal');
+        push(Math.round(H.futIn / 10), 'fut');
+        push(Math.round(H.open / 10), 'open');
+        push(Math.round(H.cut / 10), 'cut');
+        const n = Math.max(1, Math.min(20, tiles.length));
+        const per = Math.min(10, n);
+        const rows = Math.ceil(n / per);
+        const w = 64;
+        const gap = 10;
+        const x0 = 400 - (per * (w + gap) - gap) / 2;
+        const silos = tiles.slice(0, n).map((k, i) => {
+            const x = x0 + (i % per) * (w + gap);
+            const y = 40 + Math.floor(i / per) * 130;
+            const fill = k === 'deal' || k === 'fut' ? 86 : 0;
+            return `<g class="silo ${k}" transform="translate(${x} ${y})"><rect class="s-body" width="${w}" height="100" rx="10"/>
+                <rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6"/><ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/>
+                ${k === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
+                <text x="${w / 2}" y="${118}" text-anchor="middle" class="s-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
+        }).join('');
+        const ly = 40 + rows * 130 + 10;
+        const mm = Math.round((me.marginMult || 1) * 100);
+        return `<svg viewBox="0 0 800 ${ly + 120}" class="d-svg plant-map">
+            <rect width="800" height="${ly + 120}" fill="#141a22"/>
+            ${silos}
+            <g transform="translate(0 ${ly})">
+                <rect x="40" y="56" width="720" height="16" rx="8" class="belt-r"/>
+                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<rect x="${40 + i * 48}" y="40" width="34" height="16" rx="3" class="bar"/>`).join('')}</g>
+                <rect x="330" y="0" width="140" height="56" rx="8" class="machine"/><text x="400" y="34" text-anchor="middle" class="m-t">🍫 Produktion</text>
+                <g class="d-smoke"><circle cx="455" cy="-6" r="6"/><circle cx="462" cy="-16" r="8"/></g>
+                <text x="40" y="100" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
+            </g></svg>`;
+    }
+
+    function deskTicket() {
+        const prod = me.role === 'producer';
+        const practice = tutActive() && ['buy', 'sell', 'close'].includes(tut.wait);
+        const closed = (pub.phase !== 'trading' || pub.paused || me.bankrupt) && !practice;
+        const can = dir => practice || (!closed && room(dir) > 0);
+        const ask = Math.round(pub.price * (1 + CFG.spread));
+        const bid = Math.round(pub.price * (1 - CFG.spread));
+        const hedgeBtn = `<button class="${prod ? 'tk-sell' : 'tk-buy'} main" data-dt="${prod ? -1 : 1}" ${can(prod ? -1 : 1) ? '' : 'disabled'}><b>ABSICHERN</b><span>${fmt(prod ? bid : ask)}</span><small>${prod ? 'Ernte heute verkaufen' : 'Kakao heute kaufen'}</small></button>`;
+        const undoBtn = `<button class="tk-undo" data-dt="${prod ? 1 : -1}" ${can(prod ? 1 : -1) ? '' : 'disabled'}><b>AUFLÖSEN</b><span>${fmt(prod ? ask : bid)}</span><small>zurücknehmen</small></button>`;
+        return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}</div>
+            <div class="tk-btns">${hedgeBtn}${undoBtn}</div>
+            <div class="tk-lim">Pfand ${Math.round(CFG.marginRate * 100)} % · Gebühr ${CFG.fee} CHF pro 10 t · Was im Dezember offen ist: −${Math.round(CFG.spotPenalty * 100)} %</div>`;
+    }
+
+    function renderDesk() {
+        if (!me || !pub) return;
+        if (pub.phase !== 'pre' && tut.i >= 0 && !tut.done) tutAbort();
+        const R = ROLES[me.role];
+        const prod = me.role === 'producer';
+        document.body.dataset.role = me.role;
+        $('v-desk').classList.toggle('farm', prod);
+        $('v-desk').classList.toggle('plant', !prod);
+        $('d-brand').innerHTML = prod ? '🌱 KOOPERATIVEN-<span>ZENTRALE</span>' : '🏭 FABRIK-<span>LEITSTAND</span>';
+        $('d-fund').innerHTML = `${roleIcon(me.role, 22)} <b>${esc(me.name)}</b><small>${RANKS[me.level].icon} ${RANKS[me.level].name}${me.rep ? ` · <span class="bad">⚠️ ${me.rep}× gebrochen</span>` : ''}</small>`;
+        const ch = pub.price / pub.p0 - 1;
+        $('d-price').textContent = fmt(pub.price);
+        $('d-chg').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${arrow(ch)}${pct(ch)}</span>`;
+        $('d-metric-l').textContent = prod ? 'DEIN PREIS JETZT' : 'DEIN EINKAUF JETZT';
+        const good = prod ? me.metric >= pub.p0 : me.metric <= pub.p0;
+        $('d-metric').innerHTML = `<span class="${good ? 'up' : 'down'}">${fmt(me.metric)}</span>`;
+        $('d-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>`;
+        $('d-month').textContent = pub.phase === 'pre' ? 'PRE-MARKET' : pub.phase === 'settle' ? 'ABRECHNUNG' : `MONAT ${pub.month}/${pub.months}${pub.years > 1 ? ` · JAHR ${pub.year}` : ''}`;
+        $('d-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
+        $('d-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
+        if (pub.phase === 'trading' && pub.secLeft <= 10 && pub.secLeft !== lastTick) { lastTick = pub.secLeft; Sound.play('tick'); }
+        const n = nowText();
+        $('d-now').className = `t-now ${n.k}`;
+        setHTML($('d-now'), n.t + (n.left !== undefined ? ` <b class="rumor-left2">${n.left}s</b>` : ''));
+
+        setHTML($('d-goal'), `<h3>Ziel & Absicherung</h3>${goalHTML()}`);
+        setHTML($('d-side'), `<h3>${prod ? 'Plantage' : 'Aufträge & Produktion'}</h3>${rolePanelHTML(false) || `<div class="t-empty">${prod ? 'Ab Jahr 2 kommen Wetter und Schmuggler dazu.' : 'Ab Jahr 2 kommen Kundenaufträge und die Schokoladen-Krise dazu.'}</div>`}`);
+        $('d-side').querySelectorAll('[data-left]').forEach(x => { x.textContent = `${x.dataset.left}s`; });
+
+        // Mitte: Dörfer bzw. Silos
+        const H = holdings();
+        $('d-world-h').innerHTML = prod ? `Deine Mitglieder <span>1 Dorf = 10 t Ernte</span>` : `Kakao-Bedarf <span>1 Silo = 10 t</span>`;
+        setHTML($('d-world'), prod ? farmSVG() : plantSVG());
+        setHTML($('d-legend'), `<span class="lg deal">📜 Vertrag ${H.contract} t</span><span class="lg fut">🔒 Futures ${H.futIn} t</span><span class="lg open">⚠️ offen ${H.open} t</span>${H.lost ? `<span class="lg lost">🚚 verloren ${H.lost} t</span>` : ''}${H.cut ? `<span class="lg cut">✂️ gestrichen ${H.cut} t</span>` : ''}${H.over ? `<span class="lg lost">🎲 ${H.over} t zu viel abgesichert!</span>` : ''}`);
+
+        // Entscheidung als grosses Fenster in der Mitte
+        const dec = $('d-decision');
+        if (me.decision) {
+            dec.classList.remove('hidden');
+            if (dDecKey !== String(me.decision.id)) {
+                dDecKey = String(me.decision.id);
+                dec.innerHTML = decisionHTML();
+                Sound.play('alarm');
+            }
+            const l = dec.querySelector('[data-left]');
+            if (l) l.textContent = `${me.decision.left}s`;
+        } else { dec.classList.add('hidden'); dDecKey = ''; }
+
+        setHTML($('d-deals'), `<h3>Vertragsbörse <span>direkt mit den ${prod ? 'Fabriken' : 'Kooperativen'}</span></h3>${dealsHTML() || '<div class="t-empty">Lieferverträge kommen später.</div>'}`);
+        $('d-deals').querySelectorAll('[data-left]').forEach(x => { x.textContent = `${x.dataset.left}s`; });
+        setHTML($('d-ticket'), deskTicket());
+        tChart('d-chart');
+        renderCall();
+        coachTriggers();
+    }
+
+    function bindDesk() {
+        $('v-desk').addEventListener('click', ev => {
+            const b = ev.target.closest('button');
+            if (!b || b.disabled) return;
+            if (b.dataset.rp) rpAction(b.dataset.rp);
+            if (b.dataset.dq) { dQty = Number(b.dataset.dq); renderDesk(); }
+            if (b.dataset.dt) {
+                const dir = Number(b.dataset.dt);
+                if (tutTrade(dir)) return;
+                send({ t: 'trade', q: dir * Math.max(1, Math.min(dQty, room(dir))) });
+            }
+        });
     }
 
     // ===== Hedgefonds-Terminal (Laptop, Vollbild) =====
@@ -1162,8 +1360,8 @@ const Player = (() => {
         if (rum.length) coach('term-scen', '⚖️ <b>Risiko-Cockpit:</b> Links unten siehst du, was deine Position bei «bestätigt» und bei «dementiert» wert wäre. Wer zu früh oder zu gross wettet, riskiert viel.');
     }
 
-    function tChart() {
-        const cv = $('t-chart');
+    function tChart(id = 't-chart') {
+        const cv = $(id);
         const dpr = window.devicePixelRatio || 1;
         const W = cv.clientWidth;
         const H = cv.clientHeight;
@@ -1346,6 +1544,7 @@ const Player = (() => {
         $('p-sell').addEventListener('click', () => { if (tutTrade(-1)) return; send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }); });
         $('btn-rejoin').addEventListener('click', () => join(code, name));
         bindTerm();
+        bindDesk();
         document.addEventListener('visibilitychange', revive);
         window.addEventListener('online', revive);
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {

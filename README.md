@@ -86,6 +86,14 @@ Nach «Börse eröffnen» ist die Börse geschlossen (Pre-Market). Auf jedem Ger
 - **Spätes Beitreten** ist möglich: Wer später kommt, startet neutral zum aktuellen Preis.
 - Getestet mit 33 Spielern (32 KI + 1 Handy).
 
+## Leitstand für Kooperative und Fabrik (Laptop)
+
+Wer als Kooperative oder Fabrik auf einem breiten Bildschirm (ab 1000 px) spielt, bekommt statt des Handy-Cockpits einen Vollbild-Leitstand:
+
+- **🌱 Kooperativen-Zentrale:** In der Mitte die Region mit den **Dörfern der Mitglieder** (1 Dorf = 10 t): blau = per Vertrag verkauft, gold = mit Futures abgesichert, gestrichelt = offen, rot durchgestrichen = an Schmuggler verloren. Bei einem Schmuggel-Angebot fahren Laster Richtung Grenze.
+- **🏭 Fabrik-Leitstand:** In der Mitte die **Silo-Wand** (1 Silo = 10 t Bedarf): blau = Vertrag, gold = Futures, gestrichelt = offen, durchgestrichen = durch Krisen-Entscheid gestrichen. Darunter die Produktionslinie mit Verarbeitungsmarge und «Ruf & Preise».
+- Links Ziel, Absicherung und Rollen-Extras, rechts die **Vertragsbörse**, unten Kurs-Chart und Order-Ticket (ABSICHERN / AUFLÖSEN). Entscheidungen erscheinen als Fenster über der Karte. Tutorial und Margin Call funktionieren auch hier.
+
 ## Hedgefonds-Terminal (Laptop)
 
 Hedgefonds, die auf einem breiten Bildschirm (ab 1000 px) spielen, bekommen statt des Handy-Cockpits ein Vollbild-Terminal:

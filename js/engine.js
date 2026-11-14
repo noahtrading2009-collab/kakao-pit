@@ -1071,7 +1071,7 @@ const Engine = (() => {
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
             deals: dealView(p),
             decision: p.decision ? { ...p.decision, left: Math.max(0, p.decision.until - G.sec) } : null,
-            rep: p.rep, dealsT: p.dealsT, qPrem: p.qPrem, marginMult: p.marginMult, lostSmuggle: p.lostSmuggle,
+            rep: p.rep, dealsT: p.dealsT, qPrem: p.qPrem, marginMult: p.marginMult, lostSmuggle: p.lostSmuggle, needCut: p.needCut,
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
             intel: p.role === 'spec' ? intelState(p) : null,
             rumorActive: G.events.some(e => e.stage === 'rumor'),
