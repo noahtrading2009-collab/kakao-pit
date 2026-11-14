@@ -383,7 +383,7 @@ const Engine = (() => {
     // Ein Bericht kostet Geld und Zeit und liefert ein Indiz – keine Lösung.
     const intelCost = (p, t) => Math.round(INTEL_TYPES[t].cost * (has(p, 'network') ? 0.5 : 1));
     const intelDur = (p, t) => Math.max(1, Math.round(INTEL_TYPES[t].dur * (has(p, 'network') ? 0.5 : 1)));
-    const intelRel = (p, t) => Math.min(0.95, INTEL_TYPES[t].rel + (has(p, 'analysts') ? 0.08 : 0));
+    const intelRel = (p, t) => Math.min(0.9, INTEL_TYPES[t].rel + (has(p, 'analysts') && !INTEL_TYPES[t].soft ? 0.12 : 0));
 
     function investigate(id, key) {
         const p = byId(id);
@@ -425,18 +425,19 @@ const Engine = (() => {
         if (type === 'social' && rumors.length) {
             const e = rumors[0];
             const says = Math.random() < rel ? e.confirmed : !e.confirmed;
-            rep = { rid: e.id, dir: says ? 1 : -1, text: says ? `Viral: «${e.def.rumor}» – alle reden davon.` : `Viele halten «${e.def.rumor}» für Fake.` };
+            rep = { rid: e.id, dir: says ? 1 : -1, soft: true, text: says ? `Viral: «${e.def.rumor}» – alle reden davon. (unbestätigt)` : `Viele halten «${e.def.rumor}» für Fake. (unbestätigt)` };
         } else {
             for (const e of rumors) {
                 const texts = hintFor(e, loc, type);
                 if (!texts) continue;
-                const says = Math.random() < rel ? e.confirmed : !e.confirmed;
                 const R = e.region ? REGIONS[e.region].name : '';
-                rep = { rid: e.id, dir: says ? 1 : -1, text: (says ? texts[0] : texts[1]).replace(/\{R\}/g, R) };
+                // Fakten lügen nicht: entweder eindeutig (und dann richtig) oder unklar
+                if (Math.random() < rel) rep = { rid: e.id, dir: e.confirmed ? 1 : -1, clear: true, text: (e.confirmed ? texts[0] : texts[1]).replace(/\{R\}/g, R) };
+                else rep = { rid: e.id, dir: 0, clear: false, text: T.unclear };
                 break;
             }
         }
-        if (!rep) rep = { rid: null, dir: 0, text: 'Nichts Auffälliges zu den laufenden Gerüchten.' };
+        if (!rep) rep = { rid: null, dir: 0, none: true, text: 'Nichts Auffälliges zu den laufenden Gerüchten – diese Quelle passt zu keinem Gerücht.' };
         const e = rep.rid ? G.events.find(x => x.id === rep.rid) : null;
         if (e && e.stage === 'done') rep.text += ' (Zu spät: Das Gerücht ist schon aufgelöst.)';
         p.reports.push({ ...rep, loc, type, rel, icon: T.icon, src: T.name, place: INTEL_LOCS[loc].name, rumor: e ? e.def.rumor : null, sec: G.sec, year: G.year });
@@ -522,6 +523,18 @@ const Engine = (() => {
             return;
         }
         openMarket();
+    }
+
+    // Tutorial fertig? Sind alle echten Spieler bereit, öffnet die Börse nach ein paar Sekunden.
+    function setReady(id) {
+        const p = byId(id);
+        if (!p) return { ok: false };
+        p.ready = true;
+        if (G.phase === 'pre') {
+            const humans = G.players.filter(x => !x.bot && x.connected !== false);
+            if (humans.length && humans.every(x => x.ready)) G.preLeft = Math.min(G.preLeft, 5);
+        }
+        return { ok: true };
     }
 
     function openMarket() {
@@ -800,7 +813,8 @@ const Engine = (() => {
 
     function publicState(full = false) {
         return {
-            phase: G.phase, paused: !!G.paused, month: G.month, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
+            phase: G.phase, paused: !!G.paused, month: G.month,
+            preReady: G.phase === 'pre' ? { n: G.players.filter(x => !x.bot && x.ready).length, total: G.players.filter(x => !x.bot).length, names: G.players.filter(x => !x.bot).map(x => ({ name: x.name, ready: !!x.ready })) } : null, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
             year: G.year, years: G.years, shopLeft: G.shopLeft,
             price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate,
             history: full ? G.history : G.history.slice(-90).map(h => h.p),
@@ -902,7 +916,7 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, setRole, removePlayer, start, openMarket, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
+        create, addPlayer, setRole, removePlayer, start, openMarket, setReady, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
         protect, answerOrder, investigate, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },

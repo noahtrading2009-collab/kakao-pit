@@ -1351,4 +1351,16 @@ body[data-role] #v-player .p-price > div:first-child { display: block; }
 .tour-hl { position: relative; z-index: 23; outline: 3px solid var(--amber); outline-offset: 3px; border-radius: 12px; animation: tourGlow 1.2s ease-in-out infinite alternate; }
 @keyframes tourGlow { from { box-shadow: 0 0 0 0 rgba(255, 181, 71, .0); } to { box-shadow: 0 0 30px 6px rgba(255, 181, 71, .45); } }
 .tour-step { display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: 2px; color: var(--amber); margin-bottom: 3px; }
-body:has(#v-term.active) .p-coach { bottom: 190px; left: auto; right: 400px; max-width: 460px; }
+body:has(#v-term.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); width: min(560px, 46vw); max-width: none; }
+.p-snd { flex: none; min-width: 36px; min-height: 36px !important; font-size: 18px; background: rgba(255,255,255,.06); border-radius: 10px; }
+.t-rep.soft { border-left-color: var(--violet); } .t-rep.soft .rp-tag { color: var(--violet); }
+.pre-ready { display: grid; justify-items: center; gap: 10px; font-size: 22px; }
+.pre-ready div { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 1100px; }
+.pre-ready span { font-size: 16px; padding: 4px 12px; border-radius: 999px; background: rgba(255, 255, 255, .06); color: var(--dim); }
+.pre-ready span.ok { background: rgba(34, 229, 138, .16); color: var(--up); }
+/* Tutorial-Blase mit Übungen */
+.p-coach { align-items: flex-end; }
+.tut-btns { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.tut-btns .btn { white-space: nowrap; }
+.tut-do { margin-top: 8px; color: var(--amber); font-weight: 700; }
+.tut-btns:empty { display: none; }

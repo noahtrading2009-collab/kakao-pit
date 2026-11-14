@@ -6,7 +6,7 @@ const CFG = {
     months: 4,             // Handelsmonate bis zur Fälligkeit (Dezember)
     monthSec: { kurz: 60, normal: 90, lang: 120 },
     settleSec: 7,          // Pause für die Abrechnung am Monatsende
-    preSec: 60,            // Pre-Market: Börse noch geschlossen, Einführung auf den Handys
+    preSec: 180,           // Pre-Market: höchstens so lange – öffnet früher, sobald alle das Tutorial fertig haben
     marginRate: 0.10,      // Einschuss: 10 % des Kontraktwerts
     maintenance: 0.7,      // Margin Call unter 70 % des nötigen Einschusses
     callSec: 25,           // Zeit, um nachzuschiessen
@@ -228,17 +228,19 @@ const SURPRISES = [
 
 // ===== Hedgefonds-Terminal: Intel-Karte =====
 // Jedes Gerücht hat einen Ort. Wer weiss, WO er nachschauen muss, bekommt Indizien – nie die Lösung.
-// Quellen-Typen: Kosten (CHF), Dauer (s), Zuverlässigkeit (Chance, dass das Indiz in die richtige Richtung zeigt)
+// Quellen-Typen: Kosten (CHF), Dauer (s), Trefferchance.
+// Seriöse Quellen lügen nie: Mit der Trefferchance liefern sie einen EINDEUTIGEN Befund (der immer stimmt),
+// sonst «kein klarer Befund». Nur Social Media (soft) kann falsch liegen.
 const INTEL_TYPES = {
-    sat: { icon: '🛰️', name: 'Satellitenbild', cost: 3000, dur: 8, rel: 0.8 },
-    field: { icon: '📋', name: 'Feldbericht', cost: 2000, dur: 7, rel: 0.75 },
-    weather: { icon: '🌧️', name: 'Wetterstation', cost: 1500, dur: 5, rel: 0.75 },
-    port: { icon: '⚓', name: 'Hafenradar', cost: 2500, dur: 6, rel: 0.78 },
-    gov: { icon: '🏛️', name: 'Quelle in der Politik', cost: 2500, dur: 7, rel: 0.72 },
-    demand: { icon: '🏭', name: 'Bestelldaten Hersteller', cost: 2500, dur: 6, rel: 0.75 },
-    whs: { icon: '📦', name: 'Lagerbestände', cost: 1500, dur: 4, rel: 0.62 },
-    funds: { icon: '💼', name: 'Fondsflüsse (COT-Bericht)', cost: 2500, dur: 6, rel: 0.78 },
-    social: { icon: '💬', name: 'Social Media', cost: 300, dur: 2, rel: 0.55 },
+    sat: { icon: '🛰️', name: 'Satellitenbild', cost: 3000, dur: 8, rel: 0.6, unclear: 'Dichte Wolkendecke – kein klares Bild.' },
+    field: { icon: '📋', name: 'Feldbericht', cost: 2000, dur: 7, rel: 0.55, unclear: 'Die Bauern sind sich uneinig – kein klarer Befund.' },
+    weather: { icon: '🌧️', name: 'Wetterstation', cost: 1500, dur: 5, rel: 0.55, unclear: 'Messdaten lückenhaft – kein klarer Befund.' },
+    port: { icon: '⚓', name: 'Hafenradar', cost: 2500, dur: 6, rel: 0.6, unclear: 'Signal gestört – keine klaren Daten.' },
+    gov: { icon: '🏛️', name: 'Quelle in der Politik', cost: 2500, dur: 7, rel: 0.5, unclear: 'Die Quelle will sich noch nicht festlegen.' },
+    demand: { icon: '🏭', name: 'Bestelldaten Hersteller', cost: 2500, dur: 6, rel: 0.55, unclear: 'Die Zahlen sind noch nicht vollständig.' },
+    whs: { icon: '📦', name: 'Lagerbestände', cost: 1500, dur: 4, rel: 0.45, unclear: 'Bewegungen uneinheitlich – kein klares Bild.' },
+    funds: { icon: '💼', name: 'Fondsflüsse (COT-Bericht)', cost: 2500, dur: 6, rel: 0.6, unclear: 'Die Daten der Woche sind noch nicht veröffentlicht.' },
+    social: { icon: '💬', name: 'Social Media', cost: 300, dur: 2, rel: 0.55, soft: true },
 };
 // Orte auf der Karte (Längen-/Breitengrad) mit den Quellen, die es dort gibt
 const INTEL_LOCS = {
@@ -357,51 +359,158 @@ const $ = id => document.getElementById(id);
 
 // ===== Sound (Web Audio) =====
 const Sound = (() => {
+    // Alle Klänge werden live erzeugt (Web Audio, keine Dateien): Oszillatoren + gefiltertes Rauschen,
+    // über Kompressor und einen leichten Hall. Stumm = Hauptregler auf 0 – auch bereits geplante Töne verstummen.
     let ac = null;
     let out = null;
+    let dry = null;
+    let wet = null;
+    let noiseBuf = null;
     let muted = false;
+    try { muted = localStorage.getItem('kakaopit-muted') === '1'; } catch (e) { /* egal */ }
+    const VOL = 0.55;
+
     function init() {
         if (ac) return;
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         ac = new AC();
+        const comp = ac.createDynamicsCompressor();
+        comp.threshold.value = -16;
+        comp.ratio.value = 4;
         out = ac.createGain();
-        out.gain.value = 0.5;
+        out.gain.value = muted ? 0 : VOL;
+        comp.connect(out);
         out.connect(ac.destination);
+        dry = ac.createGain();
+        dry.connect(comp);
+        // Kurzer, generierter Hall
+        const len = Math.round(ac.sampleRate * 1.4);
+        const ir = ac.createBuffer(2, len, ac.sampleRate);
+        for (let ch = 0; ch < 2; ch++) {
+            const d = ir.getChannelData(ch);
+            for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+        }
+        const conv = ac.createConvolver();
+        conv.buffer = ir;
+        wet = ac.createGain();
+        wet.gain.value = 0.22;
+        wet.connect(conv);
+        conv.connect(comp);
+        noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+        const nd = noiseBuf.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     }
-    function tone(f, d, type = 'sine', v = 0.2, when = 0) {
-        if (!ac || muted) return;
+
+    function route(node, reverb) {
+        node.connect(dry);
+        if (reverb) node.connect(wet);
+    }
+
+    // Ein Ton mit Hüllkurve, optional Tonhöhen-Gleiten und Filter
+    function tone(f, d, { type = 'sine', vol = 0.2, when = 0, to = null, attack = 0.008, cutoff = null, reverb = true, detune = 0 } = {}) {
+        if (!ac) return;
         const t = ac.currentTime + when;
         const o = ac.createOscillator();
         const g = ac.createGain();
         o.type = type;
+        o.detune.value = detune;
         o.frequency.setValueAtTime(f, t);
+        if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(v, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(vol, t + attack);
         g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-        o.connect(g);
-        g.connect(out);
+        let last = o;
+        if (cutoff) {
+            const fl = ac.createBiquadFilter();
+            fl.type = 'lowpass';
+            fl.frequency.setValueAtTime(cutoff, t);
+            fl.frequency.exponentialRampToValueAtTime(Math.max(200, cutoff / 4), t + d);
+            o.connect(fl);
+            last = fl;
+        }
+        last.connect(g);
+        route(g, reverb);
         o.start(t);
         o.stop(t + d + 0.05);
     }
+
+    // Gefiltertes Rauschen (Trommeln, Klicks, Becken)
+    function noise(d, { vol = 0.2, when = 0, type = 'bandpass', freq = 1000, q = 1, reverb = true } = {}) {
+        if (!ac) return;
+        const t = ac.currentTime + when;
+        const src = ac.createBufferSource();
+        src.buffer = noiseBuf;
+        const fl = ac.createBiquadFilter();
+        fl.type = type;
+        fl.frequency.value = freq;
+        fl.Q.value = q;
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+        src.connect(fl);
+        fl.connect(g);
+        route(g, reverb);
+        src.start(t, Math.random() * 0.5);
+        src.stop(t + d + 0.05);
+    }
+
+    // Glocke: unharmonische Teiltöne wie eine echte Börsenglocke
+    function bellHit(f, when, vol) {
+        [[1, 1], [2.76, 0.5], [5.4, 0.25], [8.93, 0.12]].forEach(([m, v]) => tone(f * m, 2.2 / Math.sqrt(m), { vol: vol * v, when, attack: 0.003 }));
+    }
+
     const S = {
-        bell: () => [0, 0.35, 0.7].forEach(w => { tone(1568, 1.2, 'sine', 0.25, w); tone(2093, 1.0, 'sine', 0.12, w); }),
-        buy: () => { tone(660, 0.08, 'square', 0.08); tone(990, 0.12, 'square', 0.07, 0.06); },
-        sell: () => { tone(520, 0.08, 'square', 0.08); tone(350, 0.12, 'square', 0.07, 0.06); },
-        news: () => { tone(880, 0.1, 'sawtooth', 0.08); tone(880, 0.1, 'sawtooth', 0.08, 0.15); tone(1175, 0.2, 'sawtooth', 0.08, 0.3); },
-        alarm: () => [0, 0.25, 0.5, 0.75].forEach(w => tone(w % 0.5 ? 620 : 880, 0.2, 'square', 0.1, w)),
-        cash: () => [1320, 1760, 2093].forEach((f, i) => tone(f, 0.15, 'triangle', 0.12, i * 0.06)),
-        tick: () => tone(1800, 0.03, 'square', 0.03),
-        join: () => { tone(523, 0.1, 'triangle', 0.15); tone(784, 0.18, 'triangle', 0.15, 0.08); },
-        error: () => tone(180, 0.25, 'square', 0.08),
-        end: () => [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone(f, 0.3, 'triangle', 0.15, i * 0.13)),
-        drum: () => { for (let i = 0; i < 18; i++) tone(90 + (i % 2) * 20, 0.08, 'square', 0.05 + i * 0.006, i * 0.11); tone(60, 0.6, 'sine', 0.3, 2.0); },
-        fanfare: () => [523, 659, 784, 1046].forEach((f, i) => { tone(f, 0.45, 'sawtooth', 0.07, i * 0.12); tone(f * 2, 0.4, 'triangle', 0.05, i * 0.12); }),
+        bell: () => [0, 0.42, 0.84].forEach(w => bellHit(880, w, 0.22)),
+        buy: () => { tone(660, 0.09, { type: 'triangle', vol: 0.16 }); tone(990, 0.18, { type: 'triangle', vol: 0.14, when: 0.07 }); noise(0.03, { vol: 0.08, freq: 4000, reverb: false }); },
+        sell: () => { tone(740, 0.09, { type: 'triangle', vol: 0.16 }); tone(494, 0.18, { type: 'triangle', vol: 0.14, when: 0.07 }); noise(0.03, { vol: 0.08, freq: 3000, reverb: false }); },
+        news: () => {
+            // Nachrichten-Jingle: drei Töne mit gefiltertem Sägezahn, darunter ein tiefer Schwall
+            [[659, 0], [784, 0.12], [1047, 0.24]].forEach(([f, w]) => { tone(f, 0.28, { type: 'sawtooth', vol: 0.08, when: w, cutoff: 3200 }); tone(f, 0.28, { type: 'sawtooth', vol: 0.06, when: w, cutoff: 3200, detune: 9 }); });
+            tone(130, 0.7, { type: 'sine', vol: 0.18, when: 0.2 });
+        },
+        alarm: () => { for (let i = 0; i < 3; i++) tone(620, 0.32, { type: 'triangle', vol: 0.16, when: i * 0.36, to: 980 }); },
+        cash: () => { for (let i = 0; i < 7; i++) tone(2400 + Math.random() * 1800, 0.12, { vol: 0.06, when: i * 0.045 }); noise(0.05, { vol: 0.08, freq: 6000, q: 3 }); },
+        tick: () => { noise(0.025, { vol: 0.12, freq: 2200, q: 8, reverb: false }); tone(1600, 0.03, { vol: 0.04, reverb: false }); },
+        join: () => { tone(523, 0.12, { type: 'triangle', vol: 0.14 }); tone(784, 0.22, { type: 'triangle', vol: 0.14, when: 0.08 }); },
+        error: () => tone(220, 0.22, { type: 'triangle', vol: 0.14, to: 160 }),
+        end: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => { tone(f, 0.35, { type: 'sawtooth', vol: 0.06, when: i * 0.13, cutoff: 2600 }); tone(f / 2, 0.35, { type: 'triangle', vol: 0.08, when: i * 0.13 }); }),
+        drum: () => {
+            // Wirbel auf der kleinen Trommel, immer lauter – dann Pauke und Becken
+            for (let i = 0; i < 22; i++) noise(0.07, { vol: 0.03 + i * 0.006, when: i * 0.09, freq: 1800, q: 0.8, reverb: false });
+            tone(70, 0.9, { vol: 0.35, when: 2.0, to: 45 });
+            noise(1.3, { vol: 0.12, when: 2.0, type: 'highpass', freq: 6000, q: 0.5 });
+        },
+        fanfare: () => [523, 659, 784, 1047].forEach((f, i) => {
+            tone(f, 0.5, { type: 'sawtooth', vol: 0.07, when: i * 0.12, cutoff: 3000 });
+            tone(f, 0.5, { type: 'sawtooth', vol: 0.05, when: i * 0.12, cutoff: 3000, detune: 12 });
+            tone(f / 2, 0.5, { type: 'triangle', vol: 0.07, when: i * 0.12 });
+        }),
     };
+
+    function setMuted(m) {
+        muted = !!m;
+        try { localStorage.setItem('kakaopit-muted', muted ? '1' : '0'); } catch (e) { /* egal */ }
+        if (out && ac) {
+            // sofort leise – auch Töne, die schon geplant sind (Trommelwirbel, Glocke)
+            out.gain.cancelScheduledValues(ac.currentTime);
+            out.gain.setValueAtTime(muted ? 0 : VOL, ac.currentTime);
+        }
+        document.querySelectorAll('.snd-btn').forEach(b => { b.textContent = muted ? '🔇' : '🔊'; b.title = muted ? 'Ton an' : 'Ton aus'; });
+        return muted;
+    }
+
     return {
         init,
-        play: n => { if (ac && ac.state === 'suspended') ac.resume(); if (S[n]) S[n](); },
-        toggle: () => (muted = !muted),
+        play: n => {
+            if (muted) return;
+            if (!ac) init();
+            if (ac && ac.state === 'suspended') ac.resume();
+            if (S[n]) S[n]();
+        },
+        toggle: () => setMuted(!muted),
+        setMuted,
         muted: () => muted,
     };
 })();
@@ -419,7 +528,7 @@ const UPGRADES = {
         { id: 'marketing', icon: '📣', name: 'Marketing', cost: 10000, desc: 'Kunden bestellen deutlich häufiger.' },
     ],
     spec: [
-        { id: 'analysts', icon: '🧠', name: 'Analysten-Team', cost: 18000, desc: 'Alle Berichte werden zuverlässiger (+8 Prozentpunkte).' },
+        { id: 'analysts', icon: '🧠', name: 'Analysten-Team', cost: 18000, desc: 'Mehr eindeutige Befunde (+12 Prozentpunkte Trefferchance).' },
         { id: 'credit', icon: '🏦', name: 'Kreditlinie', cost: 22000, desc: 'Positionslimit +10 Kontrakte (30 statt 20).' },
         { id: 'network', icon: '📡', name: 'Netzwerk', cost: 12000, desc: 'Berichte halb so teuer und doppelt so schnell.' },
     ],

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>
     // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
-    window.KP_V='17';
+    window.KP_V='18';
     fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
         v = (v || '').trim();
         try {
@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -118,7 +118,7 @@
             <div class="h-timer" id="h-timer">1:30</div>
             <div class="h-price"><span class="dim">KAKAO DEZ</span><b id="h-price">2'400</b><span id="h-change" class="chg">±0.0 %</span></div>
             <button class="icon" id="h-pause" title="Pause (Leertaste)">⏸</button>
-            <button class="icon" id="h-sound" title="Ton">🔊</button>
+            <button class="icon snd-btn" id="h-sound" title="Ton aus">🔊</button>
         </header>
         <div class="h-newsbar" id="h-newsbar">
             <div id="flash" class="flash hidden"></div>
@@ -165,6 +165,7 @@
             <div class="p-role" id="p-role"></div>
             <div class="p-clock"><span id="p-month"></span><b id="p-timer">1:30</b></div>
             <div class="p-rank" id="p-rank">#1</div>
+            <button class="icon snd-btn p-snd" title="Ton aus">🔊</button>
         </header>
         <div class="p-now" id="p-now"></div>
         <div class="p-scroll">
@@ -196,6 +197,7 @@
             <div class="t-kv"><small>GEWINN</small><b id="t-pl">–</b></div>
             <div class="t-kv"><small>PLATZ</small><b id="t-rank">–</b></div>
             <div class="t-kv t-clock"><small id="t-month"></small><b id="t-timer">–</b></div>
+            <button class="icon snd-btn" title="Ton aus">🔊</button>
         </header>
         <div class="t-now" id="t-now"></div>
         <main class="t-grid">
@@ -232,13 +234,13 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js?v=17"></script>
-    <script src="js/engine.js?v=17"></script>
-    <script src="js/bots.js?v=17"></script>
-    <script src="js/net.js?v=17"></script>
-    <script src="js/host.js?v=17"></script>
-    <script src="js/scenes.js?v=17"></script>
-    <script src="js/player.js?v=17"></script>
-    <script src="js/app.js?v=17"></script>
+    <script src="js/common.js?v=18"></script>
+    <script src="js/engine.js?v=18"></script>
+    <script src="js/bots.js?v=18"></script>
+    <script src="js/net.js?v=18"></script>
+    <script src="js/host.js?v=18"></script>
+    <script src="js/scenes.js?v=18"></script>
+    <script src="js/player.js?v=18"></script>
+    <script src="js/app.js?v=18"></script>
 </body>
 </html>

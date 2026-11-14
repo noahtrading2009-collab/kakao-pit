@@ -216,6 +216,7 @@ const Player = (() => {
 
     function render() {
         if (!me || !pub) return;
+        if (pub.phase !== 'pre' && tut.i >= 0 && !tut.done) tutAbort();
         const R = ROLES[me.role];
         document.body.dataset.role = me.role;
         if ($('p-role').dataset.k !== me.role + me.name + me.level) {
@@ -257,7 +258,12 @@ const Player = (() => {
         const lastMonth = pub.month >= pub.months;
         const end = pub.phase !== 'trading' || pub.secLeft > 10 ? ''
             : lastMonth ? ` ⏰ Noch ${pub.secLeft}s bis Dezember!` : ` ⏰ Noch ${pub.secLeft}s bis zur Monatsabrechnung.`;
-        if (pub.phase === 'pre') return { k: 'paused', t: `🌅 <b>Pre-Market.</b> Die Börse öffnet in ${pub.secLeft} s. Lerne jetzt dein Cockpit kennen – handeln kannst du gleich.` };
+        if (pub.phase === 'pre') {
+            if (tut.now) return { k: 'rumor', t: tut.now, left: 30, span: 30 };
+            const RR = pub.preReady;
+            if (tut.done) return { k: 'ok', t: `✅ <b>Du bist bereit.</b> Die Börse öffnet, sobald alle fertig sind${RR ? ` (${RR.n} von ${RR.total})` : ''} – spätestens in ${mmss(pub.secLeft)}.` };
+            return { k: 'paused', t: `🌅 <b>Pre-Market.</b> Die Börse ist noch geschlossen. Mach das Tutorial – sie öffnet spätestens in ${mmss(pub.secLeft)}.` };
+        }
         if (pub.paused) return { k: 'paused', t: '⏸ <b>Pause.</b> Die Spielleitung erklärt etwas. Gleich geht es weiter.' };
         if (me.call) return { k: 'bad', t: '📞 <b>Margin Call!</b> Dein Pfand reicht nicht mehr. Geld nachschiessen oder Position verkleinern – sonst wird sie zwangsweise geschlossen.' };
         if (pub.phase === 'settle') return { k: '', t: '🧾 <b>Monatsabrechnung.</b> Gewinne und Verluste deiner Futures werden jetzt aufs Konto gebucht.' };
@@ -374,8 +380,9 @@ const Player = (() => {
         $('p-buy').classList.toggle('secondary', hedger && me.role === 'producer');
         $('p-sell').classList.toggle('primary', hedger && me.role === 'producer');
         $('p-sell').classList.toggle('secondary', hedger && me.role === 'processor');
-        $('p-buy').disabled = closed || room(1) <= 0;
-        $('p-sell').disabled = closed || room(-1) <= 0;
+        const practice = tutActive() && ['buy', 'sell', 'close'].includes(tut.wait);
+        $('p-buy').disabled = !practice && (closed || room(1) <= 0);
+        $('p-sell').disabled = !practice && (closed || room(-1) <= 0);
     }
 
     // Klartext nach einem Trade
@@ -460,6 +467,7 @@ const Player = (() => {
 
     let callShown = false;
     function renderCall() {
+        if (tut.callOpen) return;
         const ov = $('call-ov');
         if (!me.call) {
             ov.classList.add('hidden');
@@ -493,6 +501,7 @@ const Player = (() => {
         if (coachQueue.length === 1) showCoach();
     }
     function showCoach() {
+        if (tutActive()) return;
         const el = $('p-coach');
         if (coachHl) { coachHl.classList.remove('tour-hl'); coachHl = null; }
         if (!coachQueue.length) { el.classList.add('hidden'); return; }
@@ -514,50 +523,9 @@ const Player = (() => {
         };
     }
 
-    // Einführung im Pre-Market: Was kann ich alles tun? (je Rolle, Schritt für Schritt)
-    function tourSteps() {
-        const R = ROLES[me.role];
-        const pen = Math.round(CFG.spotPenalty * 100);
-        if (me.role === 'producer' || me.role === 'processor') {
-            const prod = me.role === 'producer';
-            return [
-                ['#p-goal', `🎯 <b>Dein Ziel:</b> ${R.goal}<br>Der Balken zeigt, wie viel deiner ${prod ? 'Ernte' : 'Einkäufe'} schon gesichert ist.`],
-                ['.p-dock', prod ? '👇 <b>ABSICHERN</b> verkauft einen Teil deiner Ernte schon heute zum aktuellen Preis. <b>AUFLÖSEN</b> nimmt das zurück. Darüber wählst du die Menge.'
-                    : '👇 <b>ABSICHERN</b> kauft einen Teil deines Kakaos schon heute zum aktuellen Preis. <b>AUFLÖSEN</b> nimmt das zurück. Darüber wählst du die Menge.'],
-                ['.p-price', `📈 Der Kakaopreis live. ${prod ? 'Steigt er, ist deine Ernte mehr wert – fällt er, weniger.' : 'Steigt er, wird dein Einkauf teurer – fällt er, billiger.'} Was abgesichert ist, bleibt fix.`],
-                ['#p-now', '📣 Diese Zeile sagt dir, was gerade los ist. Bei einem <b>Gerücht</b> läuft hier ein Countdown bis zur Auflösung – der Preis reagiert schon vorher.'],
-                ['#p-goal', `⚠️ Was im Dezember noch offen ist, wird ${pen} % schlechter gehandelt. Für jede Absicherung hinterlegst du ${Math.round(CFG.marginRate * 100)} % Pfand – läuft der Preis gegen dich, musst du nachschiessen.`],
-                [null, '✅ <b>Bereit!</b> Regeln und Begriffe findest du jederzeit unten unter «Hilfe». Gleich öffnet die Börse.'],
-            ];
-        }
-        if (termMode()) {
-            return [
-                ['#t-rumors', '📣 Hier erscheinen die <b>Gerüchte</b> mit Countdown. Darunter die <b>Beweis-Waage</b>: Sie zeigt, wohin deine Indizien zeigen.'],
-                ['.t-map', '🛰️ Die <b>Intel-Karte</b>: Jedes Gerücht hat einen Ort. Klicke ihn an und fordere einen Bericht an – er kostet Geld und Zeit und ist nur ein Indiz.'],
-                ['#t-feed', '📰 Hier landen deine <b>Berichte</b>. ▲ spricht für «bestätigt», ▼ für «dementiert». Passt die Quelle nicht, findest du nichts.'],
-                ['#t-risk', '⚖️ Das <b>Risiko-Cockpit</b> rechnet aus, was deine Position bei «bestätigt» und bei «dementiert» wert wäre.'],
-                ['#t-ticket', `💹 <b>KAUFEN</b> = Wette, dass Kakao steigt. <b>VERKAUFEN</b> = Wette, dass er fällt. Du hinterlegst ${Math.round(CFG.marginRate * 100)} % Pfand – Gewinne und Verluste wirken also mit Hebel.`],
-                [null, '✅ <b>Bereit!</b> Wer zuerst richtig liegt, gewinnt. Gleich öffnet die Börse.'],
-            ];
-        }
-        return [
-            ['#p-goal', `🎯 <b>Dein Ziel:</b> ${R.goal}`],
-            ['.p-dock', '👇 <b>KAUFEN</b> = Wette, dass Kakao steigt. <b>VERKAUFEN</b> = Wette, dass er fällt. Darüber wählst du die Menge.'],
-            ['#p-now', '📣 Hier erscheinen <b>Gerüchte</b> mit Countdown. Der Preis bewegt sich, bevor klar ist, ob sie stimmen.'],
-            [null, '💻 <b>Tipp:</b> Am Laptop bekommst du das Hedgefonds-Terminal mit Weltkarte und Berichten. ✅ Gleich öffnet die Börse.'],
-        ];
-    }
-
-    function startTour() {
-        const steps = tourSteps();
-        steps.forEach(([sel, html], i) => coach(`tour${i}`, html, sel, `${i + 1}/${steps.length}`));
-        coachSeen.add('start');
-        coachSeen.add('term');
-    }
-
     function coachTriggers() {
         const R = ROLES[me.role];
-        if (pub.phase === 'pre') return startTour();
+        if (pub.phase === 'pre') return tutStart();
         const btn = me.role === 'producer' ? '<b>ABSICHERN</b> verkauft einen Teil deiner Ernte schon heute zum aktuellen Preis.'
             : me.role === 'processor' ? '<b>ABSICHERN</b> kauft einen Teil deines Kakaos schon heute zum aktuellen Preis.'
                 : '<b>KAUFEN</b> = Wette, dass Kakao steigt. <b>VERKAUFEN</b> = Wette, dass er fällt.';
@@ -639,6 +607,265 @@ const Player = (() => {
             <h3>Begriffe</h3>${GLOSSARY.map(([t, d]) => `<p><b>${t}:</b> ${d}</p>`).join('')}`;
     }
 
+    // ===== Tutorial im Pre-Market: alles einmal selbst ausprobieren =====
+    // Schritte mit Übungen (Knopf drücken, Entscheidung treffen, Margin Call beantworten).
+    // Übungs-Trades laufen nur auf dem Gerät – an der Börse passiert nichts.
+    const tut = { steps: [], i: -1, wait: null, done: false, reports: [], rumor: null, now: null, callOpen: false, practicePos: 0 };
+    const tutActive = () => tut.i >= 0 && !tut.done;
+
+    function tutStart() {
+        if (tut.i >= 0 || tut.done || !me || !pub || pub.phase !== 'pre') return;
+        tut.steps = buildTut();
+        tut.i = 0;
+        tutShow();
+    }
+
+    function tutAbort() {
+        if (tut.i < 0) return;
+        tut.done = true;
+        tut.wait = null;
+        tut.now = null;
+        tut.rumor = null;
+        tut.reports = [];
+        tut.callOpen = false;
+        $('call-ov').classList.add('hidden');
+        if (coachHl) { coachHl.classList.remove('tour-hl'); coachHl = null; }
+        $('p-coach').classList.add('hidden');
+        showCoach();
+    }
+
+    function bubble(step, html, buttons) {
+        const el = $('p-coach');
+        el.innerHTML = `<div>${step ? `<small class="tour-step">${step}</small>` : ''}${html}</div>
+            <div class="tut-btns">${buttons.map((b, i) => `<button class="btn ${b.primary ? 'btn-primary' : 'btn-ghost'} btn-sm" data-i="${i}">${b.label}</button>`).join('')}</div>`;
+        el.classList.remove('hidden');
+        el.querySelectorAll('[data-i]').forEach(x => { x.onclick = () => buttons[Number(x.dataset.i)].fn(); });
+    }
+
+    function tutShow() {
+        if (coachHl) { coachHl.classList.remove('tour-hl'); coachHl = null; }
+        const st = tut.steps[tut.i];
+        if (!st) return;
+        tut.wait = st.act || null;
+        if (st.enter) st.enter();
+        if (termMode()) renderTerm();
+        else render();
+        if (st.sel) {
+            const t = document.querySelector(st.sel);
+            if (t && t.offsetParent) {
+                coachHl = t;
+                t.classList.add('tour-hl');
+                t.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+        const label = tutLabel();
+        const skip = { label: 'Überspringen', fn: () => tutFinish(true) };
+        if (st.ready) {
+            bubble(label, st.html, [{ label: '✅ Ich bin bereit', primary: true, fn: () => tutFinish(false) }]);
+        } else if (st.choices) {
+            bubble(label, st.html, st.choices.map(c => ({ label: c[0], primary: true, fn: () => tutNext(c[1]) })));
+        } else if (st.act) {
+            bubble(label, `${st.html}<div class="tut-do">${st.hint}</div>`, [skip]);
+        } else {
+            bubble(label, st.html, [{ label: 'Weiter', primary: true, fn: () => tutNext() }]);
+        }
+    }
+
+    // Zum nächsten Schritt; optional zuerst eine Rückmeldung zur Übung einschieben
+    // Schrittanzeige ohne die eingeschobenen Rückmeldungen
+    function tutLabel() {
+        const main = tut.steps.filter(x => !x.fb).length;
+        const pos = tut.steps.slice(0, tut.i + 1).filter(x => !x.fb).length;
+        return `TUTORIAL ${Math.max(1, pos)}/${main}`;
+    }
+
+    function tutNext(feedback) {
+        if (feedback) tut.steps.splice(tut.i + 1, 0, { html: feedback, sel: tut.steps[tut.i].fbSel || null, fb: true });
+        const st = tut.steps[tut.i];
+        if (st && st.leave) st.leave();
+        tut.i++;
+        if (tut.i >= tut.steps.length) return tutFinish(false);
+        tutShow();
+    }
+
+    function tutFinish(skipped) {
+        send({ t: 'ready' });
+        tutAbort();
+        toast(skipped ? 'Tutorial übersprungen – du bist bereit.' : 'Super, du bist bereit! Die Börse öffnet, sobald alle fertig sind.', 'good');
+        if (termMode()) renderTerm();
+        else render();
+    }
+
+    // Übungs-Trade (nur auf dem Gerät)
+    function tutTrade(dir) {
+        if (!tutActive() || !tut.wait || !['buy', 'sell', 'close'].includes(tut.wait)) return false;
+        const st = tut.steps[tut.i];
+        const q = termMode() ? tQty : qty;
+        const t = q * CFG.size;
+        const price = dir > 0 ? Math.round(pub.price * (1 + CFG.spread)) : Math.round(pub.price * (1 - CFG.spread));
+        const want = tut.wait === 'buy' ? 1 : tut.wait === 'sell' ? -1 : -Math.sign(tut.practicePos || 1);
+        if (dir !== want) {
+            bubble(tutLabel(), `${st.wrong}<div class="tut-do">${st.hint}</div>`, [{ label: 'Überspringen', fn: () => tutFinish(true) }]);
+            Sound.play('error');
+            return true;
+        }
+        Sound.play(dir > 0 ? 'buy' : 'sell');
+        if (navigator.vibrate) navigator.vibrate(30);
+        tut.practicePos += dir * q;
+        tutNext(st.feedback(t, price));
+        return true;
+    }
+
+    function tutPin(k) {
+        if (!tutActive() || tut.wait !== 'pin') return false;
+        if (k !== 'abj') {
+            bubble(tutLabel(), `Hier gibt es keine Quelle zu diesem Gerücht. Lies das Gerücht nochmals: <b>Wo</b> soll gestreikt werden?<div class="tut-do">👉 Klicke auf den richtigen Ort.</div>`, [{ label: 'Überspringen', fn: () => tutFinish(true) }]);
+            return false;
+        }
+        tSel = 'abj';
+        tutNext();
+        return true;
+    }
+
+    function tutSrc(key) {
+        if (!tutActive() || tut.wait !== 'src') return false;
+        const [, type] = key.split(':');
+        if (type !== 'port') {
+            bubble(tutLabel(), 'Die Quelle in der Politik passt auch – aber bei einem Hafenstreik sieht man es am schnellsten am Hafen selbst.<div class="tut-do">👉 Fordere das <b>Hafenradar</b> an.</div>', [{ label: 'Überspringen', fn: () => tutFinish(true) }]);
+            return true;
+        }
+        Sound.play('tick');
+        tut.wait = null;
+        bubble(tutLabel(), '⏳ Dein Team arbeitet … (Übung: 3 Sekunden statt 6)', []);
+        setTimeout(() => {
+            tut.reports.push({ rid: -1, dir: 1, clear: true, practice: true, rel: 0.6, icon: '⚓', src: 'Hafenradar', place: 'Abidjan · Hafen', loc: 'abj', type: 'port', text: 'Hafen Abidjan: 14 Schiffe warten (normal 6), die Kräne stehen still.', rumor: tut.rumor.text });
+            Sound.play('cash');
+            tutNext();
+        }, 3000);
+        return true;
+    }
+
+    function buildTut() {
+        const R = ROLES[me.role];
+        const pen = Math.round(CFG.spotPenalty * 100);
+        const pf = Math.round(CFG.marginRate * 100);
+        const later = Object.entries(FEATURE_TEXT).filter(([, F]) => F.role === me.role).map(([k, F]) => `${F.icon} <b>${F.name}</b> (ab Jahr ${CFG.featureYear[k]}): ${F.text}`);
+        const laterHTML = `🗓️ <b>Später in der Karriere</b> kommt dazu:<br>${later.length ? later.join('<br>') : 'Zwischen den Jahren baust du deine Firma aus.'}<br>Zwischen den Jahren investierst du deinen Gewinn (Ausbau) und steigst im Rang auf.`;
+        const rumorUp = { icon: '☀️', text: 'Wetterdienst warnt vor Trockenheit' };
+        const callStep = {
+            html: `📞 <b>Übung: Margin Call.</b> Der Preis ist gegen dich gelaufen und dein Pfand (${pf} % des Werts) reicht nicht mehr.`,
+            act: 'call', hint: '👉 Entscheide im roten Fenster.',
+            enter: () => {
+                tut.callOpen = true;
+                const ov = $('call-ov');
+                ov.classList.remove('hidden');
+                ov.innerHTML = `<div class="call-card"><div class="call-title">📞 MARGIN CALL · ÜBUNG</div><div class="call-timer">25s</div>
+                    <p>Dein Pfand bei der Börse reicht nicht mehr. Leg <b>4'200 CHF</b> nach – oder verkleinere deine Position. Sonst wird sie zwangsweise geschlossen.</p>
+                    <button class="btn btn-primary btn-big" id="tc-top">Geld nachschiessen (4'200)</button><button class="btn btn-ghost" id="tc-red">Position halbieren</button></div>`;
+                const done = fb => { tut.callOpen = false; ov.classList.add('hidden'); tutNext(fb); };
+                $('tc-top').onclick = () => done('💰 <b>Nachgeschossen.</b> Deine Position bleibt offen, dein Bargeld wird weniger. Gut, wenn du sicher bist, dass sich der Preis wieder dreht.');
+                $('tc-red').onclick = () => done('✂️ <b>Halbiert.</b> Du brauchst weniger Pfand und das Risiko sinkt – dafür ist der Verlust auf der verkauften Hälfte jetzt fix.');
+            },
+        };
+        if (me.role === 'producer' || me.role === 'processor') {
+            const prod = me.role === 'producer';
+            const hedgeDir = prod ? 'sell' : 'buy';
+            const undoDir = prod ? 'buy' : 'sell';
+            return [
+                { sel: '#p-goal', html: `🎯 <b>Dein Ziel:</b> ${R.goal}<br>Du ${prod ? 'erntest im Dezember 100 t' : 'brauchst im Dezember 100 t'}. Der Balken zeigt, wie viel davon schon zu einem festen Preis gesichert ist.` },
+                { sel: '.p-price', html: `📈 Das ist der Kakaopreis – live. ${prod ? 'Steigt er, ist deine Ernte mehr wert. Fällt er, bekommst du weniger.' : 'Steigt er, wird dein Einkauf teurer. Fällt er, wird er billiger.'} Niemand weiss, wo er im Dezember steht.` },
+                {
+                    sel: '.p-dock', act: hedgeDir, hint: `👉 Wähle eine Menge und tippe auf <b>ABSICHERN</b>.`,
+                    html: `🛡️ <b>Probier's aus:</b> Mit ABSICHERN ${prod ? 'verkaufst du einen Teil deiner Ernte schon heute' : 'kaufst du einen Teil deines Kakaos schon heute'} – zum aktuellen Preis. (Übung, an der Börse passiert nichts.)`,
+                    wrong: 'AUFLÖSEN nimmt eine Absicherung zurück – du hast noch keine.',
+                    feedback: (t, p) => `✅ <b>Geschafft!</b> Du hast ${t} t zu <b>${fmt(p)}</b> ${prod ? 'verkauft' : 'gekauft'}.<br>Beispiel: ${prod ? `Fällt Kakao auf 2'000, bringt deine Ernte weniger – aber dein Future gewinnt genau so viel dazu.` : `Steigt Kakao auf 3'000, wird dein Einkauf teurer – aber dein Future gewinnt genau so viel dazu.`} Für diese ${t} t bleibt es bei <b>${fmt(p)}</b>.`,
+                },
+                {
+                    sel: '.p-dock', act: undoDir, hint: '👉 Tippe auf <b>AUFLÖSEN</b>.',
+                    html: '↩️ Und wenn du es dir anders überlegst? Dann nimmst du die Absicherung zurück.',
+                    wrong: 'Das wäre noch mehr Absicherung. Diesmal willst du zurücknehmen.',
+                    feedback: t => `↩️ <b>Aufgelöst.</b> Die ${t} t hängen wieder am Preis. Hin und her kostet jedes Mal eine kleine Gebühr (${CFG.fee} CHF pro 10 t) und die Spanne zwischen Kauf- und Verkaufspreis.`,
+                },
+                {
+                    sel: '#p-now', html: `📣 <b>Übung: Ein Gerücht!</b> «${rumorUp.text}». In dieser Zeile läuft ein Countdown bis zur Auflösung – der Preis steigt schon jetzt. Was machst du?`,
+                    enter: () => { tut.now = `${rumorUp.icon} <b>Übung · Gerücht:</b> ${rumorUp.text}. Der Preis steigt schon.`; },
+                    leave: () => { tut.now = null; },
+                    choices: prod ? [
+                        ['Jetzt absichern', '🤔 <b>Kann klug sein:</b> Du verkaufst zum höheren Preis. Wird das Gerücht <b>dementiert</b>, fällt der Preis zurück – gut für dich. Wird es <b>bestätigt</b>, steigt er weiter – dann hättest du noch mehr bekommen.'],
+                        ['Abwarten', '🤔 <b>Kann auch klug sein:</b> Wird das Gerücht <b>bestätigt</b>, steigt der Preis weiter und du verkaufst später teurer. Wird es <b>dementiert</b>, fällt er zurück – und die Chance ist weg.'],
+                    ] : [
+                        ['Jetzt absichern', '🤔 <b>Kann klug sein:</b> Wird das Gerücht <b>bestätigt</b>, steigt der Preis weiter – du hast vorher billiger gekauft. Wird es <b>dementiert</b>, fällt er zurück – dann hättest du warten können.'],
+                        ['Abwarten', '🤔 <b>Kann auch klug sein:</b> Wird das Gerücht <b>dementiert</b>, fällt der Preis zurück und du kaufst billiger. Wird es <b>bestätigt</b>, wird es noch teurer.'],
+                    ],
+                },
+                { sel: '#p-goal', html: `🏆 <b>So wird gewertet:</b> «${prod ? 'Dein Preis' : 'Dein Einkauf'} jetzt» ist, was du pro Tonne ${prod ? 'bekommst' : 'zahlst'}, wenn heute Dezember wäre. Oben rechts siehst du deinen Platz – du trittst nur gegen die anderen ${prod ? 'Kooperativen' : 'Fabriken'} an.` },
+                callStep,
+                { sel: '#p-goal', html: `🧾 <b>Am Ende jedes Monats</b> wird abgerechnet: Gewinne und Verluste deiner Futures kommen aufs Konto. Nach ${CFG.months} Monaten ist <b>Dezember</b>.<br>⏰ Was dann noch nicht abgesichert ist, wird <b>${pen} % schlechter</b> gehandelt – Nichtstun ist also eine Wette.` },
+                { html: laterHTML },
+                { sel: '#p-help', html: '📖 Alle Regeln, ein Rechenbeispiel und die Begriffe findest du jederzeit hier unter <b>Hilfe</b>.' },
+                { ready: true, html: '✅ <b>Du kennst jetzt alles!</b> Die Börse öffnet, sobald alle bereit sind.' },
+            ];
+        }
+        if (termMode()) {
+            const strike = { icon: '⚓', text: 'Hafenarbeiter in Abidjan drohen mit Streik' };
+            return [
+                { sel: '.t-top', html: `🦈 <b>Willkommen im Terminal.</b> ${R.goal} Oben siehst du Preis, Gewinn, Platz und Zeit.` },
+                {
+                    sel: '#t-rumors', html: `📣 <b>Übung: Ein Gerücht!</b> «${strike.text}». Hier läuft der Countdown bis zur Auflösung. Darunter die <b>Beweis-Waage</b> – noch weisst du nichts.`,
+                    enter: () => { tut.rumor = { id: -1, icon: strike.icon, text: strike.text, region: null, left: 30, since: 0, jumpYes: 0.05, jumpNo: -0.03 }; },
+                },
+                { sel: '.t-map', act: 'pin', hint: '👉 Klicke auf den Ort, an dem du nachschauen würdest.', html: '🗺️ <b>Jedes Gerücht hat einen Ort.</b> Wo würdest du nachschauen, ob wirklich gestreikt wird? (Tipp: Ausschnitt Westafrika)' },
+                { sel: '#t-loc', act: 'src', hint: '👉 Fordere das <b>Hafenradar</b> an.', html: '🛰️ An jedem Ort gibt es Quellen. Jede kostet <b>Geld und Zeit</b>. Seriöse Quellen lügen nie: Entweder ein <b>klarer Befund</b> – oder «kein klarer Befund».' },
+                { sel: '#t-feed', html: '📰 <b>Dein Bericht ist da:</b> «14 Schiffe warten, die Kräne stehen still» – ein eindeutiger Befund. <b>Der Streik kommt.</b><br>Achtung: 💬 Social Media ist billig und schnell, liegt aber oft falsch.' },
+                { sel: '#t-rumors', html: '⚖️ Die <b>Beweis-Waage</b> zeigt jetzt «Eindeutiger Befund: BESTÄTIGT». Ohne klaren Befund musst du abwägen – oder eine zweite Quelle versuchen.' },
+                { sel: '#t-risk', html: '📊 Das <b>Risiko-Cockpit</b> rechnet aus, was deine Position bei «bestätigt» und «dementiert» wert wäre. Hebel und Pfand zeigen, wie viel du riskierst.' },
+                {
+                    sel: '#t-ticket', act: 'buy', hint: '👉 Wähle eine Menge und tippe auf <b>KAUFEN</b>.',
+                    html: '💹 Ein Hafenstreik heisst: weniger Kakao kommt an → <b>der Preis steigt</b>. Wette darauf!',
+                    wrong: 'VERKAUFEN wäre eine Wette auf fallende Preise. Ein Streik lässt den Preis aber steigen.',
+                    feedback: (t, p) => `✅ <b>Wette platziert:</b> ${t} t zu ${fmt(p)}. Wird der Streik bestätigt, springt der Preis – du gewinnst. Du hinterlegst nur ${pf} % als Pfand – Gewinne und Verluste wirken mit Hebel.`,
+                },
+                {
+                    sel: '#t-ticket', act: 'close', hint: '👉 Tippe auf <b>VERKAUFEN</b>, um die Wette zu schliessen.',
+                    html: '🔒 Nach der Auflösung schliesst du die Wette – dann ist dein Gewinn fix.',
+                    wrong: 'Noch mehr kaufen vergrössert die Wette. Zum Schliessen tippst du auf das Gegenteil.',
+                    feedback: () => '💰 <b>Geschlossen.</b> So verdient ein Hedgefonds: richtig liegen, rechtzeitig rein und wieder raus.',
+                    leave: () => { tut.rumor = null; tut.reports = []; tSel = null; },
+                },
+                { ...callStep, html: `📞 <b>Übung: Margin Call.</b> Liegst du falsch, schmilzt dein Pfand. Fällt es unter ${Math.round(CFG.maintenance * 100)} %, musst du handeln.` },
+                { html: `🏆 <b>Wertung:</b> Der Hedgefonds mit dem höchsten Gewinn gewinnt – Kosten für Berichte zählen mit.<br>${laterHTML}` },
+                { ready: true, html: '✅ <b>Bereit für den Markt!</b> Die Börse öffnet, sobald alle bereit sind.' },
+            ];
+        }
+        // Hedgefonds auf dem Handy
+        return [
+            { sel: '#p-goal', html: `🎯 <b>Dein Ziel:</b> ${R.goal} Du hast keinen Kakao – du wettest auf den Preis.` },
+            { sel: '.p-price', html: '📈 Das ist der Kakaopreis – live. Steigt er und du hast gekauft, gewinnst du. Fällt er, verlierst du.' },
+            {
+                sel: '.p-dock', act: 'buy', hint: '👉 Wähle eine Menge und tippe auf <b>KAUFEN</b>.', html: '💹 <b>Probier\'s aus:</b> KAUFEN = Wette, dass Kakao steigt. (Übung)',
+                wrong: 'VERKAUFEN ist die Wette auf fallende Preise. Probier zuerst KAUFEN.',
+                feedback: (t, p) => `✅ Gekauft: ${t} t zu ${fmt(p)}. Steigt Kakao um 100 CHF/t, gewinnst du ${fmt(t * 100)} CHF – fällt er, verlierst du so viel.`,
+            },
+            {
+                sel: '.p-dock', act: 'close', hint: '👉 Tippe auf <b>VERKAUFEN</b>, um die Wette zu schliessen.', html: '🔒 Schliessen: Mit dem Gegen-Knopf beendest du die Wette. Dann ist Gewinn oder Verlust fix.',
+                wrong: 'Noch mehr kaufen vergrössert die Wette. Zum Schliessen tippst du auf VERKAUFEN.',
+                feedback: () => '💰 <b>Geschlossen.</b> So verdient ein Hedgefonds: richtig liegen, rechtzeitig rein und raus.',
+            },
+            {
+                sel: '#p-now', html: `📣 <b>Übung: Ein Gerücht!</b> «${rumorUp.text}». Der Preis steigt schon. Wettest du darauf, dass es stimmt?`,
+                enter: () => { tut.now = `${rumorUp.icon} <b>Übung · Gerücht:</b> ${rumorUp.text}. Der Preis steigt schon.`; },
+                leave: () => { tut.now = null; },
+                choices: [
+                    ['Kaufen (stimmt)', '🎲 Wird es <b>bestätigt</b>, springt der Preis – du gewinnst. Wird es <b>dementiert</b>, fällt er – du verlierst. Ohne Informationen ist es eine Wette.'],
+                    ['Verkaufen (falsch)', '🎲 Wird es <b>dementiert</b>, fällt der Preis zurück – du gewinnst. Wird es <b>bestätigt</b>, verlierst du.'],
+                ],
+            },
+            callStep,
+            { html: `💻 <b>Tipp:</b> Öffne das Spiel am Laptop. Dort hast du das Hedgefonds-Terminal mit Weltkarte und Berichten – so musst du nicht raten.<br>${laterHTML}` },
+            { ready: true, html: '✅ <b>Du kennst jetzt alles!</b> Die Börse öffnet, sobald alle bereit sind.' },
+        ];
+    }
+
     // ===== Hedgefonds-Terminal (Laptop, Vollbild) =====
     // Hedgefonds auf einem breiten Bildschirm bekommen das Terminal statt des Handy-Cockpits.
     const termMode = () => me && me.role === 'spec' && window.innerWidth >= 1000;
@@ -657,13 +884,16 @@ const Player = (() => {
     const ix = lon => ((lon + 9) / 12) * IW;
     const iy = lat => ((10.2 - lat) / 7.2) * IH;
 
-    // Beweis-Waage: Jedes Indiz verschiebt die Wahrscheinlichkeit – zuverlässige Quellen stärker.
+    // Beweis-Waage: Ein eindeutiger Befund einer seriösen Quelle stimmt immer → Gewissheit.
+    // Ohne eindeutigen Befund verschiebt nur Social Media die Waage ein wenig (kann falsch liegen).
     function evidence(reports) {
+        const sure = reports.find(r => r.clear);
+        if (sure) return sure.dir > 0 ? 1 : 0;
         let L = 0;
-        for (const r of reports) if (r.dir) L += r.dir * Math.log(r.rel / (1 - r.rel));
+        for (const r of reports) if (r.soft && r.dir) L += r.dir * Math.log(r.rel / (1 - r.rel));
         return 1 / (1 + Math.exp(-L));
     }
-    const stars = rel => '★'.repeat(rel >= 0.8 ? 3 : rel >= 0.7 ? 2 : 1) + '☆'.repeat(rel >= 0.8 ? 0 : rel >= 0.7 ? 1 : 2);
+    const stars = rel => '★'.repeat(rel >= 0.6 ? 3 : rel >= 0.5 ? 2 : 1) + '☆'.repeat(rel >= 0.6 ? 0 : rel >= 0.5 ? 1 : 2);
 
     function pin(k, x, y, side, label) {
         const L = INTEL_LOCS[k];
@@ -704,6 +934,7 @@ const Player = (() => {
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/>`).join('')}</g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         $('t-map').querySelectorAll('.t-pin').forEach(g => g.addEventListener('click', () => {
+            if (tutActive() && tut.wait === 'pin') { tutPin(g.dataset.loc); return; }
             tSel = g.dataset.loc;
             Sound.play('tick');
             renderTerm();
@@ -713,6 +944,7 @@ const Player = (() => {
 
     function renderTerm() {
         if (!me || !pub || !me.intel) return;
+        if (pub.phase !== 'pre' && tut.i >= 0 && !tut.done) tutAbort();
         if (!tMapBuilt) buildMap();
         const I = me.intel;
         document.body.dataset.role = 'spec';
@@ -730,10 +962,11 @@ const Player = (() => {
         $('t-now').className = `t-now ${n.k}`;
         setHTML($('t-now'), n.t);
 
-        // Gerüchte + Beweis-Waage
-        const rum = I.rumors;
+        // Gerüchte + Beweis-Waage (im Tutorial mit Übungs-Gerücht und Übungs-Berichten)
+        const rum = tut.rumor ? [tut.rumor, ...I.rumors] : I.rumors;
+        const allReps = [...I.reports, ...tut.reports];
         setHTML($('t-rumors'), rum.length ? rum.map(r => {
-            const reps = I.reports.filter(x => x.rid === r.id);
+            const reps = allReps.filter(x => x.rid === r.id);
             const p = evidence(reps);
             const span = Math.max(1, r.left + r.since);
             return `<div class="t-rumor ${r.left <= 3 ? 'tense' : ''}">
@@ -741,8 +974,10 @@ const Player = (() => {
                 ${r.region ? `<div class="tr-reg">📍 Betrifft: ${esc(REGIONS[r.region].name)}</div>` : ''}
                 <i class="tr-bar" style="width:${(r.left / span) * 100}%"></i>
                 <div class="t-scale"><span>DEMENTI</span><div class="ts-track"><em style="left:${(p * 100).toFixed(1)}%"></em></div><span>BESTÄTIGT</span></div>
-                <div class="ts-read">${reps.length ? `${reps.length} ${reps.length === 1 ? 'Indiz' : 'Indizien'} → <b class="${p >= 0.5 ? 'up' : 'down'}">${Math.round(Math.max(p, 1 - p) * 100)} % für ${p >= 0.5 ? 'BESTÄTIGT' : 'DEMENTI'}</b>` : '<span class="dim">Noch keine Indizien. Wo auf der Karte würdest du nachschauen?</span>'}</div>
-                ${reps.length ? `<div class="ts-chips">${reps.map(x => `<span class="${x.dir > 0 ? 'up' : 'down'}" title="${esc(x.text)}">${x.icon}${x.dir > 0 ? '▲' : '▼'}</span>`).join('')}</div>` : ''}
+                <div class="ts-read">${reps.some(x => x.clear) ? `<b class="${p >= 0.5 ? 'up' : 'down'}">✔ Eindeutiger Befund: ${p >= 0.5 ? 'BESTÄTIGT' : 'DEMENTI'}</b> – so wird es kommen.`
+                    : reps.length ? `Noch kein eindeutiger Befund${reps.some(x => x.soft) ? ` · Social Media: eher ${p >= 0.5 ? 'BESTÄTIGT' : 'DEMENTI'} (unsicher)` : ''}`
+                        : '<span class="dim">Noch keine Berichte. Wo auf der Karte würdest du nachschauen?</span>'}</div>
+                ${reps.length ? `<div class="ts-chips">${reps.map(x => `<span class="${x.clear ? (x.dir > 0 ? 'up' : 'down') : ''}" title="${esc(x.text)}">${x.icon}${x.clear ? (x.dir > 0 ? '✔▲' : '✔▼') : x.soft ? (x.dir > 0 ? '~▲' : '~▼') : '?'}</span>`).join('')}</div>` : ''}
             </div>`;
         }).join('') : '<div class="t-empty">Kein Gerücht offen. Beobachte den Markt – das nächste kommt bestimmt.</div>');
 
@@ -785,22 +1020,22 @@ const Player = (() => {
                 ${L.types.map(t => {
                     const c = I.costs[t];
                     const can = !job && pub.phase !== 'end' && me.cash >= c.cost;
-                    return `<div class="tl-src"><span class="tl-ico">${INTEL_TYPES[t].icon}</span><span class="tl-n"><b>${esc(INTEL_TYPES[t].name)}</b><small>${c.dur} s · Zuverlässigkeit ${stars(c.rel / 100)} (${c.rel} %)</small></span>
+                    return `<div class="tl-src"><span class="tl-ico">${INTEL_TYPES[t].icon}</span><span class="tl-n"><b>${esc(INTEL_TYPES[t].name)}</b><small>${c.dur} s · ${INTEL_TYPES[t].soft ? `unbestätigt, liegt oft falsch` : `Chance auf klaren Befund ${stars(c.rel / 100)} ${c.rel} %`}</small></span>
                         <button class="t-btn" data-src="${tSel}:${t}" ${can ? '' : 'disabled'}>${fmt(c.cost)} CHF</button></div>`;
                 }).join('')}
-                <div class="tl-hint">${job ? 'Dein Team arbeitet noch – ein Bericht nach dem anderen.' : 'Passt die Quelle nicht zum Gerücht, findest du nichts – und das Geld ist weg.'}</div>`);
+                <div class="tl-hint">${job ? 'Dein Team arbeitet noch – ein Bericht nach dem anderen.' : 'Seriöse Quellen lügen nie: entweder ein klarer Befund – oder «kein klarer Befund». Passt die Quelle nicht zum Gerücht, ist das Geld weg.'}</div>`);
         }
 
         // Intel-Feed
-        const feed = I.reports.slice().reverse();
-        setHTML($('t-feed'), feed.length ? feed.map(r => `<div class="t-rep ${r.dir > 0 ? 'yes' : r.dir < 0 ? 'no' : 'none'}">
-                <div class="rp-top"><span>${r.icon} ${esc(r.src)} · ${esc(r.place)}</span><small>${stars(r.rel)}</small></div>
+        const feed = allReps.slice().reverse();
+        setHTML($('t-feed'), feed.length ? feed.map(r => `<div class="t-rep ${r.clear ? (r.dir > 0 ? 'yes' : 'no') : r.soft ? 'soft' : 'none'}">
+                <div class="rp-top"><span>${r.icon} ${esc(r.src)} · ${esc(r.place)}</span><small>${r.practice ? 'ÜBUNG' : r.clear ? '✔ EINDEUTIG' : r.soft ? '~ UNBESTÄTIGT' : r.none ? 'PASST NICHT' : '? UNKLAR'}</small></div>
                 <div class="rp-txt">${esc(r.text)}</div>
-                <div class="rp-tag">${r.dir > 0 ? '▲ spricht für BESTÄTIGT' : r.dir < 0 ? '▼ spricht für DEMENTI' : '– kein Bezug zu einem Gerücht'}${r.rumor ? ` · «${esc(r.rumor)}»` : ''}</div></div>`).join('')
+                <div class="rp-tag">${r.clear ? (r.dir > 0 ? '✔ Das Gerücht wird BESTÄTIGT' : '✔ Das Gerücht wird DEMENTIERT') : r.soft ? (r.dir > 0 ? '~ spricht eher für BESTÄTIGT – kann falsch sein' : '~ spricht eher für DEMENTI – kann falsch sein') : r.none ? '– diese Quelle passt zu keinem laufenden Gerücht' : '? kein klarer Befund – nochmals versuchen oder andere Quelle'}${r.rumor ? ` · «${esc(r.rumor)}»` : ''}</div></div>`).join('')
             : '<div class="t-empty">Noch keine Berichte. Klicke auf der Karte einen Ort an.</div>');
 
         // Order-Ticket
-        const closed = pub.phase !== 'trading' || pub.paused || me.bankrupt;
+        const closed = (pub.phase !== 'trading' || pub.paused || me.bankrupt) && !(tutActive() && ['buy', 'sell', 'close'].includes(tut.wait));
         const ask = Math.round(pub.price * (1 + CFG.spread));
         const bid = Math.round(pub.price * (1 - CFG.spread));
         setHTML($('t-ticket'), `<div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10, 20].filter(q => q <= me.bounds.max).map(q => `<button class="${q === tQty ? 'on' : ''}" data-tq="${q}">${q * CFG.size} t</button>`).join('')}</div>
@@ -811,7 +1046,7 @@ const Player = (() => {
 
         tChart();
         renderCall();
-        if (pub.phase === 'pre') startTour();
+        if (pub.phase === 'pre') tutStart();
         coach('term', '🛰️ <b>Dein Terminal.</b> Jedes Gerücht hat einen Ort. Klicke ihn auf der Karte an und fordere einen Bericht an. Jeder Bericht ist nur ein Indiz – die Beweis-Waage links zeigt, wohin sie zeigen.');
         if (rum.length) coach('term-scen', '⚖️ <b>Risiko-Cockpit:</b> Links unten siehst du, was deine Position bei «bestätigt» und bei «dementiert» wert wäre. Wer zu früh oder zu gross wettet, riskiert viel.');
     }
@@ -876,12 +1111,13 @@ const Player = (() => {
         $('v-term').addEventListener('click', ev => {
             const b = ev.target.closest('button');
             if (!b || b.disabled) return;
-            if (b.dataset.src) { send({ t: 'intel', src: b.dataset.src }); Sound.play('tick'); }
+            if (b.dataset.src) { if (tutSrc(b.dataset.src)) return; send({ t: 'intel', src: b.dataset.src }); Sound.play('tick'); }
             if (b.dataset.tx === 'close') { tSel = null; renderTerm(); }
             if (b.dataset.tq) { tQty = Number(b.dataset.tq); renderTerm(); }
             if (b.dataset.tt === 'close') send({ t: 'trade', q: -me.pos });
             else if (b.dataset.tt) {
                 const dir = Number(b.dataset.tt);
+                if (tutTrade(dir)) return;
                 send({ t: 'trade', q: dir * Math.max(1, Math.min(tQty, room(dir))) });
             }
         });
@@ -995,8 +1231,8 @@ const Player = (() => {
             $('p-qty').querySelectorAll('[data-q]').forEach(x => x.classList.toggle('active', x === b));
         }));
         // Menge automatisch aufs Mandat begrenzen (z. B. nur noch 3 Kontrakte bis zur vollen Absicherung).
-        $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
-        $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
+        $('p-buy').addEventListener('click', () => { if (tutTrade(1)) return; send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }); });
+        $('p-sell').addEventListener('click', () => { if (tutTrade(-1)) return; send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }); });
         $('btn-rejoin').addEventListener('click', () => join(code, name));
         bindTerm();
         document.addEventListener('visibilitychange', revive);

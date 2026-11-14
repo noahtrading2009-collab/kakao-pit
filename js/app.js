@@ -100,7 +100,9 @@ const App = (() => {
         $('bot-plus').addEventListener('click', () => Host.addBot());
         $('bot-minus').addEventListener('click', () => Host.removeBot());
         $('btn-how').addEventListener('click', howTo);
-        $('h-sound').addEventListener('click', () => { $('h-sound').textContent = Sound.toggle() ? '🔇' : '🔊'; });
+        // Ton an/aus auf allen Geräten (Beamer, Handy, Terminal) – wird gespeichert
+        document.querySelectorAll('.snd-btn').forEach(b => b.addEventListener('click', () => Sound.toggle()));
+        Sound.setMuted(Sound.muted());
         $('modal-ov').addEventListener('click', e => { if (e.target.id === 'modal-ov') $('modal-ov').classList.add('hidden'); });
     }
 

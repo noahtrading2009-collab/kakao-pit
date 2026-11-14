@@ -47,9 +47,13 @@ Bei «1 Jahr» gibt es das Kernspiel plus eine Besonderheit pro Rolle (Wetter, A
 
 Alles Wichtige passt ohne Scrollen auf den Bildschirm: Zeile «Was jetzt?» (mit Countdown bei Gerüchten), Preis mit Trend, Ziel-Fortschritt, Rang. Die Handelsknöpfe sind unten fixiert. Kurze Erklärungen erscheinen genau dann, wenn sie gebraucht werden (erster Start, erstes Gerücht, erster Trade, erste Abrechnung, neue Mechaniken). Regeln, Beispiel und Begriffe stehen im einklappbaren Bereich «📖 Hilfe».
 
-## Pre-Market (Einführung)
+## Pre-Market mit Tutorial
 
-Nach «Börse eröffnen» ist die Börse zuerst **60 Sekunden geschlossen** (Pre-Market). Der Beamer zeigt den Countdown und das Ziel jeder Rolle, die Spielleitung kann mit «Börse jetzt öffnen» früher starten. Auf jedem Handy (und im Terminal) läuft in dieser Zeit eine kurze Einführung: Schritt für Schritt wird der passende Bereich hervorgehoben (Ziel, Knöpfe, Preis, Gerüchte-Zeile, Pfand und Dezember-Regel).
+Nach «Börse eröffnen» ist die Börse geschlossen (Pre-Market). Auf jedem Gerät läuft ein **vollständiges Tutorial mit Übungen** – an der Börse passiert dabei nichts:
+
+- Kooperative/Fabrik: Ziel, Preis, **Übungs-Absicherung** und **Auflösen** (mit Rechenbeispiel), **Übungs-Gerücht** mit Entscheidung und Erklärung beider Ausgänge, Wertung und Platz, **Übungs-Margin-Call**, Monatsabrechnung und Dezember-Regel, was später in der Karriere dazukommt, Hilfe.
+- Hedgefonds im Terminal: Übungs-Gerücht, **Ort auf der Karte finden**, **Bericht anfordern**, Beweis-Waage, Risiko-Cockpit, **Übungs-Wette eröffnen und schliessen**, Margin Call, Wertung.
+- Am Ende «Ich bin bereit». Der Beamer zeigt, wer bereit ist. Sind alle bereit, öffnet die Börse nach 5 Sekunden – spätestens nach 3 Minuten oder per Knopf «Börse jetzt öffnen».
 
 ## Beamer
 
@@ -75,12 +79,16 @@ Hedgefonds, die auf einem breiten Bildschirm (ab 1000 px) spielen, bekommen stat
 
 - **Intel-Karte:** Jedes Gerücht hat einen Ort. Auf der Weltkarte (mit Ausschnitt Westafrika) fordert man dort Berichte an: 🛰️ Satellitenbild, 📋 Feldbericht, 🌧️ Wetterstation, ⚓ Hafenradar, 🏛️ Quelle in der Politik, 🏭 Bestelldaten, 📦 Lagerbestände, 💼 Fondsflüsse, 💬 Social Media.
 - Jeder Bericht kostet **Geld und Zeit** (2–8 s), das Team arbeitet einen Bericht nach dem anderen ab. Passt die Quelle nicht zum Gerücht, findet man nichts.
-- Jeder Bericht ist nur ein **Indiz** (Zuverlässigkeit 55–80 %), Berichte können sich widersprechen.
-- **Beweis-Waage:** zeigt, wohin die gesammelten Indizien zeigen (zuverlässige Quellen zählen mehr).
+- **Seriöse Quellen lügen nie:** Mit der Trefferchance (45–60 %) liefern sie einen **eindeutigen Befund**, der immer stimmt – sonst «kein klarer Befund». Nur 💬 Social Media ist billig, schnell und kann falsch liegen.
+- **Beweis-Waage:** Ein eindeutiger Befund entscheidet; ohne ihn verschiebt nur Social Media die Waage ein wenig.
 - **Risiko-Cockpit:** Position, Hebel, Pfand und für jedes Gerücht die Szenarien «bestätigt» / «dementiert» in CHF.
 - Order-Ticket und Kurs der letzten 90 Sekunden.
 
 Gerüchte laufen 24–38 Sekunden, damit Zeit für 2–3 Berichte bleibt.
+
+## Ton
+
+Alle Klänge werden live erzeugt (Börsenglocke mit Obertönen, Trommelwirbel, Sirene, Münzen, Holzblock-Ticken, leichter Hall). Der Knopf 🔊/🔇 ist auf Beamer, Handy und Terminal; Stumm gilt sofort (auch für laufende Klänge) und wird gespeichert.
 
 ## Balance prüfen
 

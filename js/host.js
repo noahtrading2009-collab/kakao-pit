@@ -184,6 +184,7 @@ const Host = (() => {
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'intel') r = Engine.investigate(e.pid, String(msg.src));
+        else if (msg.t === 'ready') { r = Engine.setReady(e.pid); conns.forEach(push); render(); }
         else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
@@ -404,13 +405,19 @@ const Host = (() => {
         if (el.classList.contains('hidden')) {
             el.innerHTML = `<div class="pre-card"><div class="pre-k">🌅 PRE-MARKET · DIE BÖRSE IST NOCH GESCHLOSSEN</div>
                 <div class="pre-t">Börse öffnet in <b id="pre-left"></b></div>
-                <p class="pre-sub">Auf den Handys läuft jetzt die Einführung. Lest sie in Ruhe – gehandelt wird gleich.</p>
+                <p class="pre-sub">Auf den Handys läuft jetzt das Tutorial. Die Börse öffnet, sobald alle bereit sind.</p>
+                <div class="pre-ready" id="pre-ready"></div>
                 <div class="pre-roles">${Object.entries(ROLES).map(([k, R]) => `<div style="--rc:${R.color}">${roleIcon(k, 40)}<b>${R.short}</b><span>${R.goal}</span></div>`).join('')}</div>
                 <button class="btn btn-primary btn-big" id="pre-go">🔔 Börse jetzt öffnen</button></div>`;
             $('pre-go').onclick = () => { Engine.openMarket(); render(); conns.forEach(push); };
             el.classList.remove('hidden');
         }
         $('pre-left').textContent = mmss(Math.max(0, S.secLeft));
+        const R = S.preReady;
+        if (R) {
+            const html = `<b>✅ ${R.n} von ${R.total} bereit</b><div>${R.names.map(x => `<span class="${x.ready ? 'ok' : ''}">${x.ready ? '✔' : '⏳'} ${esc(x.name)}</span>`).join('')}</div>`;
+            if ($('pre-ready').dataset.h !== html) { $('pre-ready').dataset.h = html; $('pre-ready').innerHTML = html; }
+        }
     }
 
     let drumFor = '';
