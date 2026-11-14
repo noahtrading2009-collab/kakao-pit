@@ -397,11 +397,17 @@ const Host = (() => {
     const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
 
     let drumFor = '';
+    // Leere News-Leiste: ruhiger Hinweis statt Loch
+    function updateIdle() {
+        const busy = !$('flash').classList.contains('hidden') || !$('h-rumor').classList.contains('hidden');
+        $('h-idle').classList.toggle('hidden', busy);
+    }
     function renderRumor() {
         const el = $('h-rumor');
         const r = Engine.activeRumors()[0];
-        if (!r) { el.classList.add('hidden'); return; }
+        if (!r) { el.classList.add('hidden'); updateIdle(); return; }
         el.classList.remove('hidden');
+        updateIdle();
         const span = Math.max(1, r.left + r.since);
         const html = `<span class="hr-ico">${r.icon}</span><span class="hr-t"><small>GERÜCHT${r.region ? ` · ${esc(REGIONS[r.region].name)}` : ''} – stimmt es?</small>${esc(r.text)}</span><b class="hr-left">${Math.max(0, r.left)}s</b>`;
         if (el.dataset.t !== r.text) { el.dataset.t = r.text; el.innerHTML = `${html}<i class="hr-bar"></i>`; }
@@ -889,7 +895,8 @@ const Host = (() => {
         }
         drawTradeMarks(c, x, y, W, L, T);
         // News markers on the timeline
-        const feedItems = (S.feed || []).filter(n => ['rumor', 'yes', 'no', 'flash', 'alert'].includes(n.kind) && n.clock > 0);
+        // Nur Meldungen aus dem laufenden Jahr – die Uhr beginnt jedes Jahr wieder bei 0.
+        const feedItems = (S.feed || []).filter(n => ['rumor', 'yes', 'no', 'flash', 'alert'].includes(n.kind) && n.clock > 0 && n.year === S.year && h.some(q => q.s === n.clock));
         c.font = '16px sans-serif';
         feedItems.forEach(n => {
             const pt = h.find(q => q.s === n.clock) || h[h.length - 1];
@@ -1016,7 +1023,8 @@ const Host = (() => {
             <div class="fl-bar"></div>`;
         Sound.play(n.kind === 'alert' ? 'alarm' : 'news');
         clearTimeout(flashTimer);
-        flashTimer = setTimeout(() => el.classList.add('hidden'), 5000);
+        updateIdle();
+        flashTimer = setTimeout(() => { el.classList.add('hidden'); updateIdle(); }, 6000);
     }
 
     function showSettle(data) {
@@ -1289,8 +1297,8 @@ const Host = (() => {
             <div class="podium">${podium}</div>
             <div class="end-grid">
                 <div class="card wide"><h3>📊 Alle Firmen über ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Endergebnis</th><th>⭐</th></tr></thead><tbody>${table}</tbody></table>
-                    <p class="dim small">Endergebnis = Summe der Jahresergebnisse − Ausbau-Investitionen − Zinsen für Notkredite. Hat sich der Ausbau gelohnt?</p></div>
+                    <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Endergebnis (Geld)</th><th title="Punkte für den Trader des Tages">⭐ Punkte</th></tr></thead><tbody>${table}</tbody></table>
+                    <p class="dim small"><b>Endergebnis</b> = Geld: Summe der Jahresergebnisse − Ausbau − Zinsen für Notkredite. <b>⭐ Punkte</b> = Jahr für Jahr: Wie viel besser als der Durchschnitt der eigenen Rolle (Kooperative: Preis pro Tonne, Fabrik: Einkaufspreis pro Tonne, Fonds: Gewinn). Darum kann eine Firma viel Geld verdienen (z. B. dank mehr Land), aber wenig Punkte haben – und umgekehrt.</p></div>
                 <div class="card wide"><h3>🗓️ Alle Jahre im Überblick</h3><div class="yc-grid">${yearCards(d.yearLog)}</div></div>
                 <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>

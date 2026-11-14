@@ -1182,3 +1182,19 @@ body[data-role] #v-player .p-price > div:first-child { display: block; }
 .mirror .m-legend { font-size: 11.5px; color: var(--dim); }
 #v-host .rk-group { margin-bottom: 6px; } #v-host .rk-group .rank-row { padding: 4px 6px; } #v-host .rk-head { margin-bottom: 2px; } #v-host .h-rank { padding: 10px 12px; } #v-host .h-rank > h3 { margin-bottom: 4px; }
 #v-host .h-bottom { height: 220px; } #v-host .h-rank > h3 .dim { display: none; }
+
+/* ===== News-Leiste über dem Chart (der Chart bleibt frei) ===== */
+#v-host { grid-template-rows: auto 86px 1fr auto; }
+.h-newsbar { display: flex; gap: 12px; min-height: 0; }
+.h-newsbar > * { min-width: 0; }
+.h-newsbar .flash { position: relative; left: auto; top: auto; transform: none; width: auto; flex: 1; z-index: 1; padding: 10px 20px 14px 12px; gap: 16px; border-radius: 16px; animation: barIn .5s cubic-bezier(.16, 1.3, .3, 1); }
+@keyframes barIn { from { transform: translateY(-14px); opacity: 0; } }
+.h-newsbar .flash .fl-icon { width: 62px; height: 62px; font-size: 38px; border-radius: 16px; }
+.h-newsbar .flash .fl-text { font-size: 26px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-newsbar .flash .fl-label { font-size: 13px; }
+.h-newsbar .flash .fl-bar { animation-duration: 6s; }
+.h-newsbar .h-rumor { position: relative; left: auto; top: auto; max-width: none; flex: 0 0 560px; padding: 10px 16px 14px; }
+.h-newsbar .flash.hidden + .h-rumor { flex: 1; }
+.h-newsbar .h-rumor .hr-t { font-size: 21px; }
+.h-idle { flex: 1; display: flex; align-items: center; padding: 0 20px; border-radius: 16px; background: var(--glass); border: 1px solid rgba(140, 170, 230, .14); color: var(--dim); font-size: 18px; }
+.h-idle.hidden { display: none; }

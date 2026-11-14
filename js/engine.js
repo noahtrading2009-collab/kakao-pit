@@ -408,7 +408,7 @@ const Engine = (() => {
     // ===== News =====
 
     function feed(item) {
-        const it = { ...item, sec: G.sec, clock: G.clock };
+        const it = { ...item, sec: G.sec, clock: G.clock, year: G.year };
         G.feed.unshift(it);
         if (G.feed.length > 40) G.feed.pop();
         emit('news', it);
