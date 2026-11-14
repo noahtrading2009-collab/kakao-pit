@@ -13,6 +13,8 @@ const Player = (() => {
     let rid = 1;
     let ended = false;
     let lastTick = -1;
+    let drumFor = '';
+    let lastJoin = 0;
     let lastNews = 0;
 
     function keyFor(c) {
@@ -36,6 +38,7 @@ const Player = (() => {
         name = n.trim();
         if (r !== undefined) wish = r;
         key = keyFor(code);
+        lastJoin = Date.now();
         if (!Net.available()) {
             $('join-err').textContent = 'Verbindung nicht möglich: PeerJS konnte nicht geladen werden (Internet?).';
             return;
@@ -51,13 +54,25 @@ const Player = (() => {
             },
             onData,
             onStatus: s => { $('join-err').textContent = s; },
-            onClose: () => { if (!ended) $('conn-lost').classList.remove('hidden'); },
+            onClose: () => {
+                if (ended) return;
+                $('conn-lost').classList.remove('hidden');
+                setTimeout(revive, 1500);
+            },
             onError: msg => {
                 $('join-err').textContent = msg;
                 $('btn-join').disabled = false;
                 if (me) $('conn-lost').classList.remove('hidden');
             },
         });
+    }
+
+    // Nach Display-Sperre oder Netzwechsel still neu verbinden (gleicher Schlüssel = gleicher Spieler).
+    function revive() {
+        if (document.hidden || ended || !code || !name || !me) return;
+        if (conn && conn.open) return;
+        if (Date.now() - lastJoin < 4000) return;
+        join(code, name);
     }
 
     function send(obj) {
@@ -227,7 +242,7 @@ const Player = (() => {
 
         renderNow();
         renderGoal();
-        renderTrade(pub.phase !== 'trading' || me.bankrupt);
+        renderTrade(pub.phase !== 'trading' || pub.paused || me.bankrupt);
         if (me.role === 'spec') $('p-scene').innerHTML = '';
         else Scenes.render(me, pub);
         renderRolePanel();
@@ -241,6 +256,7 @@ const Player = (() => {
         const lastMonth = pub.month >= pub.months;
         const end = pub.phase !== 'trading' || pub.secLeft > 10 ? ''
             : lastMonth ? ` ⏰ Noch ${pub.secLeft}s bis Dezember!` : ` ⏰ Noch ${pub.secLeft}s bis zur Monatsabrechnung.`;
+        if (pub.paused) return { k: 'paused', t: '⏸ <b>Pause.</b> Die Spielleitung erklärt etwas. Gleich geht es weiter.' };
         if (me.call) return { k: 'bad', t: '📞 <b>Margin Call!</b> Dein Pfand reicht nicht mehr. Geld nachschiessen oder Position verkleinern – sonst wird sie zwangsweise geschlossen.' };
         if (pub.phase === 'settle') return { k: '', t: '🧾 <b>Monatsabrechnung.</b> Gewinne und Verluste deiner Futures werden jetzt aufs Konto gebucht.' };
         const r = me.rumor;
@@ -251,6 +267,11 @@ const Player = (() => {
                 : me.role === 'processor'
                     ? (up ? 'Jetzt noch kaufen, bevor es teurer wird – oder ist es falsch?' : 'Jetzt billiger kaufen – oder warten, ob es stimmt?')
                     : `Wettest du darauf, dass es stimmt (${up ? 'KAUFEN' : 'VERKAUFEN'})?`;
+            if (r.left === 3 && drumFor !== r.text) {
+                drumFor = r.text;
+                Sound.play('drum');
+                if (navigator.vibrate) navigator.vibrate([40, 80, 40, 80, 40]);
+            }
             return { k: 'rumor', t: `${r.icon} <b>Gerücht:</b> ${esc(r.text)}. Der Preis ${up ? 'steigt' : 'fällt'} schon. ${q}${end}`, left: Math.max(0, r.left), span: r.left + r.since };
         }
         if (hedger) {
@@ -589,6 +610,7 @@ const Player = (() => {
                 <div class="sy-rank"><span class="rank-badge l${me.level}">${RANKS[me.level].icon} ${RANKS[me.level].name}</span>${yi && yi.row && yi.row.promoted ? '<span class="promo-me">⬆️ Aufgestiegen!</span>' : ''}</div>
                 <div class="sy-tot">Karriere bisher: <b class="${me.total - me.upSpent >= 0 ? 'up' : 'down'}">${signed(me.total - me.upSpent - me.interest)}</b> CHF</div>
             </div>
+            ${yi && yi.mirror ? `<div class="card">${mirrorHTML(yi.mirror)}</div>` : ''}
             <div class="shop-h"><span>🏗️ Ausbau</span><b>💰 ${fmt(me.cash)} CHF</b></div>
             <p class="dim small">Investiere in deine Firma. Jede Investition kostet jetzt Geld – und muss sich in den nächsten Jahren auszahlen.</p>
             <div class="shop-cards">${ups.map(u => {
@@ -602,6 +624,29 @@ const Player = (() => {
             send({ t: 'upgrade', id: b.dataset.up });
             Sound.play('buy');
         }));
+    }
+
+    // Persönlicher Spiegel: Was hat meine Absicherung gebracht? Wann habe ich gehandelt?
+    function mirrorHTML(m) {
+        if (!m) return '';
+        const W = 300;
+        const H = 80;
+        const ps = m.hist.map(h => h[1]);
+        const lo = Math.min(...ps, m.p0);
+        const hi = Math.max(...ps, m.p0);
+        const X = sec => 4 + (sec / Math.max(1, m.total)) * (W - 8);
+        const Y = v => H - 8 - ((v - lo) / Math.max(1, hi - lo)) * (H - 16);
+        const line = m.hist.map(([sec, v]) => `${X(sec).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+        const marks = m.moments.map((t, i) => `<g><circle cx="${X(t.s).toFixed(1)}" cy="${Y(t.price).toFixed(1)}" r="6" fill="${t.q > 0 ? '#22e58a' : '#ff4d6a'}" stroke="#fff" stroke-width="1.5"/><text x="${X(t.s).toFixed(1)}" y="${(Y(t.price) - 9).toFixed(1)}" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">${i + 1}</text></g>`).join('');
+        const hedger = m.role !== 'spec';
+        const diffTxt = hedger
+            ? (m.diff >= 0 ? `🛡️ Deine Absicherung hat dir <b class="up">▲ ${signed(m.diff)} CHF</b> gebracht.` : `🛡️ Ohne Absicherung hättest du <b class="down">${fmt(-m.diff)} CHF mehr</b> – dafür warst du geschützt.`)
+            : `🦈 Deine Wetten: <b class="${m.diff >= 0 ? 'up' : 'down'}">${m.diff >= 0 ? '▲' : '▼'} ${signed(m.diff)} CHF</b>`;
+        return `<div class="mirror"><h4>🪞 Dein Jahr im Rückblick</h4>
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Y(m.p0)}" y2="${Y(m.p0)}" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 4"/><polyline points="${line}" fill="none" stroke="#ffb547" stroke-width="2"/>${marks}</svg>
+            ${m.moments.length ? `<div class="m-legend">${m.moments.map((t, i) => `${i + 1}: ${t.q > 0 ? '🟢 gekauft' : '🔴 verkauft'} ${Math.abs(t.q * CFG.size)} t zu ${fmt(t.price)}`).join(' · ')}</div>` : '<div class="m-legend">Kein Trade in diesem Jahr.</div>'}
+            <div class="m-diff">${diffTxt}</div>
+            <div class="m-text">💬 ${esc(m.text)}</div></div>`;
     }
 
     function yearBanner(year) {
@@ -633,6 +678,7 @@ const Player = (() => {
             ${c.upgrades.length ? `<p class="small">Ausbau: ${c.upgrades.map(u => { const x = UPGRADES[c.role].find(z => z.id === u); return x ? `${x.icon} ${x.name}` : ''; }).join(' · ')} <span class="dim">(−${fmt(c.upSpent)} CHF)</span></p>` : '<p class="small dim">Kein Ausbau gekauft.</p>'}
             ${c.interest ? `<p class="small bad">🏦 Zinsen für Notkredite: −${fmt(c.interest)} CHF</p>` : ''}
             ${msg.star ? (isStar ? `<div class="star-me">⭐ Du bist TRADER DES TAGES! (${signed(msg.star.points)} Punkte)</div>` : `<p class="dim small">⭐ Trader des Tages: <b>${esc(msg.star.name)}</b> · deine Punkte: ${signed(c.points)}</p>`) : ''}
+            ${msg.mirror ? mirrorHTML(msg.mirror) : ''}
             <h3>🏆 Top 3 deiner Rolle</h3><ol class="top3">${msg.top.map(t => `<li>${esc(t.name)} <b>${signed(t.final)}</b></li>`).join('')}</ol>
             <p class="dim small">Die Preisverleihung läuft auf dem grossen Bildschirm!</p></div>`;
     }
@@ -648,6 +694,8 @@ const Player = (() => {
         $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
         $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
         $('btn-rejoin').addEventListener('click', () => join(code, name));
+        document.addEventListener('visibilitychange', revive);
+        window.addEventListener('online', revive);
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
             if (b.dataset.role === role) return;
             Sound.play('join');

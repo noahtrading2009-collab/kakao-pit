@@ -210,7 +210,7 @@ const Host = (() => {
                 if (!row) return;
                 const B = BOARDS.find(b => b.role === row.role);
                 const peers = data.rows.filter(r => r.role === row.role).sort(B.sort);
-                send(e, { t: 'yearEnd', row, rank: peers.indexOf(row) + 1, total: peers.length, year: Engine.G.year, final: data.final });
+                send(e, { t: 'yearEnd', row, rank: peers.indexOf(row) + 1, total: peers.length, year: Engine.G.year, final: data.final, mirror: mirror(row) });
             });
         } else if (type === 'newFeatures') {
             conns.forEach(e => {
@@ -236,7 +236,7 @@ const Host = (() => {
                 const row = career.find(r => r.id === e.pid);
                 if (!row) return;
                 const peers = career.filter(r => r.role === row.role);
-                send(e, { t: 'end', career: row, rank: peers.indexOf(row) + 1, total: peers.length, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, final: r.final })), star: data.careerStar ? { id: data.careerStar.id, name: data.careerStar.name, role: data.careerStar.role, points: data.careerStar.points } : null, years: data.years });
+                send(e, { t: 'end', mirror: mirror((data.rows || []).find(r => r.id === e.pid)), career: row, rank: peers.indexOf(row) + 1, total: peers.length, top: peers.slice(0, 3).map(r => ({ name: r.name, role: r.role, final: r.final })), star: data.careerStar ? { id: data.careerStar.id, name: data.careerStar.name, role: data.careerStar.role, points: data.careerStar.points } : null, years: data.years });
             });
             $('year-ov').classList.add('hidden');
             setTimeout(() => showEnd(data), 1500);
@@ -312,8 +312,25 @@ const Host = (() => {
         renderLobby();
     }
 
+    function togglePause() {
+        const G = Engine.G;
+        if (!G || !['trading', 'settle'].includes(G.phase)) return;
+        Engine.setPaused(!G.paused);
+        $('pause-ov').classList.toggle('hidden', !G.paused);
+        $('h-pause').textContent = G.paused ? '▶' : '⏸';
+        Sound.play('bell');
+        conns.forEach(push);
+    }
+
     function start() {
         clearInterval(lobbyTimer);
+        $('h-pause').onclick = togglePause;
+        document.addEventListener('keydown', ev => {
+            if (ev.code === 'Space' && $('v-host').classList.contains('active') && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+                ev.preventDefault();
+                togglePause();
+            }
+        });
         Sound.init();
         Engine.start();
         App.show('v-host');
@@ -368,6 +385,8 @@ const Host = (() => {
             $('h-price').textContent = fmt(S.price);
             drawChart(S, null, S.price, performance.now(), 1);
         }
+        renderRumor();
+        if (S.phase === 'trading' && !S.paused && S.secLeft <= 10) Sound.play('tick');
         renderRank(S);
         renderNews(S);
         renderHedges(S);
@@ -376,6 +395,25 @@ const Host = (() => {
     }
 
     const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
+
+    let drumFor = '';
+    function renderRumor() {
+        const el = $('h-rumor');
+        const r = Engine.activeRumors()[0];
+        if (!r) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        const span = Math.max(1, r.left + r.since);
+        const html = `<span class="hr-ico">${r.icon}</span><span class="hr-t"><small>GERÜCHT${r.region ? ` · ${esc(REGIONS[r.region].name)}` : ''} – stimmt es?</small>${esc(r.text)}</span><b class="hr-left">${Math.max(0, r.left)}s</b>`;
+        if (el.dataset.t !== r.text) { el.dataset.t = r.text; el.innerHTML = `${html}<i class="hr-bar"></i>`; }
+        else el.querySelector('.hr-left').textContent = `${Math.max(0, r.left)}s`;
+        el.querySelector('.hr-bar').style.width = `${Math.min(100, (Math.max(0, r.left) / span) * 100)}%`;
+        el.classList.toggle('tense', r.left <= 3);
+        // Trommelwirbel bis zur Auflösung
+        if (r.left === 3 && drumFor !== r.text) {
+            drumFor = r.text;
+            Sound.play('drum');
+        }
+    }
 
     function frame(now) {
         const G = Engine.G;
@@ -405,8 +443,11 @@ const Host = (() => {
     // Sonst werden nur die Zahlen aktualisiert – nichts flackert.
     function renderRank(S) {
         const el = $('h-rank');
-        const groups = BOARDS.map(B => ({ B, list: S.ranking.filter(r => r.role === B.role).sort(B.sort).slice(0, 5) })).filter(g => g.list.length);
-        const key = groups.map(g => g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}`).join(',')).join('|');
+        const groups = BOARDS.map(B => {
+            const all = S.ranking.filter(r => r.role === B.role).sort(B.sort);
+            return { B, list: all.slice(0, 3), more: Math.max(0, all.length - 3) };
+        }).filter(g => g.list.length);
+        const key = groups.map(g => `${g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}`).join(',')}+${g.more}`).join('|');
         if (el.dataset.k === key) {
             for (const { B, list } of groups) {
                 for (const r of list) {
@@ -422,12 +463,12 @@ const Host = (() => {
         }
         const before = new Map([...el.querySelectorAll('[data-k]')].map(n => [n.dataset.k, n.getBoundingClientRect().top]));
         el.dataset.k = key;
-        el.innerHTML = groups.map(({ B, list }) => {
+        el.innerHTML = groups.map(({ B, list, more }) => {
             const R = ROLES[B.role];
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
                 ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''} ${i === 0 ? 'lead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
                     <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
-                    <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}</div>`;
+                    <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
         }).join('');
         el.querySelectorAll('[data-k]').forEach(n => {
             const top = before.get(n.dataset.k);
@@ -440,15 +481,18 @@ const Host = (() => {
 
     // Wie viel haben Kooperativen und Fabriken schon abgesichert?
     function renderHedges(S) {
-        const hedgers = S.ranking.filter(r => r.role !== 'spec').sort((a, b) => a.id - b.id).slice(0, 8);
+        const allH = S.ranking.filter(r => r.role !== 'spec').sort((a, b) => a.id - b.id);
+        // Echte Spieler zuerst, dann KI – höchstens 5 Zeilen
+        const hedgers = [...allH.filter(r => !r.bot), ...allH.filter(r => r.bot)].slice(0, 5);
+        const more = allH.length - hedgers.length;
         const el = $('h-offers');
-        const key = hedgers.map(r => r.id).join(',');
+        const key = hedgers.map(r => r.id).join(',') + '+' + more;
         // Gleiche Zeilen wie vorher? Dann nur Balken und Zahlen anpassen – die Balken gleiten dann weich.
         if (el.dataset.k !== key) {
             el.dataset.k = key;
             el.innerHTML = `<div class="bank-note">Was im Dezember offen ist, wird ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt.</div>`
                 + hedgers.map(r => `<div class="hedge-row" data-k="${r.id}"><span>${roleIcon(r.role, 16)} ${esc(r.name)}</span>
-                    <div class="hbar"><i style="width:0%"></i></div><b></b></div>`).join('');
+                    <div class="hbar"><i style="width:0%"></i></div><b></b></div>`).join('') + (more ? `<div class="rk-more">+ ${more} weitere</div>` : '');
         }
         for (const r of hedgers) {
             const row = el.querySelector(`[data-k="${r.id}"]`);
@@ -564,16 +608,27 @@ const Host = (() => {
     let cv = null;
     let ctx = null;
 
+    // Der Beamer ist eine feste 16:9-Bühne (1600 × 900), die aufs Fenster skaliert wird – nie abgeschnitten.
+    let stageScale = 1;
+    function fitStage() {
+        stageScale = Math.min(innerWidth / 1600, innerHeight / 900);
+        document.documentElement.style.setProperty('--hs', stageScale);
+    }
+    fitStage();
+
     function resizeChart() {
         cv = $('chart');
-        const r = cv.parentElement.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        cv.width = r.width * dpr;
-        cv.height = r.height * dpr;
-        cv.style.width = `${r.width}px`;
-        cv.style.height = `${r.height}px`;
+        const box = cv.parentElement;
+        const w = box.clientWidth - 20;
+        const h = box.clientHeight - 20;
+        const k = (window.devicePixelRatio || 1) * stageScale;
+        cv.width = Math.round(w * k);
+        cv.height = Math.round(h * k);
+        cv.dataset.k = k;
+        cv.style.width = `${w}px`;
+        cv.style.height = `${h}px`;
         ctx = cv.getContext('2d');
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.setTransform(k, 0, 0, k, 0, 0);
     }
 
     const axis = { lo: null, hi: null };
@@ -599,7 +654,7 @@ const Host = (() => {
         const c = target || ctx;
         const el = target ? target.canvas : cv;
         if (!c) return;
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = (!target && Number(el.dataset.k)) || window.devicePixelRatio || 1;
         const W = el.width / dpr;
         const H = el.height / dpr;
         const total = S.months * S.monthSec;
@@ -951,8 +1006,10 @@ const Host = (() => {
         // «k-»-Präfix: Die Klasse «flash» trägt jeder Banner – sonst wären alle rot.
         el.className = `flash k-${n.kind}`;
         const region = (n.text.match(/^[A-ZÄÖÜ ]+\(([^)]*)\)/) || [])[1];
+        const jump = typeof n.jump === 'number' && Math.abs(n.jump) >= 0.001 ? ` · Kakao ${n.jump > 0 ? '▲' : '▼'} ${pct(n.jump)}` : '';
         const sub = n.kind === 'rumor' ? 'Noch nicht bestätigt – der Markt spekuliert'
-            : n.kind === 'yes' ? 'Das Gerücht stimmt' : n.kind === 'no' ? 'Falscher Alarm' : n.kind === 'alert' ? 'Börsenaufsicht' : 'Soeben gemeldet';
+            : n.kind === 'yes' ? `Das Gerücht stimmt${jump}` : n.kind === 'no' ? `Falscher Alarm${jump}` : n.kind === 'alert' ? 'Achtung' : 'Soeben gemeldet';
+        if (n.kind === 'yes' || n.kind === 'no') $('v-host').classList.remove('shake'), void $('v-host').offsetWidth, $('v-host').classList.add('shake');
         el.innerHTML = `<div class="fl-icon">${n.icon}</div>
             <div class="fl-body"><div class="fl-label"><i></i>${label}${region ? ` · ${esc(region)}` : ''}<span>${sub}</span></div>
             <div class="fl-text">${esc(n.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}</div></div>
@@ -964,18 +1021,72 @@ const Host = (() => {
 
     function showSettle(data) {
         const G = Engine.G;
-        const calls = G.players.filter(p => p.call).map(p => esc(p.name));
+        const calls = G.players.filter(p => p.call);
         const prev = G.marks.length > 1 ? G.marks[G.marks.length - 2].price : G.p0;
+        const res = data.results.map(x => ({ p: Engine.byId(x.pid), pl: x.pl })).filter(x => x.p && Math.abs(x.pl) >= 1).sort((a, b) => b.pl - a.pl);
+        const best = res[0] && res[0].pl > 0 ? res[0] : null;
+        const worst = res.length && res[res.length - 1].pl < 0 ? res[res.length - 1] : null;
+        const who = x => `${avatar(x.p.name, x.p.bot)}<b>${esc(x.p.name)}</b><small>${ROLES[x.p.role].short}</small>`;
         const el = $('settle-ov');
-        el.innerHTML = `<div class="settle-card card"><div class="dim">MONATSENDE · MARK-TO-MARKET</div><h2>Abrechnung Monat ${data.month}</h2>
-            <div class="settle-price">${fmt(G.price)} <span class="${G.price >= prev ? 'up' : 'down'}">${pct(G.price / prev - 1)}</span></div>
-            <p>Alle Positionen werden zum aktuellen Preis bewertet. Gewinne und Verluste fliessen auf die Margin-Konten.</p>
-            ${calls.length ? `<p class="bad">📞 Margin Call für: ${calls.join(', ')}</p>` : '<p class="good">Keine Margin Calls.</p>'}
-            ${G.marginRate > CFG.marginRate ? `<p class="bad">⚖️ Einschuss jetzt ${Math.round(G.marginRate * 100)} %</p>` : ''}
-            ${data.month >= CFG.months ? '<p><b>Das war der letzte Monat. Gleich ist Fälligkeit!</b></p>' : ''}</div>`;
+        el.innerHTML = `<div class="settle-card card"><div class="dim">MONATSENDE · ABRECHNUNG</div><h2>Monat ${data.month} von ${CFG.months}</h2>
+            <div class="settle-price">${fmt(G.price)} <span class="${G.price >= prev ? 'up' : 'down'}">${G.price >= prev ? '▲' : '▼'} ${pct(G.price / prev - 1)}</span></div>
+            <div class="settle-duo">
+                <div class="sd win">${best ? `<span class="sd-k">💰 Gewinner des Monats</span>${who(best)}<em>▲ ${signed(best.pl)} CHF</em>` : '<span class="sd-k">💰 Gewinner des Monats</span><small>–</small>'}</div>
+                <div class="sd lose">${worst ? `<span class="sd-k">💸 Verlierer des Monats</span>${who(worst)}<em>▼ ${signed(worst.pl)} CHF</em>` : '<span class="sd-k">💸 Verlierer des Monats</span><small>–</small>'}</div>
+            </div>
+            ${calls.length ? `<p class="bad settle-calls">📞 Margin Call: ${calls.map(p => esc(p.name)).join(', ')} – nachschiessen oder verkleinern!</p>` : '<p class="good">✔ Keine Margin Calls.</p>'}
+            <p class="dim small">Gewinne und Verluste der Futures werden jetzt auf die Konten gebucht (Mark-to-Market).</p>
+            ${data.month >= CFG.months ? '<p><b>Das war der letzte Monat. Jetzt ist Dezember: Lieferung und Abrechnung!</b></p>' : ''}</div>`;
         el.classList.remove('hidden');
         Sound.play('bell');
         setTimeout(() => el.classList.add('hidden'), (CFG.settleSec - 1) * 1000);
+    }
+
+    // ===== Persönlicher Spiegel am Jahresende (fürs Handy) =====
+    function mirror(row) {
+        const G = Engine.G;
+        if (!row) return null;
+        const p = Engine.byId(row.id);
+        const step = Math.max(1, Math.floor(G.history.length / 60));
+        const hist = G.history.filter((h, i) => i % step === 0 || i === G.history.length - 1).map(h => [h.s, h.p]);
+        const avgP = G.history.reduce((a, h) => a + h.p, 0) / G.history.length;
+        const tr = G.trades.filter(t => t.pid === row.id);
+        const moments = tr.slice().sort((a, b) => Math.abs(b.q) - Math.abs(a.q)).slice(0, 3).sort((a, b) => a.s - b.s).map(t => ({ s: t.s, q: t.q, price: t.price }));
+        const up = G.price >= G.p0;
+        let diff = 0;
+        let text;
+        if (row.role === 'spec') {
+            diff = row.result;
+            text = !tr.length ? 'Du hast nicht gewettet – kein Risiko, aber auch kein Gewinn.'
+                : row.result >= 0 ? 'Deine Wetten lagen unter dem Strich richtig.' : 'Deine Wetten liefen unter dem Strich gegen dich – Gerüchte sind nie sicher.';
+        } else {
+            const prod = row.role === 'producer';
+            const noHedge = row.physPL - Math.abs(row.physical) * G.price * CFG.spotPenalty;
+            diff = Math.round(row.result - noHedge);
+            const sec = p && p.hedgeT ? p.hedgeV / p.hedgeT : null;
+            if (!tr.length) text = `Du hast nichts abgesichert – eine Wette auf ${prod ? 'steigende' : 'fallende'} Preise. Kakao ist ${up ? 'gestiegen' : 'gefallen'}: Die Wette ist ${(prod ? up : !up) ? 'aufgegangen' : 'nicht aufgegangen'}.`;
+            else if (sec) {
+                const goodT = prod ? sec > avgP : sec < avgP;
+                text = goodT ? `Gutes Timing: Du hast zu ${fmt(sec)} abgesichert – ${prod ? 'über' : 'unter'} dem Jahresdurchschnitt von ${fmt(avgP)}.`
+                    : `Du hast zu ${fmt(sec)} abgesichert – ${prod ? 'unter' : 'über'} dem Jahresdurchschnitt von ${fmt(avgP)}. Bei einem Gerücht wäre mehr drin gewesen.`;
+            } else text = 'Deine Absicherung wurde wieder aufgelöst.';
+            if (row.open) text += ` Im Dezember waren noch ${row.open} t offen (${fmt(row.spotPaid)} CHF Abschlag).`;
+        }
+        return { hist, moments, total: CFG.months * G.monthSec, p0: G.p0, final: G.price, diff, text, role: row.role };
+    }
+
+    function questions(d) {
+        const top = role => d.career.filter(r => r.role === role)[0];
+        const coop = top('producer');
+        const fab = top('processor');
+        const fund = top('spec');
+        const open = (d.rows || []).filter(r => r.role !== 'spec' && r.open > 0).sort((a, b) => b.open - a.open)[0];
+        return [
+            coop ? `Warum hat <b>${esc(coop.name)}</b> als beste Kooperative gewonnen – gutes Timing, viel Absicherung oder einfach Glück?` : `Warum hat <b>${esc(fab ? fab.name : '–')}</b> als beste Fabrik gewonnen – gutes Timing, viel Absicherung oder Glück?`,
+            open ? `<b>${esc(open.name)}</b> hatte im Dezember noch ${open.open} t offen. Wäre mehr Absicherung besser gewesen – oder war das Risiko richtig?`
+                : 'Alle haben bis Dezember abgesichert. Hätte sich ein Risiko gelohnt – und warum macht das eine echte Firma trotzdem nicht?',
+            `Wer war die Gegenpartei, als die Kooperativen ihre Ernte verkauft haben – und hat ${fund ? `<b>${esc(fund.name)}</b>` : 'der Hedgefonds'} daran verdient?`,
+        ];
     }
 
     function lessons(d) {
@@ -1183,11 +1294,7 @@ const Host = (() => {
                 <div class="card wide"><h3>🗓️ Alle Jahre im Überblick</h3><div class="yc-grid">${yearCards(d.yearLog)}</div></div>
                 <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
-                <div class="card"><h3>🗣️ Diskussion</h3><ol class="lessons">
-                    <li>Welche Investition hat sich am meisten gelohnt – und welche nicht?</li>
-                    <li>Welche Kooperative hat den besten Zeitpunkt zum Absichern erwischt – Können oder Glück?</li>
-                    <li>Warum haben gut abgesicherte Spieler nicht unbedingt am meisten verdient – und waren trotzdem erfolgreich?</li>
-                    <li>Wer war die Gegenpartei der Kooperativen, als sie Futures verkauften?</li></ol></div>
+                <div class="card discuss"><h3>🗣️ Drei Fragen zur Nachbesprechung</h3><ol class="lessons big">${questions(d).map(q => `<li>${q}</li>`).join('')}</ol></div>
             </div>
             <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neues Spiel</button></div>`;
         const ec = $('end-chart');
@@ -1203,6 +1310,7 @@ const Host = (() => {
     }
 
     window.addEventListener('resize', () => {
+        fitStage();
         if (Engine.G && Engine.G.phase !== 'lobby' && Engine.G.phase !== 'end') {
             resizeChart();
             render();

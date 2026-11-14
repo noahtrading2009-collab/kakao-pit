@@ -19,7 +19,7 @@ const Bots = (() => {
 
     function step() {
         const G = Engine.G;
-        if (!G || G.phase !== 'trading') {
+        if (!G || G.phase !== 'trading' || G.paused) {
             // Margin Calls auch in der Abrechnungspause beantworten.
             if (G && G.phase === 'settle') G.players.filter(p => p.bot && p.call).forEach(answerCall);
             return;

@@ -47,6 +47,23 @@ Bei «1 Jahr» gibt es das Kernspiel plus eine Besonderheit pro Rolle (Wetter, A
 
 Alles Wichtige passt ohne Scrollen auf den Bildschirm: Zeile «Was jetzt?» (mit Countdown bei Gerüchten), Preis mit Trend, Ziel-Fortschritt, Rang. Die Handelsknöpfe sind unten fixiert. Kurze Erklärungen erscheinen genau dann, wenn sie gebraucht werden (erster Start, erstes Gerücht, erster Trade, erste Abrechnung, neue Mechaniken). Regeln, Beispiel und Begriffe stehen im einklappbaren Bereich «📖 Hilfe».
 
+## Beamer
+
+- Feste 16:9-Bühne (1600 × 900), die auf jede Auflösung von 1280 × 720 bis 4K skaliert wird – nichts wird abgeschnitten.
+- **Gerüchte als Drama:** Countdown bis zur Auflösung im Chart, Trommelwirbel in den letzten Sekunden, danach Banner «BESTÄTIGT» / «DEMENTI» mit Preissprung.
+- **Monatsabrechnung als Show:** Gewinner und Verlierer des Monats, Margin Calls.
+- Ranglisten pro Rolle: Top 3 + «und X weitere».
+- **Pause** (Knopf ⏸ oder Leertaste): Die Zeit steht, die Handys zeigen «Pause».
+- Schluss: drei Diskussionsfragen, die aus dem Spiel abgeleitet sind.
+
+## Handy: Rückblick und Robustheit
+
+- Am Jahresende zeigt jedes Handy einen **persönlichen Rückblick**: Kursverlauf mit den eigenen wichtigsten Trades, was die Absicherung gebracht hat, und einen Satz Feedback zum Timing.
+- Letzte 10 Sekunden eines Monats: Timer pulsiert und tickt. Vibration bei Trade, News und Margin Call.
+- Nach Display-Sperre oder WLAN-Wechsel verbindet sich das Handy selbst wieder (gleicher Spieler).
+- **Spätes Beitreten** ist möglich: Wer später kommt, startet neutral zum aktuellen Preis.
+- Getestet mit 33 Spielern (32 KI + 1 Handy).
+
 ## Balance prüfen
 
 `tools/sim.html` spielt die Engine 200-mal mit festen Strategien (nie absichern, alles sofort, Hälfte, Gerüchten folgen) plus KI-Tradern und zeigt Siegquote, Durchschnitt und Streuung pro Rolle.

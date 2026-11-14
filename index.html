@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>
     // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
-    window.KP_V='11';
+    window.KP_V='12';
     fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
         v = (v || '').trim();
         try {
@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=11">
+    <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -117,10 +117,11 @@
             <div class="h-months" id="h-months"></div>
             <div class="h-timer" id="h-timer">1:30</div>
             <div class="h-price"><span class="dim">KAKAO DEZ</span><b id="h-price">2'400</b><span id="h-change" class="chg">±0.0 %</span></div>
+            <button class="icon" id="h-pause" title="Pause (Leertaste)">⏸</button>
             <button class="icon" id="h-sound" title="Ton">🔊</button>
         </header>
         <main class="h-main">
-            <div class="card h-chart"><canvas id="chart"></canvas><div class="chart-legend" id="chart-legend"></div></div>
+            <div class="card h-chart"><canvas id="chart"></canvas><div id="h-rumor" class="h-rumor hidden"></div><div class="chart-legend" id="chart-legend"></div></div>
             <div class="card h-rank"><h3>🏆 Ranglisten <span class="dim small">jede Rolle gegen ihresgleichen</span></h3><div id="h-rank"></div></div>
         </main>
         <footer class="h-bottom">
@@ -129,6 +130,7 @@
             <div class="card h-map"><h3>🌍 Weltkarte <span class="dim small">Anbauregionen & Ereignisse</span></h3><div id="h-map"></div></div>
         </footer>
         <div id="flash" class="flash hidden"></div>
+        <div id="pause-ov" class="pause-ov hidden"><b>⏸ PAUSE</b><span>Die Spielleitung erklärt etwas. Weiter mit der Leertaste.</span></div>
         <div id="settle-ov" class="settle-ov hidden"></div>
         <div id="year-ov" class="year-ov hidden"></div>
         <div id="year-intro" class="year-intro hidden"></div>
@@ -200,13 +202,13 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js?v=11"></script>
-    <script src="js/engine.js?v=11"></script>
-    <script src="js/bots.js?v=11"></script>
-    <script src="js/net.js?v=11"></script>
-    <script src="js/host.js?v=11"></script>
-    <script src="js/scenes.js?v=11"></script>
-    <script src="js/player.js?v=11"></script>
-    <script src="js/app.js?v=11"></script>
+    <script src="js/common.js?v=12"></script>
+    <script src="js/engine.js?v=12"></script>
+    <script src="js/bots.js?v=12"></script>
+    <script src="js/net.js?v=12"></script>
+    <script src="js/host.js?v=12"></script>
+    <script src="js/scenes.js?v=12"></script>
+    <script src="js/player.js?v=12"></script>
+    <script src="js/app.js?v=12"></script>
 </body>
 </html>

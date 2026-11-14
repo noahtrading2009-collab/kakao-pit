@@ -37,13 +37,15 @@ const Engine = (() => {
             existing.connected = true;
             return existing;
         }
-        if (G.phase !== 'lobby' && !bot) return null;
+        if (G.phase === 'end') return null;
+        const late = G.phase !== 'lobby';
+        const ref = late ? G.price : G.p0;   // Wer später kommt, startet neutral zum aktuellen Preis
         role = role || chooseRole();
         const R = ROLES[role];
         const p = {
             id: G.seq++, name: String(name || 'Trader').slice(0, 18), key, bot, role, connected: true,
             cash: R.cash, margin: 0, pos: 0, fees: 0, trades: 0, liquidations: 0, bankrupt: false,
-            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * G.p0, planValue: R.physical * G.p0, notes: [],
+            call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * ref, planValue: R.physical * ref, planP: ref, notes: [],
             physical: R.physical, basePhys: R.physical, revenue: 0, protect: false, harvestLog: [],
             upgrades: [], total: 0, yearPts: [], years: [], upSpent: 0, interest: 0, loans: 0, level: 0,
             region: null, settled: false, lastResult: 0, spotPaid: 0,
@@ -54,6 +56,7 @@ const Engine = (() => {
         };
         if (role === 'producer') p.region = pickRegion();
         G.players.push(p);
+        if (late && !bot) feed({ kind: 'bell', icon: '👋', text: `${p.name} steigt als ${R.short} ein.` });
         return p;
     }
 
@@ -76,6 +79,7 @@ const Engine = (() => {
         p.region = role === 'producer' ? (p.region || pickRegion()) : null;
         p.startValue = R.cash + R.physical * G.p0;
         p.planValue = R.physical * G.p0;
+        p.planP = G.p0;
         return true;
     }
 
@@ -203,6 +207,7 @@ const Engine = (() => {
     function check(p, newPos, fee) {
         if (!p || p.bankrupt) return 'Dein Konto ist gesperrt (Konkurs).';
         if (G.phase !== 'trading') return 'Die Börse ist gerade geschlossen.';
+        if (G.paused) return 'Pause – die Spielleitung erklärt gerade etwas.';
         const m = mandate(p, newPos);
         if (m) return m;
         if (Math.abs(newPos) > Math.abs(p.pos) && p.cash + futEq(p) - fee < req(p, newPos)) {
@@ -448,7 +453,7 @@ const Engine = (() => {
                     e.stage = 'done';
                     const jump = e.confirmed ? e.def.impact - e.priced : -e.priced;
                     drift += jump;
-                    feed({ kind: e.confirmed ? 'yes' : 'no', icon: e.confirmed ? '✅' : '❌', text: `${e.confirmed ? 'BESTÄTIGT' : 'DEMENTI'}${e.region ? ` (${REGIONS[e.region].name})` : ''}: ${e.confirmed ? e.def.yes : e.def.no}`, dir: Math.sign(jump), region: e.region || null, yieldIcon: e.def.icon });
+                    feed({ kind: e.confirmed ? 'yes' : 'no', icon: e.confirmed ? '✅' : '❌', text: `${e.confirmed ? 'BESTÄTIGT' : 'DEMENTI'}${e.region ? ` (${REGIONS[e.region].name})` : ''}: ${e.confirmed ? e.def.yes : e.def.no}`, dir: Math.sign(jump), jump, region: e.region || null, yieldIcon: e.def.icon });
                     harvestShock(e.def, e.confirmed, e.region);
                     if (e.def.orders && e.confirmed) G.orderBoost = G.clock + 40;
                 } else {
@@ -529,7 +534,7 @@ const Engine = (() => {
             }
             // Kasse sauber abschliessen: Ernte bzw. Grundbedarf zum Planwert ist schon im Startwert enthalten,
             // damit bleibt nach dem Jahr genau «Start + Jahresergebnis» in der Kasse.
-            p.cash -= p.basePhys * G.p0;
+            p.cash -= p.basePhys * (p.planP || G.p0);
             p.cash += extra;
             r.extra = Math.round(extra);
             r.yearResult = r.result + r.extra;
@@ -647,6 +652,7 @@ const Engine = (() => {
             p.nextBuyerAt = 10 + Math.floor(Math.random() * CFG.buyerEvery);
             p.startValue = p.cash + p.physical * G.p0;
             p.planValue = p.physical * G.p0;
+            p.planP = G.p0;
             if (p.role === 'processor' && has(p, 'contract')) {
                 const price = G.p0 + 150;
                 p.physical -= 30;
@@ -665,7 +671,7 @@ const Engine = (() => {
     }
 
     function tick() {
-        if (!G || G.phase === 'lobby' || G.phase === 'end') return;
+        if (!G || G.phase === 'lobby' || G.phase === 'end' || G.paused) return;
         if (G.phase === 'shop') {
             G.sec++;
             G.shopLeft--;
@@ -732,7 +738,7 @@ const Engine = (() => {
 
     function publicState(full = false) {
         return {
-            phase: G.phase, month: G.month, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
+            phase: G.phase, paused: !!G.paused, month: G.month, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
             year: G.year, years: G.years, shopLeft: G.shopLeft,
             price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate,
             history: full ? G.history : G.history.slice(-90).map(h => h.p),
@@ -777,7 +783,7 @@ const Engine = (() => {
         const rows = G.players.map(p => {
             const R = ROLES[p.role];
             // Effect of price, harvest size and customer orders on the physical business (vs. plan).
-            const physPL = p.physical * G.price + p.revenue - p.basePhys * G.p0;
+            const physPL = p.physical * G.price + p.revenue - p.basePhys * (p.planP || G.p0);
             const result = p.cash - p.startValue;
             return {
                 id: p.id, name: p.name, role: p.role, bot: p.bot, result: Math.round(result), physPL: Math.round(physPL),
@@ -819,7 +825,7 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, setRole, removePlayer, start, tick, trade, topUp,
+        create, addPlayer, setRole, removePlayer, start, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
         protect, answerOrder, research, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },

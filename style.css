@@ -311,8 +311,8 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 
 @media (max-width: 1100px) {
     .lobby { grid-template-columns: 1fr; padding: 18px; }
-    .h-main { grid-template-columns: 1fr 300px; }
-    .h-bottom { height: 200px; }
+    #v-lobby .h-main { grid-template-columns: 1fr 300px; }
+    #v-lobby .h-bottom { height: 200px; }
     .fl-text { font-size: 26px; }
     .end-grid { grid-template-columns: 1fr; }
 }
@@ -1117,3 +1117,68 @@ body[data-role] #v-player .p-price > div:first-child { display: block; }
 .p-clock { flex: none; display: grid; justify-items: center; gap: 0; line-height: 1.1; }
 .p-clock span { font-size: 10px; white-space: nowrap; }
 .p-dock .qty button { white-space: nowrap; font-size: 13px; padding-left: 4px; padding-right: 4px; }
+
+/* =====================================================================
+   BEAMER: feste 16:9-Bühne, Spannung, Pause
+   ===================================================================== */
+#v-host.active { position: fixed; left: 50%; top: 50%; width: 1600px; height: 900px; transform: translate(-50%, -50%) scale(var(--hs, 1)); transform-origin: center; }
+#v-host .news { font-size: 17px; }
+#v-host .rank-row { font-size: 17px; }
+#v-host .hedge-row { font-size: 15px; }
+#v-host .h-bottom h3, #v-host .h-rank h3 { font-size: 16px; }
+.rk-more { font-size: 13px; color: var(--dim); padding: 2px 6px 0 36px; }
+
+/* Gerüchte-Countdown im Chart */
+.h-rumor { position: absolute; left: 76px; top: 18px; z-index: 2; display: flex; align-items: center; gap: 12px; max-width: 62%; padding: 10px 16px 14px; border-radius: 14px; background: linear-gradient(135deg, rgba(58, 42, 8, .94), rgba(31, 22, 4, .94)); box-shadow: 0 0 0 2px var(--amber), 0 0 30px rgba(255, 181, 71, .35); overflow: hidden; animation: lfIn .5s cubic-bezier(.2, 1.3, .4, 1); }
+.h-rumor .hr-ico { font-size: 34px; }
+.h-rumor .hr-t { display: grid; font-size: 19px; font-weight: 700; line-height: 1.2; }
+.h-rumor .hr-t small { font-family: var(--mono); font-size: 12px; letter-spacing: 3px; color: var(--amber); font-weight: 800; }
+.h-rumor .hr-left { font-family: var(--mono); font-size: 34px; color: var(--amber); margin-left: auto; min-width: 64px; text-align: right; }
+.h-rumor .hr-bar { position: absolute; left: 0; bottom: 0; height: 5px; background: var(--amber); box-shadow: 0 0 10px var(--amber); transition: width 1s linear; }
+.h-rumor.tense { animation: tense .5s ease-in-out infinite alternate; }
+.h-rumor.tense .hr-left { color: #fff; text-shadow: 0 0 20px var(--amber); }
+@keyframes tense { from { box-shadow: 0 0 0 2px var(--amber), 0 0 20px rgba(255, 181, 71, .3); } to { box-shadow: 0 0 0 4px #fff, 0 0 60px rgba(255, 181, 71, .9); } }
+
+/* Auflösung: kurzer Ruck */
+#v-host.shake { animation: shake .5s cubic-bezier(.36, .07, .19, .97); }
+@keyframes shake {
+    10%, 90% { transform: translate(-50%, -50%) scale(var(--hs, 1)) translateX(-2px); }
+    20%, 80% { transform: translate(-50%, -50%) scale(var(--hs, 1)) translateX(4px); }
+    30%, 50%, 70% { transform: translate(-50%, -50%) scale(var(--hs, 1)) translateX(-7px); }
+    40%, 60% { transform: translate(-50%, -50%) scale(var(--hs, 1)) translateX(7px); }
+}
+
+/* Monatsabrechnung als Show */
+.settle-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+.sd { display: grid; justify-items: center; gap: 4px; padding: 14px; border-radius: 16px; background: rgba(0, 0, 0, .3); animation: lfIn .6s cubic-bezier(.2, 1.3, .4, 1) both .3s; }
+.sd.win { box-shadow: 0 0 0 1px rgba(34, 229, 138, .5), 0 0 30px rgba(34, 229, 138, .15); }
+.sd.lose { box-shadow: 0 0 0 1px rgba(255, 77, 106, .5), 0 0 30px rgba(255, 77, 106, .15); animation-delay: .55s; }
+.sd-k { font-family: var(--mono); font-size: 12px; letter-spacing: 2px; color: var(--dim); }
+.sd .av { width: 44px; height: 44px; font-size: 16px; margin: 4px 0; }
+.sd b { font-size: 22px; }
+.sd small { color: var(--dim); }
+.sd em { font-style: normal; font-family: var(--mono); font-weight: 800; font-size: 24px; }
+.sd.win em { color: var(--up); }
+.sd.lose em { color: var(--down); }
+.settle-calls { font-size: 18px; }
+
+/* Pause */
+.pause-ov { position: absolute; inset: 0; z-index: 30; display: grid; place-content: center; justify-items: center; gap: 12px; background: rgba(5, 8, 15, .78); backdrop-filter: blur(6px); }
+.pause-ov.hidden { display: none; }
+.pause-ov b { font-family: var(--mono); font-size: 120px; letter-spacing: 12px; color: var(--amber); text-shadow: 0 0 40px rgba(255, 181, 71, .5); }
+.pause-ov span { font-size: 24px; color: var(--dim); }
+
+/* Schluss: Diskussionsfragen gross */
+.discuss .lessons.big li { font-size: 20px; line-height: 1.4; margin-bottom: 12px; }
+
+/* ===== Handy: Pause + Jahres-Spiegel ===== */
+.p-now.paused { background: rgba(167, 139, 250, .18); border-bottom-color: rgba(167, 139, 250, .5); }
+.mirror { display: grid; gap: 8px; text-align: left; }
+.mirror h4 { font-size: 15px; }
+.mirror svg { width: 100%; height: 86px; display: block; background: rgba(0, 0, 0, .25); border-radius: 10px; }
+.mirror .m-diff { font-size: 15px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, .05); }
+.mirror .m-diff b { font-family: var(--mono); }
+.mirror .m-text { font-size: 14px; line-height: 1.4; }
+.mirror .m-legend { font-size: 11.5px; color: var(--dim); }
+#v-host .rk-group { margin-bottom: 6px; } #v-host .rk-group .rank-row { padding: 4px 6px; } #v-host .rk-head { margin-bottom: 2px; } #v-host .h-rank { padding: 10px 12px; } #v-host .h-rank > h3 { margin-bottom: 4px; }
+#v-host .h-bottom { height: 220px; } #v-host .h-rank > h3 .dim { display: none; }
