@@ -17,7 +17,9 @@ const Engine = (() => {
             p0: CFG.p0, price: CFG.p0, ref: CFG.p0, marginRate: CFG.marginRate, pendingRate: null,
             history: [{ s: 0, p: CFG.p0 }], marks: [], feed: [], events: [], players: [], tape: [],
             flow: 0, drift: 0, seq: 1, trades: [],
-            year: 1, years: years || CFG.years, yearLog: [], shopLeft: 0,
+            year: 1, years: years || CFG.years, yearLog: [], shopLeft: 0, deals: [],
+            // Einmal pro Karriere (ab 2 Jahren) ein Krisenjahr wie 2024
+            crisisYear: (years || CFG.years) >= 2 ? 2 + Math.floor(Math.random() * ((years || CFG.years) - 1)) : 0,
         };
         return G;
     }
@@ -53,6 +55,8 @@ const Engine = (() => {
             reports: [], job: null, researchSpent: 0,
             costs: 0,                                   // Pflanzenschutz, Bankzuschlag (für den Hedge-Vergleich)
             buyerOffer: null, nextBuyerAt: 10 + Math.floor(Math.random() * CFG.buyerEvery), sales: [],
+            rep: 0, decision: null, pending: [], qPrem: 0, dried: false, marginMult: 1, needCut: 0, recipeSteps: 0, dealsT: 0, lostSmuggle: 0, memberBonus: 0,
+            nextSmuggleAt: 20 + Math.floor(Math.random() * 25),
         };
         if (role === 'producer') p.region = pickRegion();
         G.players.push(p);
@@ -445,6 +449,207 @@ const Engine = (() => {
         note(p, 'good', `${T.icon} Bericht da: ${rep.text}`);
     }
 
+    // ===== Lieferverträge zwischen Kooperativen und Fabriken =====
+    // Ein Vertrag fixiert Menge und Preis für Dezember. Wer bricht, zahlt Strafe – und alle sehen es.
+    const err = msg => ({ ok: false, msg });
+
+    function dealOffer(id, t, price) {
+        const p = byId(id);
+        if (!p || p.role === 'spec') return err('Lieferverträge gibt es nur zwischen Kooperativen und Fabriken.');
+        if (!feat('deals')) return err('Lieferverträge kommen später in der Karriere.');
+        if (G.phase !== 'trading') return err('Die Börse ist gerade geschlossen.');
+        t = Math.round(Number(t) / 10) * 10;
+        price = Math.round(Number(price));
+        if (!(t >= 10 && t <= 50)) return err('Menge 10 bis 50 t.');
+        if (!(Math.abs(price / G.price - 1) <= CFG.dealBand)) return err(`Preis höchstens ±${Math.round(CFG.dealBand * 100)} % von der Börse.`);
+        const free = p.role === 'producer' ? p.physical : -p.physical;
+        if (t > free) return err(p.role === 'producer' ? 'So viel Kakao hast du nicht mehr frei.' : 'So viel brauchst du nicht mehr.');
+        if (G.deals.some(d => d.from === id && d.status === 'open')) return err('Du hast schon ein offenes Angebot.');
+        const d = { id: G.seq++, from: id, fromName: p.name, fromRep: p.rep, side: p.role === 'producer' ? 'sell' : 'buy', t, price, status: 'open', until: G.sec + CFG.dealSec };
+        G.deals.push(d);
+        emit('deal', d);
+        return { ok: true, msg: `📜 Angebot steht: ${t} t zu ${fmt(price)} CHF/t – ${CFG.dealSec} s gültig.` };
+    }
+
+    function dealCancel(id, did) {
+        const d = G.deals.find(x => x.id === did && x.from === id && x.status === 'open');
+        if (d) d.status = 'cancelled';
+        return { ok: true, msg: 'Angebot zurückgezogen.' };
+    }
+
+    function dealAccept(id, did) {
+        const p = byId(id);
+        const d = G.deals.find(x => x.id === did && x.status === 'open');
+        if (!p || !d) return err('Das Angebot ist weg – jemand war schneller.');
+        if (G.phase !== 'trading') return err('Die Börse ist gerade geschlossen.');
+        const maker = byId(d.from);
+        if (d.from === id) return err('Das ist dein eigenes Angebot.');
+        if (!maker || p.role === 'spec' || p.role === maker.role) return err('Dieses Angebot ist nicht für deine Rolle.');
+        const seller = d.side === 'sell' ? maker : p;
+        const buyer = seller === maker ? p : maker;
+        if (seller.physical < d.t) { d.status = 'cancelled'; return err(`${seller.name} hat nicht mehr genug Kakao – Angebot gelöscht.`); }
+        if (-buyer.physical < d.t) return err(buyer === p ? 'So viel brauchst du nicht mehr.' : `${buyer.name} braucht nicht mehr so viel.`);
+        d.status = 'signed';
+        d.seller = seller.id;
+        d.buyer = buyer.id;
+        d.sName = seller.name;
+        d.bName = buyer.name;
+        seller.physical -= d.t;
+        seller.revenue += d.t * d.price;
+        seller.sales.push({ client: buyer.name, t: d.t, price: d.price, deal: d.id });
+        buyer.physical += d.t;
+        buyer.revenue -= d.t * d.price;
+        seller.dealsT += d.t;
+        buyer.dealsT += d.t;
+        feed({ kind: 'deal', icon: '📜', text: `VERTRAG: ${seller.name} liefert ${buyer.name} ${d.t} t zu ${fmt(d.price)} CHF/t.` });
+        note(maker, 'good', `📜 ${p.name} hat dein Angebot angenommen: ${d.t} t zu ${fmt(d.price)} CHF/t – fix für Dezember.`);
+        return { ok: true, msg: `📜 Vertrag unterschrieben: ${d.t} t zu ${fmt(d.price)} CHF/t mit ${maker.name}.` };
+    }
+
+    function dealBreak(id, did) {
+        const p = byId(id);
+        const d = G.deals.find(x => x.id === did && x.status === 'signed' && (x.seller === id || x.buyer === id));
+        if (!p || !d) return err('Diesen Vertrag gibt es nicht.');
+        if (G.phase !== 'trading' && G.phase !== 'settle') return err('Die Börse ist gerade geschlossen.');
+        const s = byId(d.seller);
+        const b = byId(d.buyer);
+        const other = p === s ? b : s;
+        const fee = Math.round(d.t * CFG.breachFee);
+        s.physical += d.t;
+        s.revenue -= d.t * d.price;
+        s.sales = s.sales.filter(x => x.deal !== d.id);
+        b.physical -= d.t;
+        b.revenue += d.t * d.price;
+        s.dealsT -= d.t;
+        b.dealsT -= d.t;
+        p.cash -= fee;
+        p.costs += fee;
+        other.cash += fee;
+        p.rep++;
+        d.status = 'broken';
+        d.breaker = id;
+        feed({ kind: 'alert', icon: '💔', text: `VERTRAGSBRUCH: ${p.name} bricht den Vertrag mit ${other.name} (${d.t} t zu ${fmt(d.price)}) und zahlt ${fmt(fee)} CHF Strafe.` });
+        note(other, 'bad', `💔 ${p.name} hat euren Vertrag gebrochen! ${other.role === 'producer' ? `Du hast die ${d.t} t wieder offen` : `Dir fehlen wieder ${d.t} t`} – sichere neu ab. Du bekommst ${fmt(fee)} CHF Strafe.`);
+        return { ok: true, msg: `💔 Vertrag gebrochen. ${fmt(fee)} CHF Strafe – und alle haben es gesehen.` };
+    }
+
+    // ===== Entscheidungen der Rollen (eine Karte zur Zeit) =====
+    function decide(p, d) {
+        p.decision = { id: G.seq++, until: G.sec + CFG.decisionSec, ...d };
+    }
+
+    // Kooperative: Steigt der Weltpreis, locken Schmuggler die Bauern mit mehr Geld.
+    function spawnRoleDecisions() {
+        for (const p of G.players) {
+            if (p.decision) {
+                if (G.sec >= p.decision.until) answerDecision(p.id, p.decision.def, true);
+                continue;
+            }
+            if (p.role === 'producer') {
+                const prem = G.price / G.p0 - 1;
+                if (feat('smuggle') && prem >= 0.06 && p.physical >= 20 && G.clock >= p.nextSmuggleAt) {
+                    const loss = Math.min(p.physical, Math.max(10, Math.round((p.physical * clamp(prem * 0.8, 0.08, 0.35)) / 5) * 5));
+                    const smugP = Math.round((G.price * 0.96) / 10) * 10;
+                    const bonus = Math.round((loss * (G.price - G.p0) * 0.45) / 100) * 100;
+                    decide(p, { kind: 'smuggle', loss, smugP, bonus, def: 'none' });
+                    p.nextSmuggleAt = G.clock + 40 + Math.floor(Math.random() * 30);
+                    note(p, 'bad', `🕵️ Schmuggler bieten deinen Bauern ${fmt(smugP)} CHF/t – du zahlst nur ${fmt(G.p0)}.`);
+                } else if (feat('drying') && !p.dried && G.clock >= G.monthSec * 2 + 8) {
+                    p.dried = true;
+                    decide(p, { kind: 'dry', def: 'fast' });
+                }
+            } else if (p.role === 'processor' && feat('recipe') && p.recipeSteps < 2 && G.price / G.p0 - 1 >= CFG.recipeStep * (p.recipeSteps + 1) && -p.physical >= 20) {
+                p.recipeSteps++;
+                decide(p, { kind: 'recipe', rise: G.price / G.p0 - 1, def: 'absorb' });
+            }
+        }
+    }
+
+    function answerDecision(id, choice, timeout = false) {
+        const p = byId(id);
+        const D = p && p.decision;
+        if (!D) return err('Diese Entscheidung ist nicht mehr offen.');
+        p.decision = null;
+        const pre = timeout ? '⏰ Zeit abgelaufen – ' : '';
+        if (D.kind === 'smuggle') {
+            if (choice === 'pay' && p.cash >= D.bonus) {
+                p.cash -= D.bonus;
+                p.costs += D.bonus;
+                p.memberBonus += D.bonus;
+                return { ok: true, msg: `🤝 Bonus bezahlt (${fmt(D.bonus)} CHF). Deine Bauern bleiben – du behältst alle Tonnen.` };
+            }
+            const lose = Math.min(D.loss, Math.max(0, p.physical));
+            p.physical -= lose;
+            p.lostSmuggle += lose;
+            feed({ kind: 'bell', icon: '🚚', text: `${lose} t Kakao von ${p.name} wurden über die Grenze geschmuggelt.` });
+            const over = -p.pos * CFG.size > p.physical;
+            note(p, 'bad', `${pre}🚚 ${lose} t sind über die Grenze verschwunden. Dir bleiben ${p.physical} t.${over ? ' ⚠️ Du hast jetzt mehr abgesichert, als du hast!' : ''}`);
+            return { ok: true, msg: `🚚 ${lose} t verloren.` };
+        }
+        if (D.kind === 'dry') {
+            if (choice === 'sun') {
+                if (Math.random() < CFG.rainRisk) {
+                    const lose = Math.round(p.physical * 0.12);
+                    p.physical -= lose;
+                    p.qPrem = CFG.qSun / 2;
+                    feed({ kind: 'bell', icon: '🌧️', text: `Regen bei ${p.name}: ${lose} t Kakao beim Trocknen verdorben.` });
+                    return { ok: true, msg: `🌧️ Pech: Regen! ${lose} t sind verdorben. Der Rest hat gute Qualität (+${CFG.qSun / 2} CHF/t).` };
+                }
+                p.qPrem = CFG.qSun;
+                return { ok: true, msg: `☀️ Perfekt getrocknet: Qualität A, +${CFG.qSun} CHF/t im Dezember.` };
+            }
+            p.qPrem = CFG.qFast;
+            return { ok: true, msg: `${pre}🔥 Schnell im Ofen getrocknet: sicher, aber Qualität B (${CFG.qFast} CHF/t).` };
+        }
+        if (D.kind === 'recipe') {
+            const need = -p.physical;
+            const cut = pct2 => Math.min(need, Math.round((need * pct2) / 10) * 10);
+            const later = (sec, chance, mult, headline, good) => p.pending.push({ at: G.sec + sec, chance, mult, headline, good });
+            let msg;
+            if (choice === 'price') {
+                const c = cut(0.2);
+                p.physical += c;
+                p.needCut += c;
+                p.marginMult *= 1.35;
+                msg = `💸 Preise erhöht: mehr Marge pro Tafel, aber Kunden springen ab – du brauchst ${c} t weniger Kakao.`;
+            } else if (choice === 'recipe') {
+                const c = cut(0.15);
+                p.physical += c;
+                p.needCut += c;
+                later(20 + Math.random() * 25, 0.45, 0.7, `📰 Test im Konsumentenmagazin: «${p.name} spart am Kakao – Schokolade schmeckt nach Zucker»`, false);
+                msg = `🧪 Rezeptur geändert: ${c} t weniger Kakao nötig. Hoffentlich merkt es niemand …`;
+            } else if (choice === 'shrink') {
+                const c = cut(0.1);
+                p.physical += c;
+                p.needCut += c;
+                p.marginMult *= 1.1;
+                later(20 + Math.random() * 25, 0.55, 0.65, `📰 Konsumentenschutz entlarvt Mogelpackung: «${p.name}» – Tafel kleiner, Preis gleich`, false);
+                msg = `📏 Tafel verkleinert: ${c} t weniger Kakao und etwas mehr Marge. Riskant …`;
+            } else {
+                later(20 + Math.random() * 25, 0.5, 1.12, `📰 «${p.name} hält die Preise – trotz Kakao-Krise»: Kundschaft lobt die Fabrik`, true);
+                msg = `${pre}🤝 Du trägst die Kosten selbst. Gut abgesichert? Dann tut es weniger weh.`;
+            }
+            const over = p.pos * CFG.size > -p.physical;
+            return { ok: true, msg: msg + (over ? ' ⚠️ Du hast jetzt mehr Kakao abgesichert, als du brauchst!' : '') };
+        }
+        return err('Unbekannte Entscheidung.');
+    }
+
+    // Verzögerte Folgen (Schlagzeilen)
+    function runPending() {
+        for (const p of G.players) {
+            if (!p.pending.length) continue;
+            for (const e of p.pending.filter(x => G.sec >= x.at)) {
+                if (Math.random() < e.chance) {
+                    p.marginMult *= e.mult;
+                    feed({ kind: e.good ? 'bell' : 'alert', icon: e.good ? '🏅' : '📰', text: e.headline });
+                    note(p, e.good ? 'good' : 'bad', e.good ? '🏅 Gute Presse: Deine Marge steigt.' : '📰 Schlechte Presse: Kunden springen ab – deine Marge sinkt.');
+                }
+            }
+            p.pending = p.pending.filter(x => G.sec < x.at);
+        }
+    }
+
     // ===== News =====
 
     function feed(item) {
@@ -470,6 +675,11 @@ const Engine = (() => {
         shuffleArr([...SURPRISES]).slice(0, 2).forEach((s, i) => {
             evs.push({ type: 'surprise', def: s, at: Math.round(G.monthSec * (1.3 + i * 1.4) + Math.random() * 20), stage: 'pending' });
         });
+        if (G.year === G.crisisYear) {
+            evs.push({ type: 'surprise', def: { icon: '🚨', impact: 0.16, text: 'KRISE: Ernte in Westafrika bricht ein – Kakao explodiert' }, at: Math.round(G.monthSec * 0.45), stage: 'pending' });
+            evs.push({ type: 'hike', rate: CFG.crisisMargin, at: Math.round(G.monthSec * 1.25), stage: 'pending' });
+            evs.push({ type: 'surprise', def: { icon: '🏚️', impact: 0.12, text: 'KRISE: Lagerbestände so tief wie seit 50 Jahren nicht mehr' }, at: Math.round(G.monthSec * 1.7), stage: 'pending' });
+        }
         G.events = evs.filter(e => e.at < total - 3).sort((a, b) => a.at - b.at);
     }
 
@@ -486,6 +696,16 @@ const Engine = (() => {
                     e.stage = 'done';
                     drift += e.def.impact;
                     feed({ kind: 'flash', icon: e.def.icon, text: e.def.text, dir: Math.sign(e.def.impact) });
+                } else if (e.type === 'hike') {
+                    e.stage = 'done';
+                    G.marginRate = e.rate;
+                    feed({ kind: 'alert', icon: '⚖️', text: `BÖRSE: Einschuss sofort auf ${Math.round(e.rate * 100)} % erhöht – wer zu wenig Geld hat, bekommt einen Margin Call.` });
+                    for (const p of G.players) {
+                        if (p.pos && !p.call && futEq(p) < req(p) * CFG.maintenance) {
+                            p.call = { need: req(p) - futEq(p), until: G.sec + CFG.callSec };
+                            note(p, 'bad', `📞 MARGIN CALL: Die Börse hat den Einschuss erhöht. Schiess ${fmt(req(p) - futEq(p))} CHF nach oder verkleinere deine Position!`);
+                        }
+                    }
                 }
             }
             if (e.stage === 'rumor') {
@@ -594,9 +814,9 @@ const Engine = (() => {
             let extra = 0;
             if (p.role === 'producer') {
                 const tons = p.physical + p.sales.reduce((s, x) => s + x.t, 0);
-                extra = tons * CFG.farmMargin + (has(p, 'fairtrade') ? tons * CFG.fairPremium : 0);
+                extra = tons * (CFG.farmMargin + p.qPrem) + (has(p, 'fairtrade') ? tons * CFG.fairPremium : 0);
             } else if (p.role === 'processor') {
-                extra = -p.basePhys * CFG.chocMargin;   // Verarbeitungsmarge auf den Grundbedarf
+                extra = (-p.basePhys - p.needCut) * CFG.chocMargin * p.marginMult;   // Verarbeitungsmarge (Krisen-Entscheide wirken hier)
             }
             // Kasse sauber abschliessen: Ernte bzw. Grundbedarf zum Planwert ist schon im Startwert enthalten,
             // damit bleibt nach dem Jahr genau «Start + Jahresergebnis» in der Kasse.
@@ -679,6 +899,7 @@ const Engine = (() => {
         G.trades = [];
         G.tape = [];
         G.marginRate = CFG.marginRate;
+        G.deals = [];
         G.orderBoost = 0;
         for (const p of G.players) {
             const R = ROLES[p.role];
@@ -717,6 +938,7 @@ const Engine = (() => {
             p.lastSky = null;
             p.nextOrderAt = 8 + Math.floor(Math.random() * CFG.orderEvery);
             p.nextBuyerAt = 10 + Math.floor(Math.random() * CFG.buyerEvery);
+            Object.assign(p, { decision: null, pending: [], qPrem: 0, dried: false, marginMult: 1, needCut: 0, recipeSteps: 0, dealsT: 0, lostSmuggle: 0, memberBonus: 0, nextSmuggleAt: 20 + Math.floor(Math.random() * 25) });
             p.startValue = p.cash + p.physical * G.p0;
             p.planValue = p.physical * G.p0;
             p.planP = G.p0;
@@ -731,6 +953,7 @@ const Engine = (() => {
         G.phase = 'trading';
         feed({ kind: 'bell', icon: '🔔', text: `Jahr ${G.year} beginnt! Neuer Planpreis: ${fmt(G.p0)} CHF/t.` });
         // «Neu in diesem Jahr»: Nebenmechaniken kommen schrittweise dazu
+        if (G.year === G.crisisYear) feed({ kind: 'alert', icon: '🚨', text: `KRISENJAHR: Schlechte Ernten, leere Lager – stellt euch auf wilde Preise ein!` });
         const fresh = Object.keys(CFG.featureYear).filter(k => CFG.featureYear[k] === G.year);
         if (fresh.length) emit('newFeatures', { year: G.year, keys: fresh });
         emit('year', { year: G.year });
@@ -757,7 +980,7 @@ const Engine = (() => {
             const news = runNews();
             const flow = clamp(G.flow * CFG.impact, -0.006, 0.006);
             G.flow = 0;
-            const next = G.price * (1 + gauss() * CFG.vol + news + flow);
+            const next = G.price * (1 + gauss() * CFG.vol * (G.year === G.crisisYear ? 1.5 : 1) + news + flow);
             G.price = Math.round(clamp(next, CFG.minPrice, CFG.maxPrice));
             G.history.push({ s: G.clock, p: G.price });
             for (const p of G.players) {
@@ -767,6 +990,9 @@ const Engine = (() => {
                 }
             }
             spawnOrders(G.orderBoost && G.clock < G.orderBoost ? 1.6 : 1);
+            spawnRoleDecisions();
+            runPending();
+            for (const d of G.deals) if (d.status === 'open' && G.sec >= d.until) d.status = 'expired';
             spawnBuyers();
         }
         for (const p of G.players) if (p.job && G.sec >= p.job.until) finishJob(p);
@@ -813,7 +1039,7 @@ const Engine = (() => {
 
     function publicState(full = false) {
         return {
-            phase: G.phase, paused: !!G.paused, month: G.month,
+            phase: G.phase, paused: !!G.paused, month: G.month, crisis: G.year === G.crisisYear,
             preReady: G.phase === 'pre' ? { n: G.players.filter(x => !x.bot && x.ready).length, total: G.players.filter(x => !x.bot).length, names: G.players.filter(x => !x.bot).map(x => ({ name: x.name, ready: !!x.ready })) } : null, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
             year: G.year, years: G.years, shopLeft: G.shopLeft,
             price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate,
@@ -843,6 +1069,9 @@ const Engine = (() => {
             limit: ROLES[p.role].limit, bounds: bounds(p), notes: p.notes.slice(-3), liquidations: p.liquidations,
             physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
+            deals: dealView(p),
+            decision: p.decision ? { ...p.decision, left: Math.max(0, p.decision.until - G.sec) } : null,
+            rep: p.rep, dealsT: p.dealsT, qPrem: p.qPrem, marginMult: p.marginMult, lostSmuggle: p.lostSmuggle,
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
             intel: p.role === 'spec' ? intelState(p) : null,
             rumorActive: G.events.some(e => e.stage === 'rumor'),
@@ -867,6 +1096,17 @@ const Engine = (() => {
                 jumpYes: e.def.impact - e.priced, jumpNo: -e.priced,
             })),
             spent: p.researchSpent,
+        };
+    }
+
+    // Verträge aus Sicht eines Spielers
+    function dealView(p) {
+        if (p.role === 'spec') return null;
+        const other = p.role === 'producer' ? 'buy' : 'sell';
+        return {
+            offers: G.deals.filter(d => d.status === 'open' && d.side === other).map(d => ({ id: d.id, name: d.fromName, rep: (byId(d.from) || {}).rep || 0, t: d.t, price: d.price, left: Math.max(0, d.until - G.sec) })),
+            mine: G.deals.filter(d => d.status === 'open' && d.from === p.id).map(d => ({ id: d.id, t: d.t, price: d.price, left: Math.max(0, d.until - G.sec) })),
+            signed: G.deals.filter(d => d.status === 'signed' && (d.seller === p.id || d.buyer === p.id)).map(d => ({ id: d.id, with: d.seller === p.id ? d.bName : d.sName, t: d.t, price: d.price, fee: Math.round(d.t * CFG.breachFee) })),
         };
     }
 
@@ -916,7 +1156,7 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, setRole, removePlayer, start, openMarket, setReady, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
+        create, addPlayer, setRole, removePlayer, start, openMarket, setReady, tick, dealOffer, dealAccept, dealCancel, dealBreak, answerDecision, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
         protect, answerOrder, investigate, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },

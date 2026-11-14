@@ -37,13 +37,32 @@ const CFG = {
     rumorMin: 24,          // so lange läuft ein Gerücht mindestens (Sekunden) …
     rumorSpread: 14,       // … plus bis zu so viel Zufall
     // Progressive Einführung: ab welchem Jahr eine Nebenmechanik dazukommt
-    featureYear: { yield: 2, protect: 2, orders: 2, buyers: 3 },
+    featureYear: { deals: 1, yield: 2, smuggle: 2, orders: 2, recipe: 2, protect: 3, drying: 3, buyers: 99 },
     // Bei nur 1 Jahr: Kernspiel plus genau eine Besonderheit pro Rolle
-    singleYearFeatures: ['yield', 'orders'],
+    singleYearFeatures: ['deals', 'smuggle', 'recipe'],
+    // Lieferverträge zwischen Kooperativen und Fabriken
+    dealSec: 30,           // so lange gilt ein Angebot
+    dealBand: 0.08,        // Preis höchstens ±8 % von der Börse
+    breachFee: 250,        // Strafe pro Tonne bei Vertragsbruch (geht an die Gegenseite)
+    decisionSec: 25,       // Zeit für eine Entscheidungskarte
+    // Kooperative: Trocknung
+    qSun: 80,              // Zuschlag pro Tonne für sorgfältig getrocknete Bohnen (Qualität A)
+    qFast: -60,            // Abzug für schnell getrocknete Bohnen (Qualität B)
+    rainRisk: 0.3,         // Regenrisiko beim Trocknen an der Sonne
+    // Fabrik: Schokoladen-Krise ab +12 % und +24 %
+    recipeStep: 0.12,
+    // Krisenjahr: Einschuss steigt auf …
+    crisisMargin: 0.2,
 };
 
 // Kurzer Text für «Neu in diesem Jahr»
+// Gilt eine Neuerung für diese Rolle?
+const featFor = (k, role) => [].concat(FEATURE_TEXT[k].role).includes(role);
 const FEATURE_TEXT = {
+    deals: { role: ['producer', 'processor'], icon: '📜', name: 'Lieferverträge', text: 'Kooperativen und Fabriken schliessen direkt Verträge ab: Menge und Preis für Dezember. Wer bricht, zahlt Strafe – und alle sehen es.' },
+    smuggle: { role: 'producer', icon: '🕵️', name: 'Schmuggler', text: 'Steigt der Weltpreis, bieten Schmuggler deinen Bauern mehr Geld. Zahlst du keinen Bonus, verlierst du Tonnen.' },
+    drying: { role: 'producer', icon: '☀️', name: 'Trocknung & Qualität', text: 'Sorgfältig an der Sonne trocknen bringt Qualität A – aber Regen kann Tonnen verderben.' },
+    recipe: { role: 'processor', icon: '🍫', name: 'Schokoladen-Krise', text: 'Steigt Kakao stark, musst du reagieren: Preise erhöhen, Rezeptur ändern, Tafel verkleinern oder Kosten selbst tragen – mit Folgen.' },
     yield: { role: 'producer', icon: '🌦️', name: 'Wetter & Ernte', text: 'Wetter verändert jetzt deine Erntemenge. Futures sichern den Preis – nicht die Menge.' },
     protect: { role: 'producer', icon: '🛡️', name: 'Pflanzenschutz', text: 'Eine Versicherung, die Ernteverluste halbiert. Günstig, solange es ruhig ist.' },
     orders: { role: 'processor', icon: '📦', name: 'Kundenaufträge', text: 'Kunden bestellen Schokolade zu festen Preisen. Jeder Auftrag erhöht deinen Bedarf.' },

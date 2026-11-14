@@ -32,16 +32,29 @@ Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirt
 - **Wertung:** Kooperativen = erzielter Preis pro Tonne, Fabriken = Einkaufspreis pro Tonne, Fonds = Gewinn. **Was im Dezember nicht abgesichert ist, wird 5 % schlechter gehandelt** (Notverkauf bzw. Notkauf). So ist Nichtstun eine Wette, die etwas kostet.
 - **Pleite:** Neustart mit Notkredit (25'000 CHF, 30 % Zins am Schluss) – niemand muss zuschauen.
 
+## Wie in echt: Verträge, Schmuggel, Schokoladen-Krise, Krisenjahr
+
+Angelehnt an die Kakao-Krise 2024 (Preis von ~2'500 auf über 10'000 USD/t):
+
+- **📜 Lieferverträge (ab Jahr 1):** Kooperativen und Fabriken schliessen direkt Verträge ab (10–50 t, Preis höchstens ±8 % von der Börse, Angebot 30 s gültig). Ein Vertrag zählt als Absicherung mit fixem Preis. **Brechen** ist möglich: 250 CHF/t Strafe an die Gegenseite, Banner auf dem Beamer und «⚠️ X× gebrochen» neben dem Namen – für die ganze Karriere.
+- **🕵️ Schmuggler (Kooperative, ab Jahr 2):** Steigt der Weltpreis, bieten Schmuggler den Bauern mehr. Entscheidungskarte: Bonus zahlen oder Tonnen verlieren – dann ist die Absicherung plötzlich zu gross.
+- **☀️ Trocknung (Kooperative, ab Jahr 3):** An der Sonne (Qualität A, +80 CHF/t, 30 % Regenrisiko) oder im Ofen (sicher, Qualität B, −60 CHF/t).
+- **🍫 Schokoladen-Krise (Fabrik, ab Jahr 2):** Ab +12 % und +24 %: Preise erhöhen, Rezeptur ändern, Tafel verkleinern oder Kosten selbst tragen. Verzögerte Folgen als Schlagzeilen auf dem Beamer (Mogelpackung, Konsumentenmagazin, Lob).
+- **🚨 Krisenjahr (einmal pro Karriere ab 2 Jahren):** Zwei Preisschocks nach oben, wildere Kurse und die Börse erhöht den Einschuss sofort auf 20 % – Margin Calls für alle mit zu wenig Bargeld.
+
+Entscheidungskarten erscheinen auf dem Handy ganz oben (mit Ton und Vibration) und haben 25 Sekunden Zeit; danach gilt die vorsichtige Standardwahl.
+
 ## Schrittweise Einführung
 
 Jahr 1 ist nur das Kernspiel: absichern bzw. wetten, Gerüchte, Monatsabrechnung.
 
 | Ab Jahr | Neu |
 |---|---|
-| 2 | 🌦️ Wetter verändert die Erntemenge · 🛡️ Pflanzenschutz · 📦 Kundenaufträge (Fabrik) · 🕵️ Research (Fonds) |
-| 3 | 🤝 Händler-Angebote (Kooperative) |
+| 1 | 📜 Lieferverträge · 🛰️ Terminal für Hedgefonds |
+| 2 | 🌦️ Wetter verändert die Erntemenge · 🕵️ Schmuggler · 📦 Kundenaufträge · 🍫 Schokoladen-Krise |
+| 3 | 🛡️ Pflanzenschutz · ☀️ Trocknung |
 
-Bei «1 Jahr» gibt es das Kernspiel plus eine Besonderheit pro Rolle (Wetter, Aufträge, Research).
+Bei «1 Jahr» gibt es das Kernspiel, Lieferverträge, Schmuggler (Kooperative) und die Schokoladen-Krise (Fabrik).
 
 ## Handy-Cockpit
 

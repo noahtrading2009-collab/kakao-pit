@@ -185,9 +185,16 @@ const Host = (() => {
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'intel') r = Engine.investigate(e.pid, String(msg.src));
         else if (msg.t === 'ready') { r = Engine.setReady(e.pid); conns.forEach(push); render(); }
+        else if (msg.t === 'dealOffer') r = Engine.dealOffer(e.pid, Number(msg.qty), Number(msg.price));
+        else if (msg.t === 'dealAccept') r = Engine.dealAccept(e.pid, Number(msg.id));
+        else if (msg.t === 'dealCancel') r = Engine.dealCancel(e.pid, Number(msg.id));
+        else if (msg.t === 'dealBreak') r = Engine.dealBreak(e.pid, Number(msg.id));
+        else if (msg.t === 'decide') r = Engine.answerDecision(e.pid, String(msg.choice));
         else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
+        // Verträge betreffen auch andere Spieler: alle sofort aktualisieren
+        if (r.ok && /^deal/.test(msg.t)) conns.forEach(push);
     }
 
     // ===== Engine-Ereignisse =====
@@ -213,11 +220,13 @@ const Host = (() => {
                 const peers = data.rows.filter(r => r.role === row.role).sort(B.sort);
                 send(e, { t: 'yearEnd', row, rank: peers.indexOf(row) + 1, total: peers.length, year: Engine.G.year, final: data.final, mirror: mirror(row) });
             });
+        } else if (type === 'deal') {
+            conns.forEach(push);
         } else if (type === 'newFeatures') {
             conns.forEach(e => {
                 const p = Engine.byId(e.pid);
                 if (!p) return;
-                const mine = data.keys.filter(k => FEATURE_TEXT[k].role === p.role);
+                const mine = data.keys.filter(k => FEATURE_TEXT[k] && featFor(k, p.role));
                 if (mine.length) send(e, { t: 'newFeatures', year: data.year, keys: mine });
             });
         } else if (type === 'upgrade') {
@@ -356,7 +365,8 @@ const Host = (() => {
 
     function render() {
         const S = Engine.publicState(true);
-        $('h-year').innerHTML = `<small>Jahr</small><b>${S.year}</b><small>/ ${S.years}</small>`;
+        $('h-year').innerHTML = S.crisis ? `<small>🚨 KRISE</small><b>${S.year}</b><small>/ ${S.years}</small>` : `<small>Jahr</small><b>${S.year}</b><small>/ ${S.years}</small>`;
+        $('h-year').classList.toggle('crisis', !!S.crisis);
         if (S.phase === 'shop') {
             const t = $('yo-timer');
             if (t) t.textContent = mmss(Math.max(0, S.shopLeft));
@@ -538,7 +548,7 @@ const Host = (() => {
     }
 
     function newsClass(k) {
-        return { rumor: 'n-rumor', yes: 'n-yes', no: 'n-no', flash: 'n-flash', alert: 'n-alert', settle: 'n-settle', bell: 'n-bell' }[k] || '';
+        return { rumor: 'n-rumor', yes: 'n-yes', no: 'n-no', flash: 'n-flash', alert: 'n-alert', settle: 'n-settle', bell: 'n-bell', deal: 'n-deal' }[k] || '';
     }
 
     function renderNews(S) {
@@ -1060,7 +1070,7 @@ const Host = (() => {
         const region = (n.text.match(/^[A-ZÄÖÜ ]+\(([^)]*)\)/) || [])[1];
         const jump = typeof n.jump === 'number' && Math.abs(n.jump) >= 0.001 ? ` · Kakao ${n.jump > 0 ? '▲' : '▼'} ${pct(n.jump)}` : '';
         const sub = n.kind === 'rumor' ? 'Noch nicht bestätigt – der Markt spekuliert'
-            : n.kind === 'yes' ? `Das Gerücht stimmt${jump}` : n.kind === 'no' ? `Falscher Alarm${jump}` : n.kind === 'alert' ? 'Achtung' : 'Soeben gemeldet';
+            : n.kind === 'yes' ? `Das Gerücht stimmt${jump}` : n.kind === 'no' ? `Falscher Alarm${jump}` : n.kind === 'alert' ? 'Für alle sichtbar' : 'Soeben gemeldet';
         if (n.kind === 'yes' || n.kind === 'no') $('v-host').classList.remove('shake'), void $('v-host').offsetWidth, $('v-host').classList.add('shake');
         el.innerHTML = `<div class="fl-icon">${n.icon}</div>
             <div class="fl-body"><div class="fl-label"><i></i>${label}${region ? ` · ${esc(region)}` : ''}<span>${sub}</span></div>

@@ -21,6 +21,8 @@ const App = (() => {
             <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><p class="goal-line">🎯 <b>${R.goal}</b></p><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
+                <li>📜 <b>Lieferverträge:</b> Kooperativen und Fabriken schliessen direkt Verträge ab (Menge und Preis für Dezember). Brechen kostet Strafe – und alle sehen es.</li>
+                <li>🕵️🍫 <b>Ab Jahr 2:</b> Schmuggler locken die Bauern der Kooperativen, Fabriken geraten in die Schokoladen-Krise. Einmal pro Karriere kommt ein 🚨 Krisenjahr.</li>
                 <li>💻 <b>Hedgefonds spielen am Laptop:</b> Im Terminal hat jedes Gerücht einen Ort. Dort fordert man Berichte an (Satellit, Hafen, Politik …). Jeder Bericht ist nur ein Indiz – die Beweis-Waage zeigt, wohin sie zeigen.</li>
                 <li>🌍 <b>Weltkarte:</b> Jede Kooperative liegt in einer Region (Ghana, Elfenbeinküste, Ecuador, Indonesien). Dürre, Krankheit oder Rekordernten treffen nur die betroffene Region.</li>
                 <li>🏆 <b>Karriere:</b> Gespielt werden bis zu 3 Erntejahre. Nach jedem Jahr gibt es einen Jahresbericht und eine <b>Ausbauphase</b>: Investiert euren Gewinn in eure Firma (mehr Land, Pralinen-Linie, Analysten …). Gute Jahre bringen Ränge: Junior → Trader → Senior → Legende. Am Schluss: die grosse Preisverleihung.</li>

@@ -42,7 +42,31 @@ const Bots = (() => {
         if (!r.ok && p.pos) Engine.trade(p.id, -Math.sign(p.pos) * Math.max(1, Math.ceil(Math.abs(p.pos) / 3)));
     }
 
+    // Verträge und Entscheidungskarten der Kooperativen und Fabriken
+    function roleLife(p, G) {
+        if (p.decision && Math.random() < 0.25) {
+            const D = p.decision;
+            const c = D.kind === 'smuggle' ? (Math.random() < 0.55 ? 'pay' : 'none') : D.kind === 'dry' ? (Math.random() < 0.5 ? 'sun' : 'fast') : rand(['price', 'recipe', 'shrink', 'absorb']);
+            Engine.answerDecision(p.id, c);
+        }
+        if (!Engine.feat('deals')) return;
+        const other = p.role === 'producer' ? 'buy' : 'sell';
+        for (const d of G.deals.filter(x => x.status === 'open' && x.side === other && x.from !== p.id)) {
+            const good = p.role === 'producer' ? d.price >= G.price * 0.995 : d.price <= G.price * 1.005;
+            if (good && Math.random() < 0.1) { Engine.dealAccept(p.id, d.id); break; }
+        }
+        if (Math.random() < 0.006 && !G.deals.some(d => d.from === p.id && d.status === 'open')) {
+            Engine.dealOffer(p.id, 10 * (1 + Math.floor(Math.random() * 3)), Math.round(G.price * (p.role === 'producer' ? 1.004 : 0.996)));
+        }
+        // Vertragsbruch, wenn sich der Markt stark zu eigenen Gunsten bewegt hat
+        for (const d of G.deals.filter(x => x.status === 'signed' && (x.seller === p.id || x.buyer === p.id))) {
+            const gain = d.seller === p.id ? G.price - d.price : d.price - G.price;
+            if (gain > CFG.breachFee * 1.6 && Math.random() < 0.015) { Engine.dealBreak(p.id, d.id); break; }
+        }
+    }
+
     function hedge(p, m, G) {
+        roleLife(p, G);
         if (p.role === 'producer' && !p.protect && Math.random() < (Engine.protectPrice() > CFG.protectLow ? 0.004 : 0.012)) Engine.protect(p.id);
         if (p.buyerOffer && Math.random() < 0.15) Engine.answerBuyer(p.id, p.buyerOffer.price >= G.price * (0.995 + Math.random() * 0.03));
         if (p.orderOffer && Math.random() < 0.15) Engine.answerOrder(p.id, Math.random() < 0.6 + (m.ratio - 0.7));

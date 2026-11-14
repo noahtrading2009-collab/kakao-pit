@@ -312,14 +312,16 @@ const Player = (() => {
             <span>Bargeld <b>${fmt(me.cash)}</b></span></div>`;
         if (me.role !== 'spec') {
             const prod = me.role === 'producer';
-            const need = Math.max(0, prod ? me.physical : -me.physical);
-            const hedged = Math.max(0, prod ? -me.pos * CFG.size : me.pos * CFG.size);
+            // Verträge sind eine Absicherung mit fixem Preis – sie zählen mit
+            const dt = me.dealsT || 0;
+            const need = Math.max(0, prod ? me.physical : -me.physical) + dt;
+            const hedged = Math.max(0, prod ? -me.pos * CFG.size : me.pos * CFG.size) + dt;
             const q = need ? hedged / need : 0;
             const over = hedged > need;
             const good = prod ? me.metric >= pub.p0 : me.metric <= pub.p0;
             html = `<div class="g-head">🎯 ${R.goal}</div>
                 <div class="g-bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, q * 100)}%"></i></div>
-                <div class="g-row"><span>Abgesichert <b>${hedged} t</b> von ${need} t</span><b>${Math.round(q * 100)} %</b></div>
+                <div class="g-row"><span>Abgesichert <b>${hedged} t</b> von ${need} t${dt ? ` <small class="dim">(${dt} t per Vertrag)</small>` : ''}</span><b>${Math.round(q * 100)} %</b></div>
                 <div class="g-score">
                     <div><small>${prod ? 'Dein Preis' : 'Dein Einkauf'} jetzt</small><b class="${good ? 'up' : 'down'}">${fmt(me.metric)}</b></div>
                     <div><small>Gesichert zu</small><b>${me.secured ? fmt(me.secured) : '–'}</b></div>
@@ -410,10 +412,96 @@ const Player = (() => {
         return ' fresh';
     }
 
+    // ===== Entscheidungskarte (Schmuggler, Trocknung, Schokoladen-Krise) =====
+    function decisionHTML() {
+        const D = me.decision;
+        if (!D) return '';
+        const left = `<span class="oc-left" data-left="${D.left}"></span>`;
+        if (D.kind === 'smuggle') {
+            return `<div class="dec-card warn fresh"><div class="oc-top"><b>🕵️ Schmuggler locken deine Bauern</b>${left}</div>
+                <div>Über die Grenze zahlen Schmuggler <b>${fmt(D.smugP)} CHF/t</b> – deine Kooperative zahlt den Bauern nur ${fmt(pub.p0)}. Ohne Bonus verschwinden etwa <b>${D.loss} t</b>.</div>
+                <div class="oc-btns col"><button class="btn btn-primary" data-rp="dec-pay" ${me.cash < D.bonus ? 'disabled' : ''}>🤝 Bonus zahlen: ${fmt(D.bonus)} CHF</button><button class="btn btn-ghost" data-rp="dec-none">Nichts tun (−${D.loss} t)</button></div>
+                <div class="small dim">Weniger Tonnen heisst: Was du schon abgesichert hast, ist plötzlich zu viel.</div></div>`;
+        }
+        if (D.kind === 'dry') {
+            return `<div class="dec-card fresh"><div class="oc-top"><b>☀️ Die Ernte muss trocknen</b>${left}</div>
+                <div>Wie trocknest du die Bohnen? Das entscheidet über die Qualität – und den Preis im Dezember.</div>
+                <div class="oc-btns col"><button class="btn btn-primary" data-rp="dec-sun">☀️ An der Sonne: Qualität A, +${CFG.qSun} CHF/t<small>${Math.round(CFG.rainRisk * 100)} % Regenrisiko: dann verderben 12 %</small></button>
+                <button class="btn btn-ghost" data-rp="dec-fast">🔥 Im Ofen: sicher, aber Qualität B (${CFG.qFast} CHF/t)</button></div></div>`;
+        }
+        if (D.kind === 'recipe') {
+            return `<div class="dec-card warn fresh"><div class="oc-top"><b>🍫 Schokoladen-Krise: Kakao ${pct(D.rise)}</b>${left}</div>
+                <div>Deine Schokolade wird teurer in der Herstellung. Wie reagierst du?</div>
+                <div class="oc-btns col">
+                    <button class="btn btn-ghost" data-rp="dec-price">💸 Preise erhöhen<small>Mehr Marge pro Tafel – aber 20 % weniger Kunden</small></button>
+                    <button class="btn btn-ghost" data-rp="dec-recipe">🧪 Rezeptur ändern<small>15 % weniger Kakao – merkt es jemand?</small></button>
+                    <button class="btn btn-ghost" data-rp="dec-shrink">📏 Tafel verkleinern<small>10 % weniger Kakao, etwas mehr Marge – Mogelpackung?</small></button>
+                    <button class="btn btn-ghost" data-rp="dec-absorb">🤝 Kosten selbst tragen<small>Ehrlich – gut abgesichert tut es weniger weh</small></button></div>
+                <div class="small dim">Weniger Kakao nötig heisst: Hast du schon viel abgesichert, ist es plötzlich zu viel.</div></div>`;
+        }
+        return '';
+    }
+
+    // Entscheidungen stehen ganz oben – mit Ton und Vibration, damit niemand sie verpasst
+    let decKey = '';
+    function renderDecision() {
+        const el = $('p-decision');
+        const D = me.decision;
+        if (!D) { el.classList.add('hidden'); el.innerHTML = ''; decKey = ''; return; }
+        el.classList.remove('hidden');
+        if (decKey !== String(D.id)) {
+            decKey = String(D.id);
+            el.innerHTML = decisionHTML();
+            Sound.play('alarm');
+            if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+            el.parentElement.scrollTop = 0;
+            el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
+                send({ t: 'decide', choice: b.dataset.rp.slice(4) });
+                Sound.play('tick');
+            }));
+        }
+        const l = el.querySelector('[data-left]');
+        if (l) l.textContent = `${D.left}s`;
+    }
+
+    // ===== Lieferverträge zwischen Kooperativen und Fabriken =====
+    let dealT = 20;
+    let dealP = null;
+    let dealPSet = false;   // hat der Spieler den Preis selbst verstellt? Sonst folgt er dem Markt.
+    function dealsHTML() {
+        const V = me.deals;
+        if (!V) return '';
+        const prod = me.role === 'producer';
+        const otherName = prod ? 'Fabriken' : 'Kooperativen';
+        const open = pub.phase === 'trading';
+        if (!dealPSet || dealP === null || Math.abs(dealP / pub.price - 1) > CFG.dealBand) dealP = Math.round(pub.price / 10) * 10;
+        const offers = V.offers.map(o => {
+            const better = prod ? o.price - pub.price : pub.price - o.price;
+            return `<div class="dl-row"><span><b>${esc(o.name)}</b>${o.rep ? ` <em class="bad">⚠️ ${o.rep}× gebrochen</em>` : ''}<small>${prod ? 'kauft' : 'verkauft'} ${o.t} t zu <b>${fmt(o.price)}</b> · <i data-left="${o.left}"></i></small>
+                <small class="live">Börse ${fmt(pub.price)} → <b class="${better >= 0 ? 'up' : 'down'}">${better >= 0 ? '▲ besser' : '▼ schlechter'} um ${fmt(Math.abs(better))}</b></small></span>
+                <button class="btn btn-primary btn-sm" data-rp="dacc-${o.id}" ${open ? '' : 'disabled'}>Annehmen</button></div>`;
+        }).join('');
+        const signed = V.signed.map(d => {
+            const val = (prod ? d.price - pub.price : pub.price - d.price) * d.t;
+            return `<div class="dl-row signed"><span><b>✔ ${esc(d.with)}</b><small>${d.t} t zu ${fmt(d.price)} – fix für Dezember</small>
+                <small class="live">Heute für dich: <b class="${val >= 0 ? 'up' : 'down'}">${val >= 0 ? '▲' : '▼'} ${signed2(val)}</b></small></span>
+                <button class="btn btn-ghost btn-sm brk" data-rp="dbrk-${d.id}">💔 Brechen<small>−${fmt(d.fee)}</small></button></div>`;
+        }).join('');
+        const mine = V.mine.map(d => `<div class="dl-row mine"><span><b>Dein Angebot</b><small>${d.t} t zu ${fmt(d.price)} an alle ${otherName} · <i data-left="${d.left}"></i></small></span>
+            <button class="btn btn-ghost btn-sm" data-rp="dcan-${d.id}">Zurückziehen</button></div>`).join('');
+        const form = V.mine.length ? '' : `<div class="dl-form"><div class="dl-q">${[10, 20, 30, 40, 50].map(t => `<button class="${t === dealT ? 'on' : ''}" data-rp="dt-${t}">${t} t</button>`).join('')}</div>
+            <div class="dl-p"><button data-rp="dp-m">−</button><span>zu <b>${fmt(dealP)}</b> CHF/t</span><button data-rp="dp-p">+</button>
+            <button class="btn btn-primary btn-sm" data-rp="dsend" ${open ? '' : 'disabled'}>${prod ? 'Verkaufen anbieten' : 'Kaufen anbieten'}</button></div></div>`;
+        return `<div class="deals"><div class="dl-h">📜 Lieferverträge <small>direkt mit den ${otherName}${me.rep ? ` · <span class="bad">du hast ${me.rep}× gebrochen</span>` : ''}</small></div>
+            ${offers || ''}${signed}${mine}${form}</div>`;
+    }
+    const signed2 = v => `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}`;
+
     function renderRolePanel() {
         const el = $('p-rolepanel');
         const F = me.feat || {};
         let html = '';
+        renderDecision();
         if (me.role === 'producer') {
             const b = F.buyers && me.buyerOffer;
             const pricey = me.protectPrice > CFG.protectLow;
@@ -425,7 +513,7 @@ const Player = (() => {
             if (F.yield) html += me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('');
             if (F.protect) html += me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
                 : `<button class="btn btn-ghost full ${pricey ? 'pricey' : ''}" data-rp="protect">🛡️ Pflanzenschutz · ${fmt(me.protectPrice)} CHF<small>${pricey ? '⚠️ Ein Gerücht läuft – jetzt teuer!' : 'Halbiert Ernteverluste. Jetzt günstig.'}</small></button>`;
-        } else if (me.role === 'processor' && F.orders) {
+        } else if (me.role === 'processor' && F.orders && !me.decision) {
             const o = me.orderOffer;
             if (o) html += `<div class="order-card${freshCard(o)}"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left" data-left="${o.left}"></span></div>
                     <div>Bestellt Schokolade aus <b>${o.t} t Kakao</b>, fester Erlös <b>${fmt(o.price)} CHF/t</b>.</div>
@@ -433,7 +521,9 @@ const Player = (() => {
                     <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`;
             else html += '<div class="small dim">📦 Warte auf den nächsten Kundenauftrag …</div>';
             html += me.orders.slice(-2).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)}</div>`).join('');
-        } else if (me.role === 'spec') {
+        }
+        if (me.role !== 'spec' && F.deals) html += dealsHTML();
+        if (me.role === 'spec') {
             html += '<div class="small">💻 <b>Tipp:</b> Öffne das Spiel am Laptop. Dort hast du das Hedgefonds-Terminal mit Weltkarte, Berichten und Risiko-Cockpit.</div>';
         }
         el.classList.toggle('hidden', !html);
@@ -462,6 +552,23 @@ const Player = (() => {
             if (a === 'order-no') send({ t: 'order', accept: false });
             if (a === 'buyer-yes') send({ t: 'buyer', accept: true });
             if (a === 'buyer-no') send({ t: 'buyer', accept: false });
+            if (a.startsWith('dec-')) { send({ t: 'decide', choice: a.slice(4) }); Sound.play('tick'); }
+            if (a.startsWith('dacc-')) send({ t: 'dealAccept', id: Number(a.slice(5)) });
+            if (a.startsWith('dcan-')) send({ t: 'dealCancel', id: Number(a.slice(5)) });
+            if (a.startsWith('dbrk-')) {
+                const d = me.deals.signed.find(x => x.id === Number(a.slice(5)));
+                if (d && confirm(`Vertrag mit ${d.with} brechen? Du zahlst ${fmt(d.fee)} CHF Strafe – und alle sehen es auf dem Beamer.`)) send({ t: 'dealBreak', id: d.id });
+            }
+            if (a.startsWith('dt-')) { dealT = Number(a.slice(3)); panelKey = ''; renderRolePanel(); }
+            if (a === 'dp-m' || a === 'dp-p') {
+                const lo = Math.ceil((pub.price * (1 - CFG.dealBand)) / 10) * 10;
+                const hi = Math.floor((pub.price * (1 + CFG.dealBand)) / 10) * 10;
+                dealP = clamp(dealP + (a === 'dp-p' ? 10 : -10), lo, hi);
+                dealPSet = true;
+                panelKey = '';
+                renderRolePanel();
+            }
+            if (a === 'dsend') { send({ t: 'dealOffer', qty: dealT, price: dealP }); dealPSet = false; }
         }));
     }
 
@@ -749,8 +856,9 @@ const Player = (() => {
         const R = ROLES[me.role];
         const pen = Math.round(CFG.spotPenalty * 100);
         const pf = Math.round(CFG.marginRate * 100);
-        const later = Object.entries(FEATURE_TEXT).filter(([, F]) => F.role === me.role).map(([k, F]) => `${F.icon} <b>${F.name}</b> (ab Jahr ${CFG.featureYear[k]}): ${F.text}`);
-        const laterHTML = `🗓️ <b>Später in der Karriere</b> kommt dazu:<br>${later.length ? later.join('<br>') : 'Zwischen den Jahren baust du deine Firma aus.'}<br>Zwischen den Jahren investierst du deinen Gewinn (Ausbau) und steigst im Rang auf.`;
+        const later = Object.entries(FEATURE_TEXT).filter(([k]) => featFor(k, me.role) && CFG.featureYear[k] > 1 && CFG.featureYear[k] < 99 && (pub.years > 1 || CFG.singleYearFeatures.includes(k))).map(([k, F]) => `${F.icon} <b>${F.name}</b> (${pub.years === 1 ? 'kann in diesem Spiel vorkommen' : `ab Jahr ${CFG.featureYear[k]}`}): ${F.text}`);
+        const crisis = pub.years > 1 ? '<br>🚨 <b>Einmal in der Karriere kommt ein Krisenjahr:</b> Der Preis explodiert und die Börse verdoppelt den Einschuss – wer zu wenig Bargeld hat, muss seine Absicherung im schlechtesten Moment auflösen.' : '';
+        const laterHTML = `🗓️ <b>${pub.years > 1 ? 'Später in der Karriere' : 'Im Lauf des Spiels'}</b> kommt dazu:<br>${later.length ? later.join('<br>') : '–'}${crisis}${pub.years > 1 ? '<br>Zwischen den Jahren investierst du deinen Gewinn (Ausbau) und steigst im Rang auf.' : ''}`;
         const rumorUp = { icon: '☀️', text: 'Wetterdienst warnt vor Trockenheit' };
         const callStep = {
             html: `📞 <b>Übung: Margin Call.</b> Der Preis ist gegen dich gelaufen und dein Pfand (${pf} % des Werts) reicht nicht mehr.`,
@@ -785,6 +893,9 @@ const Player = (() => {
                     html: '↩️ Und wenn du es dir anders überlegst? Dann nimmst du die Absicherung zurück.',
                     wrong: 'Das wäre noch mehr Absicherung. Diesmal willst du zurücknehmen.',
                     feedback: t => `↩️ <b>Aufgelöst.</b> Die ${t} t hängen wieder am Preis. Hin und her kostet jedes Mal eine kleine Gebühr (${CFG.fee} CHF pro 10 t) und die Spanne zwischen Kauf- und Verkaufspreis.`,
+                },
+                {
+                    sel: '#p-rolepanel', html: `📜 <b>Lieferverträge:</b> Hier machst du den ${prod ? 'Fabriken' : 'Kooperativen'} ein Angebot – oder nimmst eines an. Ein Vertrag fixiert Menge und Preis für Dezember, direkt mit einem Menschen im Raum.<br>💔 Brechen geht – kostet aber <b>${CFG.breachFee} CHF pro Tonne</b> Strafe, und der Beamer zeigt es allen. Wem traust du?`,
                 },
                 {
                     sel: '#p-now', html: `📣 <b>Übung: Ein Gerücht!</b> «${rumorUp.text}». In dieser Zeile läuft ein Countdown bis zur Auflösung – der Preis steigt schon jetzt. Was machst du?`,
