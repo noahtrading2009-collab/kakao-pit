@@ -177,21 +177,16 @@ const Host = (() => {
         }
         let r = { ok: false, msg: 'Unbekannte Aktion.' };
         const p = Engine.byId(e.pid);
-        if (msg.t === 'trade') r = Engine.trade(e.pid, Number(msg.q), msg.mkt === 'sugar' ? 'sugar' : 'cocoa');
-        else if (msg.t === 'offer') r = Engine.postOffer(e.pid, msg.side === 'buy' ? 'buy' : 'sell', Number(msg.qty), Number(msg.price));
-        else if (msg.t === 'accept') r = Engine.acceptOffer(e.pid, Number(msg.id));
-        else if (msg.t === 'cancel') r = Engine.cancelOffer(e.pid, Number(msg.id));
+        if (msg.t === 'trade') r = Engine.trade(e.pid, Number(msg.q));
         else if (msg.t === 'topup') r = Engine.topUp(e.pid);
-        else if (msg.t === 'reduce' && p && (p.pos || p.spos)) r = p.pos ? Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2)) : Engine.trade(e.pid, -Math.sign(p.spos) * Math.ceil(Math.abs(p.spos) / 2), 'sugar');
+        else if (msg.t === 'reduce' && p && p.pos) r = Engine.trade(e.pid, -Math.sign(p.pos) * Math.ceil(Math.abs(p.pos) / 2));
         else if (msg.t === 'protect') r = Engine.protect(e.pid);
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
         else if (msg.t === 'research') r = Engine.research(e.pid);
         else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
-        else if (msg.t === 'store') r = Engine.storeHarvest(e.pid, Number(msg.t2));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
-        if (r.ok && (msg.t === 'offer' || msg.t === 'accept')) conns.forEach(push);
     }
 
     // ===== Engine-Ereignisse =====
@@ -216,6 +211,13 @@ const Host = (() => {
                 const B = BOARDS.find(b => b.role === row.role);
                 const peers = data.rows.filter(r => r.role === row.role).sort(B.sort);
                 send(e, { t: 'yearEnd', row, rank: peers.indexOf(row) + 1, total: peers.length, year: Engine.G.year, final: data.final });
+            });
+        } else if (type === 'newFeatures') {
+            conns.forEach(e => {
+                const p = Engine.byId(e.pid);
+                if (!p) return;
+                const mine = data.keys.filter(k => FEATURE_TEXT[k].role === p.role);
+                if (mine.length) send(e, { t: 'newFeatures', year: data.year, keys: mine });
             });
         } else if (type === 'upgrade') {
             shopFeed.unshift(data);
@@ -264,7 +266,7 @@ const Host = (() => {
             if (!$('lobby-roles').querySelector('.role-col')) {
                 $('lobby-roles').innerHTML = Object.keys(ROLES).map(k => `<div class="role-col" data-role="${k}" style="--rc:${ROLES[k].color}">
                     <div class="rc-world">${LOBBY_SCENE[k]}<span class="rc-emb">${roleIcon(k, 44)}</span></div>
-                    <h4>${ROLES[k].name} <span class="rc-n">0</span></h4><div class="rc-job">${esc(ROLES[k].job)}</div>
+                    <h4>${ROLES[k].name} <span class="rc-n">0</span></h4><div class="rc-job">${esc(ROLES[k].goal)}</div>
                     <div class="rc-list"></div></div>`).join('');
             }
             Object.keys(ROLES).forEach(k => {
@@ -371,7 +373,6 @@ const Host = (() => {
         renderHedges(S);
         renderTape(S);
         renderMap(S);
-        renderSugar(S);
     }
 
     const anim = { S: null, from: 0, to: 0, cur: null, t0: 0, running: false };
@@ -437,19 +438,17 @@ const Host = (() => {
         });
     }
 
-    // Absicherung der Hedger + Bankprüfung (statt Board)
+    // Wie viel haben Kooperativen und Fabriken schon abgesichert?
     function renderHedges(S) {
-        const G = Engine.G;
-        const due = G.month <= CFG.bankMonth;
         const hedgers = S.ranking.filter(r => r.role !== 'spec').sort((a, b) => a.id - b.id).slice(0, 8);
         const el = $('h-offers');
-        const key = `${due}|${hedgers.map(r => r.id).join(',')}`;
+        const key = hedgers.map(r => r.id).join(',');
         // Gleiche Zeilen wie vorher? Dann nur Balken und Zahlen anpassen – die Balken gleiten dann weich.
         if (el.dataset.k !== key) {
             el.dataset.k = key;
-            el.innerHTML = `<div class="bank-note ${due ? '' : 'done'}">🏦 ${due ? `Bankprüfung Ende Monat ${CFG.bankMonth}: mindestens <b>${Math.round(CFG.bankQuota * 100)} %</b> absichern – sonst ${fmt(CFG.bankFee)} CHF Zuschlag` : 'Bankprüfung vorbei'}</div>`
+            el.innerHTML = `<div class="bank-note">Was im Dezember offen ist, wird ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt.</div>`
                 + hedgers.map(r => `<div class="hedge-row" data-k="${r.id}"><span>${roleIcon(r.role, 16)} ${esc(r.name)}</span>
-                    <div class="hbar"><i style="width:0%"></i><em style="left:${CFG.bankQuota * 100}%"></em></div><b></b></div>`).join('');
+                    <div class="hbar"><i style="width:0%"></i></div><b></b></div>`).join('');
         }
         for (const r of hedgers) {
             const row = el.querySelector(`[data-k="${r.id}"]`);
@@ -457,8 +456,8 @@ const Host = (() => {
             const bar = row.querySelector('.hbar i');
             const w = `${Math.min(100, Math.min(1.2, r.hedged) * 100)}%`;
             if (bar.style.width !== w) bar.style.width = w;
-            bar.className = r.hedged >= CFG.bankQuota ? 'ok' : 'low';
-            const txt = `${Math.round(r.hedged * 100)} %${r.bank === 'fail' ? ' 💸' : r.bank === 'ok' ? ' ✔' : ''}`;
+            bar.className = r.hedged >= 0.7 ? 'ok' : 'low';
+            const txt = `${Math.round(r.hedged * 100)} %`;
             const b = row.querySelector('b');
             if (b.textContent !== txt) b.textContent = txt;
         }
@@ -470,27 +469,6 @@ const Host = (() => {
 
     function renderNews(S) {
         $('h-news').innerHTML = S.feed.slice(0, 6).map(n => `<div class="news ${newsClass(n.kind)} ${Engine.G.sec - n.sec < 1 ? 'fresh' : ''}"><span class="ni">${n.icon}</span><span>${esc(n.text)}</span></div>`).join('');
-    }
-
-    function renderOffers(S) {
-        $('h-offers').innerHTML = S.offers.length ? S.offers.slice(0, 6).map(o => `<div class="offer-row ${o.side}">
-            <span>${ROLES[o.role].icon} ${esc(o.byName)}</span><span class="${o.side === 'sell' ? 'down' : 'up'}">${o.side === 'sell' ? 'verkauft' : 'kauft'} ${o.qty}</span>
-            <b>@ ${fmt(o.price)}</b><span class="obar"><span style="width:${(o.left / CFG.offerSec) * 100}%"></span></span></div>`).join('')
-            : '<div class="dim small">Noch keine Angebote. Spieler können auf dem Handy eigene Preise aufs Board stellen.</div>';
-    }
-
-    function renderSugar(S) {
-        const el = $('h-sugar');
-        if (!el) return;
-        const on = S.sugar && S.sugar.on;
-        el.classList.toggle('hidden', !on);
-        if (!on) return;
-        const ch = S.sugar.price / S.sugar.p0 - 1;
-        const h = S.sugar.history.map(x => x.p);
-        const lo = Math.min(...h);
-        const hi = Math.max(...h);
-        const pts = h.slice(-60).map((v, i, a) => `${(i / Math.max(1, a.length - 1)) * 70},${22 - ((v - lo) / Math.max(1, hi - lo)) * 20}`).join(' ');
-        el.innerHTML = `<span class="hs-l">🍬 ZUCKER</span><b>${fmt(S.sugar.price)}</b><span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '▲' : '▼'} ${pct(ch)}</span><svg viewBox="0 0 70 24" class="hs-spark"><polyline points="${pts}" class="${ch >= 0 ? 'up' : 'down'}"/></svg>`;
     }
 
     // ===== Weltkarte (Punkte-Karte) mit Regionen und Ereignissen =====
@@ -524,7 +502,7 @@ const Host = (() => {
 
     function addMapPin(item) {
         if (!item.region || !REGIONS[item.region]) return;
-        mapPins.push({ region: item.region, icon: item.yieldIcon || item.icon, kind: item.kind, sugar: !!item.sugar, at: Date.now() });
+        mapPins.push({ region: item.region, icon: item.yieldIcon || item.icon, kind: item.kind, at: Date.now() });
         while (mapPins.length > 12) mapPins.shift();
     }
 
@@ -533,11 +511,11 @@ const Host = (() => {
         if (!el) return;
         const G = Engine.G;
         const coops = G.players.filter(p => p.role === 'producer');
-        const baseKey = `${coops.map(p => p.id + p.region).join(',')}|${S.sugar && S.sugar.on}`;
+        const baseKey = coops.map(p => p.id + p.region).join(',');
         if (baseKey !== mapBaseKey) {
             mapBaseKey = baseKey;
             mapPinKey = '';
-            const regs = Object.entries(REGIONS).filter(([, r]) => r.crop === 'cocoa' || (S.sugar && S.sugar.on)).map(([k, r]) => {
+            const regs = Object.entries(REGIONS).filter(([, r]) => r.crop === 'cocoa').map(([k, r]) => {
                 const here = coops.filter(p => p.region === k);
                 const x = mx(r.lon);
                 const y = my(r.lat);
@@ -1017,8 +995,8 @@ const Host = (() => {
         if (good) out.push(`🛡️ <b>${esc(good.name)}</b> war gut abgesichert: Ohne Futures hätte das Geschäft <b>${signed(good.physPL)} CHF</b> gebracht, die Futures <b>${signed(good.futPL)} CHF</b>. Die beiden heben sich weitgehend auf – das ist Hedging.`);
         const naked = hedgers.filter(r => r.hedgeQuote < 0.4).sort((a, b) => a.result - b.result)[0];
         if (naked) out.push(`🎲 <b>${esc(naked.name)}</b> hat kaum abgesichert und trug das volle Preisrisiko: <b>${signed(naked.result)} CHF</b>. ${naked.result > 0 ? 'Diesmal Glück gehabt – das ist Spekulation, kein Plan.' : 'Genau davor schützt ein Future.'}`);
-        const fined = d.rows.filter(r => r.bank === 'fail');
-        if (fined.length) out.push(`🏦 ${fined.map(r => esc(r.name)).join(', ')} ${fined.length === 1 ? 'hat' : 'haben'} die Bankauflage verfehlt und ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt. Banken verlangen Absicherung, weil sie sonst das Preisrisiko mittragen.`);
+        const spot = d.rows.filter(r => r.spotPaid > 0).sort((a, b) => b.spotPaid - a.spotPaid)[0];
+        if (spot) out.push(`⏰ <b>${esc(spot.name)}</b> hatte im Dezember noch ${spot.open} t offen und musste ${fmt(spot.spotPaid)} CHF Abschlag für den Notverkauf bzw. Notkauf zahlen. Wer nicht absichert, wettet – und Wetten kosten.`);
         const specs = d.rows.filter(r => r.role === 'spec').sort((a, b) => b.result - a.result);
         if (specs.length) out.push(`🦈 Bester Hedgefonds: <b>${esc(specs[0].name)}</b> mit ${signed(specs[0].result)} CHF. ${specs[specs.length - 1].result < 0 ? `Schlechtester: ${esc(specs[specs.length - 1].name)} mit ${signed(specs[specs.length - 1].result)} CHF.` : ''} Spekulanten übernehmen das Risiko, das Hedger loswerden wollen.`);
         const shrunk = d.rows.filter(r => r.role === 'producer' && r.physical !== 100).sort((a, b) => a.physical - b.physical)[0];

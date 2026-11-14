@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>KAKAO PIT – Balance-Simulation</title>
+<style>
+    body { font: 14px/1.5 system-ui, sans-serif; background: #0b1020; color: #e6edf7; padding: 24px; }
+    table { border-collapse: collapse; margin: 12px 0 24px; }
+    td, th { padding: 4px 12px; border-bottom: 1px solid #243052; text-align: right; }
+    td:first-child, th:first-child { text-align: left; }
+    .best { color: #22e58a; font-weight: 700; }
+    button { font: inherit; padding: 6px 14px; }
+</style>
+</head>
+<body>
+<h1>Balance-Simulation</h1>
+<p>Spielt die Engine mit festen Strategien gegeneinander (plus KI-Trader) und misst Siegquote, Durchschnitt und Streuung pro Rolle.
+Kooperative/Fabrik: Wertung = erzielter Preis pro Tonne. Fonds: Gewinn in CHF.</p>
+<p>Runden: <input id="n" type="number" value="200" style="width:70px"> <button id="go">Starten</button> <span id="st"></span></p>
+<div id="out"></div>
+<script src="../js/common.js"></script>
+<script src="../js/engine.js"></script>
+<script src="../js/bots.js"></script>
+<script>
+    // Strategien: liefern die gewünschte Position (Kontrakte) oder null = nichts tun.
+    const STRATS = {
+        producer: {
+            'nie absichern': () => null,
+            'alles sofort': (p, st) => (st.t === 0 ? -Math.floor(p.physical / CFG.size) : null),
+            'Hälfte sofort': (p, st) => (st.t === 0 ? -Math.floor(p.physical / CFG.size / 2) : null),
+            'Gerüchten folgen': (p, st, R) => (R.some(x => x < 0) ? -Math.floor(p.physical / CFG.size) : null),
+        },
+        processor: {
+            'nie absichern': () => null,
+            'alles sofort': (p, st) => (st.t === 0 ? Math.floor(-p.physical / CFG.size) : null),
+            'Hälfte sofort': (p, st) => (st.t === 0 ? Math.floor(-p.physical / CFG.size / 2) : null),
+            'Gerüchten folgen': (p, st, R) => (R.some(x => x > 0) ? Math.floor(-p.physical / CFG.size) : null),
+        },
+        spec: {
+            'nie handeln': () => null,
+            'immer long': (p, st) => (st.t === 0 ? 10 : null),
+            'immer short': (p, st) => (st.t === 0 ? -10 : null),
+            'Gerüchten folgen': (p, st, R) => (R.some(x => x > 0) ? 10 : R.some(x => x < 0) ? -10 : 0),
+        },
+    };
+    // Menschliche Reaktionszeit auf ein Gerücht (Sekunden)
+    const REACT = Number(new URLSearchParams(location.search).get('react') || 5);
+    const ROLE_NAMES = { producer: 'Kooperative (Preis/t, höher = besser)', processor: 'Fabrik (Preis/t, tiefer = besser)', spec: 'Hedgefonds (Gewinn CHF)' };
+
+    function runGame(g) {
+        let D = null;
+        Engine.create('kurz', (t, d) => { if (t === 'end' || t === 'yearEnd') D = d; }, 1);
+        Bots.reset();
+        const ids = {};
+        const st = {};
+        for (const r in STRATS) for (const s in STRATS[r]) {
+            const p = Engine.addPlayer(s, `x${r}${s}${g}`, false, r);
+            ids[p.id] = `${r}|${s}`;
+            st[p.id] = { t: 0 };
+        }
+        for (const r of ['producer', 'producer', 'processor', 'processor', 'spec']) Engine.addPlayer(`KI ${Math.random()}`, `b${Math.random()}`, true, r);
+        Engine.start();
+        let guard = 0;
+        while (!D && guard++ < 4000) {
+            const G = Engine.G;
+            if (G.phase === 'trading') {
+                const R = Engine.activeRumors().filter(x => x.since >= REACT).map(x => Math.sign(x.impact));
+                for (const p of G.players) {
+                    if (p.bot) continue;
+                    const [r, s] = ids[p.id].split('|');
+                    const want = STRATS[r][s](p, st[p.id], R);
+                    st[p.id].t++;
+                    if (want === null) continue;
+                    const q = want - p.pos;
+                    if (q) Engine.trade(p.id, q, true);
+                }
+                Bots.step();
+            }
+            Engine.tick();
+        }
+        return { D, ids };
+    }
+
+    async function sim(N) {
+        const res = {};
+        for (const r in STRATS) for (const s in STRATS[r]) res[`${r}|${s}`] = { wins: 0, sum: 0, sq: 0, n: 0 };
+        const bots = { producer: { sum: 0, n: 0 }, processor: { sum: 0, n: 0 }, spec: { sum: 0, n: 0 } };
+        for (let g = 0; g < N; g++) {
+            const { D, ids } = runGame(g);
+            for (const r in STRATS) {
+                const val = x => (r === 'spec' ? x.result : x.metric);
+                const better = (a, b) => (r === 'processor' ? val(a) - val(b) : val(b) - val(a));
+                D.rows.filter(x => ids[x.id] && x.role === r).sort(better).forEach((x, i) => {
+                    const o = res[ids[x.id]];
+                    o.n++; o.sum += val(x); o.sq += val(x) ** 2;
+                    if (i === 0) o.wins++;
+                });
+                D.rows.filter(x => !ids[x.id] && x.role === r).forEach(x => { bots[r].sum += val(x); bots[r].n++; });
+            }
+            if (g % 20 === 0) { document.getElementById('st').textContent = `${g} / ${N}`; await new Promise(r => setTimeout(r)); }
+        }
+        const out = {};
+        for (const k in res) {
+            const o = res[k];
+            const m = o.sum / o.n;
+            out[k] = { win: o.wins / o.n, mean: m, sd: Math.sqrt(Math.max(0, o.sq / o.n - m * m)) };
+        }
+        for (const r in bots) bots[r] = bots[r].sum / Math.max(1, bots[r].n);
+        return { out, bots };
+    }
+
+    function show({ out, bots }, N) {
+        let html = `<p>${N} Runden.</p>`;
+        for (const r in STRATS) {
+            const rows = Object.keys(STRATS[r]).map(s => ({ s, ...out[`${r}|${s}`] }));
+            const top = Math.max(...rows.map(x => x.win));
+            html += `<h3>${ROLE_NAMES[r]}</h3><table><tr><th>Strategie</th><th>Siege</th><th>Durchschnitt</th><th>Streuung</th></tr>${rows.map(x => `<tr><td>${x.s}</td><td class="${x.win === top ? 'best' : ''}">${Math.round(x.win * 100)} %</td><td>${Math.round(x.mean)}</td><td>${Math.round(x.sd)}</td></tr>`).join('')}<tr><td>KI-Trader (Ø)</td><td></td><td>${Math.round(bots[r])}</td><td></td></tr></table>`;
+        }
+        document.getElementById('out').innerHTML = html;
+        document.getElementById('st').textContent = 'fertig';
+        window.SIM_RESULT = { out, bots };
+    }
+
+    window.Sound = window.Sound || {};
+    Sound.play = () => {};
+    document.getElementById('go').onclick = async () => {
+        const N = Number(document.getElementById('n').value) || 200;
+        show(await sim(N), N);
+    };
+    if (new URLSearchParams(location.search).has('auto')) document.getElementById('go').click();
+</script>
+</body>
+</html>

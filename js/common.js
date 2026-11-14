@@ -13,31 +13,16 @@ const CFG = {
     spread: 0.0015,        // Geld-Brief-Spanne des Market Makers
     vol: 0.0042,           // Zufallsschwankung pro Sekunde
     impact: 0.00025,       // Preiswirkung pro netto gehandeltem Kontrakt (klein: einzelne Trades bewegen den Markt kaum)
-    offerSec: 35,          // Laufzeit eines Angebots auf dem Board
-    offerBand: 0.04,       // Angebote max. ±4 % vom Marktpreis
     years: 3,              // Karriere: so viele Erntejahre
     shopSec: 75,           // Ausbauphase zwischen den Jahren (Sekunden)
     farmMargin: 250,       // Kooperative: Gewinn pro geernteter Tonne (Produktionskosten tiefer als Planpreis)
     chocMargin: 250,       // Fabrik: Verarbeitungsmarge pro Tonne Grundbedarf
     fairPremium: 120,      // Fairtrade-Prämie pro Tonne
-    sugarYear: 99,         // Zucker-Markt ist ausgeschaltet (nie erreicht)
-    sSize: 50,             // Tonnen pro Zucker-Kontrakt
-    sP0: 650,              // Zucker-Startpreis CHF/t
-    sVol: 0.005,           // Zucker-Schwankung pro Sekunde
-    sNeed: 200,            // Fabrik: Zuckerbedarf pro Jahr (t)
-    sLimit: 10,            // Fonds: Zucker-Positionslimit (Kontrakte)
-    sFee: 6,               // Gebühr pro Zucker-Kontrakt
-    storeMax: 60,          // Kooperative mit Lagerhaus: so viel darf eingelagert werden
-    storeFee: 60,          // Lagerkosten pro Tonne und Jahr
     loan: 25000,           // Notkredit nach einer Pleite …
     loanRate: 0.3,         // … mit 30 % Zins
-    bankMonth: 2,          // Bankprüfung am Ende dieses Monats …
-    bankQuota: 0.5,        // … mindestens so viel muss abgesichert sein
-    bankFee: 6000,         // sonst Risikozuschlag
     protectLow: 2000,      // Kooperative: Pflanzenschutz (Versicherung) in ruhigen Zeiten …
     protectHigh: 7000,     // … und wenn ein Dürre-/Krankheitsgerücht läuft
     buyerEvery: 32,        // Kooperative: ungefähr alle x Sekunden ein Händler-Angebot
-    cancelProb: 0.45,      // Fabrik: Chance auf eine Stornierung pro Prüfung
     orderEvery: 28,        // Fabrik: ungefähr alle x Sekunden ein Kundenauftrag
     orderSec: 20,          // so lange ist ein Auftrag gültig
     researchCost: 2500,    // Hedgefonds: Research-Bericht
@@ -45,6 +30,25 @@ const CFG = {
     researchCooldown: 20,
     minPrice: 900,
     maxPrice: 7000,
+    // Wertung: Was im Dezember nicht abgesichert ist, wird kurzfristig gehandelt – 5 % schlechter als die Börse.
+    spotPenalty: 0.05,
+    // Gerüchte: Der Markt preist den erwarteten Effekt schnell ein (Anteil, Tempo pro Sekunde).
+    // Wer sofort reagiert, hat einen kleinen Vorteil – sicher ist er nie.
+    rumorPriced: 0.95,
+    rumorSpeed: 0.3,
+    // Progressive Einführung: ab welchem Jahr eine Nebenmechanik dazukommt
+    featureYear: { yield: 2, protect: 2, orders: 2, research: 2, buyers: 3 },
+    // Bei nur 1 Jahr: Kernspiel plus genau eine Besonderheit pro Rolle
+    singleYearFeatures: ['yield', 'orders', 'research'],
+};
+
+// Kurzer Text für «Neu in diesem Jahr»
+const FEATURE_TEXT = {
+    yield: { role: 'producer', icon: '🌦️', name: 'Wetter & Ernte', text: 'Wetter verändert jetzt deine Erntemenge. Futures sichern den Preis – nicht die Menge.' },
+    protect: { role: 'producer', icon: '🛡️', name: 'Pflanzenschutz', text: 'Eine Versicherung, die Ernteverluste halbiert. Günstig, solange es ruhig ist.' },
+    orders: { role: 'processor', icon: '📦', name: 'Kundenaufträge', text: 'Kunden bestellen Schokolade zu festen Preisen. Jeder Auftrag erhöht deinen Bedarf.' },
+    research: { role: 'spec', icon: '🕵️', name: 'Research', text: 'Berichte verraten meistens, ob ein Gerücht stimmt. Nicht immer!' },
+    buyers: { role: 'producer', icon: '🤝', name: 'Händler-Angebote', text: 'Händler bieten dir feste Preise für einen Teil der Ernte.' },
 };
 
 // ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
@@ -139,7 +143,7 @@ function earnHTML(role) {
                 <li>Im Dezember verkaufst du deine <b>Ernte</b>. Wie viel du bekommst, hängt vom Preis <b>dann</b> ab – und den kennt heute niemand.</li>
                 <li>Darum <b>verkaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Preis jetzt schon fest.</li>
                 <li>Egal, was danach passiert: Was du bei der Ernte verlierst, gewinnst du beim Future – und umgekehrt.</li>
-                <li>Zwischendurch bieten dir <b>Händler</b> feste Preise an, und Mitglieder liefern <b>Nachernte</b>. Prüfe jedes Mal: Ist das ein guter Preis? Ist alles abgesichert?</li>
+                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell verkaufen – <b>5 % unter dem Börsenpreis</b>.</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📉 Preis 2\'000', '20\'000', '+5\'000', '25\'000'], ['📈 Preis 3\'000', '30\'000', '−5\'000', '25\'000']], ['Ernte bringt', 'Future', 'Du bekommst'])}
@@ -151,7 +155,7 @@ function earnHTML(role) {
                 <li>Im Dezember musst du <b>Kakao einkaufen</b>, um Schokolade zu machen. Wie viel er kostet, weiss heute niemand.</li>
                 <li>Darum <b>kaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Einkaufspreis jetzt schon fest.</li>
                 <li>Wird Kakao teurer, gewinnt dein Future – das gleicht den teureren Einkauf aus.</li>
-                <li>Bonus: Kunden bestellen Schokolade zu einem <b>festen Preis</b>. Hast du billig eingekauft, verdienst du daran extra. Aber Vorsicht: Kunden können <b>stornieren</b> – dann bist du überabgesichert.</li>
+                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell kaufen – <b>5 % über dem Börsenpreis</b>.</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📈 Preis 3\'000', '30\'000', '+5\'000', '25\'000'], ['📉 Preis 2\'000', '20\'000', '−5\'000', '25\'000']], ['Kakao kostet', 'Future', 'Du zahlst'])}
@@ -176,27 +180,30 @@ function roleRules(R) {
 const ROLES = {
     producer: {
         name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 60000, limit: 15,
-        mission: 'Ihr erntet im Dezember <b>ca. 100 t Kakao</b>. Ihr tretet gegen die anderen Kooperativen an: Wer erzielt den <b>besten Preis pro Tonne</b>? Verkauft Futures, wenn der Preis hoch ist – aber wartet ihr zu lange, kann er abstürzen.',
-        hint: 'Timing ist alles: Ein Dürre-Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Und Achtung: Steigt der Preis, musst du Geld nachschiessen – zu viel absichern mit zu wenig Bargeld kann dich ruinieren.',
-        job: 'Short-Hedger', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
-        can: ['Ernte auf Termin verkaufen (Short) – höchstens so viel, wie du erntest', 'Händler-Angebote annehmen: Direktverkauf zu festem Preis', 'Pflanzenschutz kaufen (günstig, solange es ruhig ist)', 'Absicherung wieder auflösen'],
-        cannot: ['Futures kaufen (Long)', 'Mehr verkaufen, als du erntest', 'Research-Berichte'],
+        goal: 'Verkaufe deine Ernte zu einem möglichst hohen Preis – bevor er fällt.',
+        mission: 'Ihr erntet im Dezember <b>100 t Kakao</b>. Wer verkauft zum <b>besten Preis pro Tonne</b>?',
+        hint: 'Ein Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten?',
+        job: 'Verkäufer', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
+        can: ['Ernte heute schon verkaufen (Knopf ABSICHERN) – höchstens so viel, wie du erntest', 'Verkauf wieder rückgängig machen (AUFLÖSEN)'],
+        cannot: ['Auf steigende Preise wetten – das dürfen nur Hedgefonds'],
     },
     processor: {
         name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 60000, limit: 15,
-        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Ihr tretet gegen die anderen Fabriken an: Wer kauft <b>am günstigsten</b> ein? Kauft Futures, wenn der Preis tief ist. Kundenaufträge zu festen Preisen bringen zusätzliche Marge – aber Kunden können auch stornieren.',
-        hint: 'Timing ist alles: Kommt ein Gerücht über eine Rekordernte, fällt der Preis – warten oder jetzt kaufen? 🏦 Die Bank verlangt bis Ende Monat 2 mindestens 50 % Absicherung. Fällt der Preis stark, musst du Geld nachschiessen.',
-        job: 'Long-Hedger', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',
-        can: ['Kakao auf Termin kaufen (Long) – höchstens deinen Bedarf', 'Kundenaufträge annehmen oder ablehnen', 'Absicherung wieder auflösen'],
-        cannot: ['Futures verkaufen (Short)', 'Mehr kaufen, als du brauchst', 'Research-Berichte'],
+        goal: 'Kaufe deinen Kakao zu einem möglichst tiefen Preis – bevor er steigt.',
+        mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Wer kauft zum <b>tiefsten Preis pro Tonne</b> ein?',
+        hint: 'Ein Gerücht drückt den Preis – jetzt kaufen oder noch warten?',
+        job: 'Einkäufer', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',
+        can: ['Kakao heute schon kaufen (Knopf ABSICHERN) – höchstens deinen Bedarf', 'Kauf wieder rückgängig machen (AUFLÖSEN)'],
+        cannot: ['Auf fallende Preise wetten – das dürfen nur Hedgefonds'],
     },
     spec: {
         name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a78bfa', physical: 0, cash: 120000, limit: 20,
-        mission: 'Ihr habt keinen Kakao und braucht keinen. Ihr handelt nur auf Kursbewegungen – und übernehmt damit das Risiko der anderen. Euer Vorteil: <b>Research</b> über Gerüchte und ein grösseres Positionslimit.',
-        hint: 'Kauft Research-Berichte (meistens richtig, nicht immer) und handelt, bevor die News bestätigt wird. Hoher Hebel, Margin Calls und Konkurs sind real.',
+        goal: 'Wette auf steigende oder fallende Preise – und mach den grössten Gewinn.',
+        mission: 'Ihr habt keinen Kakao. Ihr wettet auf den Preis – und übernehmt so das Risiko der anderen.',
+        hint: 'Gerüchte bewegen den Preis. Wer zuerst richtig liegt, gewinnt – wer falsch liegt, verliert doppelt.',
         job: 'Spekulant', tagline: 'Übernimm das Risiko der anderen – und verdiene daran.',
-        can: ['Long und Short handeln – bis 20 Kontrakte', 'Research-Berichte kaufen', 'Als Gegenpartei der Hedger auftreten'],
-        cannot: ['Kakao ernten oder verarbeiten', 'Kundenaufträge', 'Bank-Kredit (ihr habt nur euer Kapital)'],
+        can: ['Auf steigende Preise wetten (KAUFEN) oder auf fallende (VERKAUFEN) – bis 20 Kontrakte'],
+        cannot: ['Kakao ernten oder verarbeiten'],
     },
 };
 
@@ -206,20 +213,19 @@ const NEWS = [
     { id: 'blackpod', icon: '🍂', impact: 0.09, prob: 0.6, yield: 0.9, rumor: 'Pilzkrankheit «Black Pod» auf Plantagen gemeldet', yes: 'Black Pod breitet sich aus: Ernteausfälle bestätigt', no: 'Black Pod lokal begrenzt, keine Ernteausfälle' },
     { id: 'record', icon: '🌾', impact: -0.1, prob: 0.6, yield: 1.12, rumor: 'Insider: Rekordernte erwartet', yes: 'Offiziell: Rekordernte eingefahren', no: 'Rekordernte-Gerücht falsch: Ernte im Durchschnitt' },
     { id: 'export', icon: '🚫', impact: 0.08, prob: 0.5, rumor: 'Ghana erwägt Exportstopp für Rohkakao', yes: 'Ghana verhängt Exportstopp für 30 Tage', no: 'Regierung dementiert Exportstopp' },
-    { id: 'asia', icon: '🍫', impact: 0.06, prob: 0.7, orders: 1.6, rumor: 'Asiatische Konzerne bestellen massiv Schokolade', yes: 'Rekordnachfrage aus Asien bestätigt', no: 'Nachfrage aus Asien bleibt flach' },
-    { id: 'diet', icon: '🥗', impact: -0.05, prob: 0.6, rumor: 'EU plant Zuckersteuer auf Süsswaren', yes: 'Zuckersteuer beschlossen: Schokoladenabsatz sinkt', no: 'EU verzichtet auf Zuckersteuer' },
+    { id: 'asia', icon: '🍫', impact: 0.06, prob: 0.55, orders: 1.6, rumor: 'Asiatische Konzerne bestellen massiv Schokolade', yes: 'Rekordnachfrage aus Asien bestätigt', no: 'Nachfrage aus Asien bleibt flach' },
+    { id: 'diet', icon: '🥗', impact: -0.07, prob: 0.6, rumor: 'EU plant Zuckersteuer auf Süsswaren', yes: 'Zuckersteuer beschlossen: Schokoladenabsatz sinkt', no: 'EU verzichtet auf Zuckersteuer' },
     { id: 'strike', icon: '⚓', impact: 0.05, prob: 0.55, rumor: 'Hafenarbeiter in Abidjan drohen mit Streik', yes: 'Hafenstreik: Kakaoschiffe stecken fest', no: 'Einigung im Hafen von Abidjan, kein Streik' },
     { id: 'ecuador', icon: '🌴', impact: -0.07, prob: 0.6, rumor: 'Neue Grossplantagen in Ecuador sollen bald liefern', yes: 'Ecuador liefert erste Grossernte aus', no: 'Plantagen in Ecuador verzögern sich um ein Jahr' },
     { id: 'rain', icon: '🌧️', impact: -0.06, prob: 0.65, yield: 1.12, rumor: 'Prognose: ideales Regenwetter', yes: 'Perfekte Wachstumsbedingungen: Ernte steigt', no: 'Wetter normalisiert sich, keine Rekordernte' },
-    { id: 'fund', icon: '🏦', impact: -0.06, prob: 0.5, rumor: 'Grosser Rohstofffonds soll Kakao-Positionen abbauen', yes: 'Fonds verkauft: Kakao unter Druck', no: 'Fonds hält Positionen, Gerücht falsch' },
+    { id: 'fund', icon: '🏦', impact: -0.08, prob: 0.5, rumor: 'Grosser Rohstofffonds soll Kakao-Positionen abbauen', yes: 'Fonds verkauft: Kakao unter Druck', no: 'Fonds hält Positionen, Gerücht falsch' },
 ];
 const SURPRISES = [
     { id: 'container', icon: '📦', impact: 0.04, text: 'EILMELDUNG: Containerknappheit verzögert Lieferungen' },
     { id: 'dollar', icon: '💵', impact: -0.035, text: 'EILMELDUNG: Starker Dollar drückt Rohstoffpreise' },
-    { id: 'frost', icon: '❄️', impact: 0.05, text: 'EILMELDUNG: Ungewöhnliche Kälte in Brasiliens Kakaoregion' },
+    { id: 'frost', icon: '❄️', impact: 0.04, text: 'EILMELDUNG: Ungewöhnliche Kälte in Brasiliens Kakaoregion' },
     { id: 'recession', icon: '📉', impact: -0.045, text: 'EILMELDUNG: Rezessionsangst – Konsumgüter unter Druck' },
 ];
-const MARGIN_HIKE = { id: 'hike', icon: '⚖️', text: 'BÖRSENAUFSICHT: Einschuss steigt ab der nächsten Abrechnung auf 15 %', rate: 0.15 };
 
 const BUYERS = ['Barry Callebaut', 'Lindt & Sprüngli', 'Cargill', 'Nestlé', 'Ferrero', 'Olam Food', 'Touton Trading'];
 const CLIENTS = ['Alpenmarkt', 'Kaufhaus Helvetia', 'Bahnhofkiosk AG', 'Pralinen-Boutique', 'Export Asien', 'Hotelkette Seeblick', 'Discounter Spar-Fix', 'Café-Kette Bohne'];
@@ -331,7 +337,6 @@ const UPGRADES = {
         { id: 'land', icon: '🌳', name: 'Mehr Land', cost: 20000, desc: '+30 t Ernte pro Jahr. Mehr Kakao = mehr Gewinn – aber auch mehr abzusichern.' },
         { id: 'irrigation', icon: '💧', name: 'Bewässerung', cost: 12000, desc: 'Dürre und Krankheit treffen dich nur noch halb so hart – jedes Jahr, ohne Versicherung.' },
         { id: 'fairtrade', icon: '🤝', name: 'Fairtrade-Zertifikat', cost: 15000, desc: `+${CFG.fairPremium} CHF Prämie für jede verkaufte Tonne.` },
-        { id: 'storage', icon: '🏚️', name: 'Lagerhaus', cost: 10000, desc: `Ernte am Jahresende einlagern statt verkaufen (bis ${CFG.storeMax} t, ${CFG.storeFee} CHF/t Lagerkosten) – und nächstes Jahr hoffentlich teurer verkaufen.` },
     ],
     processor: [
         { id: 'pralines', icon: '🍫', name: 'Pralinen-Linie', cost: 12000, desc: 'Kundenaufträge bringen 60 % mehr Marge.' },
@@ -359,9 +364,6 @@ const REGIONS = {
     ivory: { name: 'Elfenbeinküste', lon: -5.5, lat: 7.5, crop: 'cocoa' },
     ecuador: { name: 'Ecuador', lon: -79, lat: -1.5, crop: 'cocoa' },
     indonesia: { name: 'Indonesien', lon: 120.5, lat: -2, crop: 'cocoa' },
-    brazil: { name: 'Brasilien', lon: -48, lat: -21, crop: 'sugar' },
-    india: { name: 'Indien', lon: 77, lat: 22, crop: 'sugar' },
-    thailand: { name: 'Thailand', lon: 101, lat: 15, crop: 'sugar' },
 };
 // Stark vereinfachte Landmasse für die Punkte-Weltkarte: [Breitengrad, [[von, bis] Längengrad, …]]
 const LAND = [
@@ -395,12 +397,3 @@ const LAND = [
 ];
 const COCOA_REGIONS = Object.keys(REGIONS).filter(k => REGIONS[k].crop === 'cocoa');
 
-// Zucker-News (ab Jahr 2): springen direkt auf den Zuckerpreis
-const SUGAR_NEWS = [
-    { id: 'frostbr', icon: '❄️', impact: 0.12, region: 'brazil', text: 'ZUCKER: Frost in Brasilien zerstört Zuckerrohr' },
-    { id: 'ethanol', icon: '⛽', impact: 0.06, region: 'brazil', text: 'ZUCKER: Brasilien macht mehr Ethanol statt Zucker' },
-    { id: 'indiaban', icon: '🚫', impact: 0.11, region: 'india', text: 'ZUCKER: Indien stoppt Zuckerexporte' },
-    { id: 'monsoon', icon: '🌧️', impact: -0.1, region: 'india', text: 'ZUCKER: Starker Monsun – Indien erwartet Rekordernte' },
-    { id: 'thai', icon: '🌾', impact: -0.09, region: 'thailand', text: 'ZUCKER: Thailand meldet Riesenernte' },
-    { id: 'sugartax', icon: '🥤', impact: -0.08, region: null, text: 'ZUCKER: Mehrere Länder führen Zuckersteuern ein' },
-];

@@ -131,7 +131,7 @@ const Scenes = (() => {
     function render(me, pub) {
         const el = $('p-scene');
         let html;
-        if (me.role === 'producer') html = plantation(me, pub) + sacks(me);
+        if (me.role === 'producer') html = plantation(me, pub);
         else if (me.role === 'processor') html = factory(me, pub);
         else html = terminal(me, pub);
         if (html !== lastKey) {

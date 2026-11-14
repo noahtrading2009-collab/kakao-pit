@@ -10,12 +10,9 @@ const Player = (() => {
     let me = null;
     let pub = null;
     let qty = 1;
-    let mkt = 'cocoa';   // gewählter Markt: 'cocoa' oder 'sugar'
     let rid = 1;
-    let ofSide = 'sell';
-    let ofQty = 2;
-    let ofPrice = null;
     let ended = false;
+    let lastTick = -1;
     let lastNews = 0;
 
     function keyFor(c) {
@@ -139,10 +136,17 @@ const Player = (() => {
                 toast(msg.msg, 'bad');
                 Sound.play('error');
             } else if (msg.ok && msg.q) {
-                toast(`${msg.q > 0 ? 'Gekauft' : 'Verkauft'}: ${Math.abs(msg.q)} × ${fmt(msg.price)} CHF/t`, 'good');
+                toast(tradeText(msg.q, msg.price), 'good');
+                coach('trade', me.role === 'spec'
+                    ? '✅ <b>Deine Wette läuft.</b> Mit dem anderen Knopf schliesst du sie wieder – dann ist Gewinn oder Verlust fix.'
+                    : '✅ <b>Gut!</b> Diese Menge ist jetzt geschützt. Du kannst jederzeit mehr absichern – oder mit AUFLÖSEN zurücknehmen.');
                 Sound.play(msg.q > 0 ? 'buy' : 'sell');
                 if (navigator.vibrate) navigator.vibrate(30);
             } else if (msg.ok && msg.msg) toast(msg.msg, 'good');
+            return;
+        }
+        if (msg.t === 'newFeatures') {
+            coach(`new${msg.year}`, `✨ <b>Neu in Jahr ${msg.year}:</b><br>${msg.keys.map(k => `${FEATURE_TEXT[k].icon} <b>${FEATURE_TEXT[k].name}:</b> ${FEATURE_TEXT[k].text}`).join('<br>')}`);
             return;
         }
         if (msg.t === 'end') {
@@ -160,7 +164,7 @@ const Player = (() => {
         $('w-icon').innerHTML = roleIcon(role, 64);
         $('w-role').innerHTML = `<span style="color:${R.color}">${R.name}</span><small>${R.job}</small>`;
         $('w-title').textContent = `Willkommen, ${name}!`;
-        $('w-mission').innerHTML = R.mission;
+        $('w-mission').innerHTML = `<p class="goal-line">🎯 <b>${R.goal}</b></p>${R.mission}`;
         $('w-rules').innerHTML = roleRules(R);
         $('w-earn').innerHTML = `<p class="future-intro">📜 ${FUTURE_INTRO}</p>${earnHTML(role)}`;
         $('w-hint').innerHTML = `💡 ${R.hint}`;
@@ -170,7 +174,7 @@ const Player = (() => {
         Sound.play('join');
     }
 
-    // ===== Spielansicht =====
+    // ===== Spielansicht (Cockpit: alles Wichtige ohne Scrollen, Knöpfe unten) =====
 
     const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -190,100 +194,134 @@ const Player = (() => {
         requestAnimationFrame(step);
     }
 
+    // Vorzeichen + Pfeil: Gewinne/Verluste nie nur über die Farbe zeigen (farbenblind-tauglich)
+    const arrow = v => (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '');
+    const setHTML = (el, html) => { if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; } };
+
     function render() {
         if (!me || !pub) return;
         const R = ROLES[me.role];
         document.body.dataset.role = me.role;
-        if ($('p-role').dataset.k !== me.role + me.name + me.level) $('p-role').dataset.k = me.role + me.name + me.level, $('p-role').innerHTML = `<span class="p-emb">${roleIcon(me.role, 26)}</span><span><b>${esc(me.name)}</b><small>${RANKS[me.level].icon} ${RANKS[me.level].name} · ${R.job}</small></span>`;
-        $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `J${pub.year} · M${pub.month}/${pub.months}`;
+        if ($('p-role').dataset.k !== me.role + me.name + me.level) {
+            $('p-role').dataset.k = me.role + me.name + me.level;
+            $('p-role').innerHTML = `<span class="p-emb">${roleIcon(me.role, 26)}</span><span><b>${esc(me.name)}</b><small>${RANKS[me.level].icon} ${RANKS[me.level].name} · ${R.short}</small></span>`;
+        }
+        $('p-month').textContent = pub.phase === 'settle' ? 'Abrechnung' : `Monat ${pub.month}/${pub.months}${pub.years > 1 ? ` · Jahr ${pub.year}` : ''}`;
         $('p-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
-        $('p-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
-        $('p-rank').textContent = `#${me.rank}/${me.roleCount}`;
+        const urgent = pub.phase === 'trading' && pub.secLeft <= 10;
+        $('p-timer').classList.toggle('urgent', urgent);
+        if (urgent && pub.secLeft !== lastTick) {
+            lastTick = pub.secLeft;
+            Sound.play('tick');
+        }
+        $('p-rank').innerHTML = `<small>Platz</small>${me.rank}<small>/${me.roleCount}</small>`;
 
         const prev = Number($('p-price').dataset.v || pub.price);
         tween($('p-price'), pub.price);
         $('p-price').dataset.v = pub.price;
         $('p-price').className = `big-price ${pub.price > prev ? 'up' : pub.price < prev ? 'down' : ''}`;
         const ch = pub.price / pub.p0 - 1;
-        $('p-change').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${pct(ch)}</span> <span class="dim">seit Start · Plan ${fmt(pub.p0)}</span>`;
+        $('p-change').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${arrow(ch)}${pct(ch)}</span> <span class="dim">seit Jahresstart (${fmt(pub.p0)})</span>`;
         spark(pub.history);
-        const sl = $('p-sugar');
-        sl.classList.toggle('hidden', !(pub.sugar && pub.sugar.on));
-        if (pub.sugar && pub.sugar.on) {
-            const sc = pub.sugar.price / pub.sugar.p0 - 1;
-            sl.innerHTML = `<span>🍬 Zucker</span><b>${fmt(pub.sugar.price)}</b><span class="${sc >= 0 ? 'up' : 'down'}">${pct(sc)}</span>${me.role === 'producer' ? '' : `<span class="dim">Pos. ${me.spos > 0 ? '+' : ''}${me.spos}</span>`}`;
-        }
-        if (pub.feed && pub.feed[0]) $('p-news').innerHTML = `<span>${pub.feed[0].icon}</span> ${esc(pub.feed[0].text)}`;
+        if (pub.feed && pub.feed[0]) setHTML($('p-news'), `<span>${pub.feed[0].icon}</span> ${esc(pub.feed[0].text)}`);
 
-        // Risiko in Tonnen
-        const exp = me.exposure;
-        $('p-exp').textContent = `${exp > 0 ? '+' : exp < 0 ? '−' : '±'}${Math.abs(exp)} t`;
-        $('p-exp').className = Math.abs(exp) <= 20 ? 'good' : Math.abs(exp) >= 80 ? 'bad' : '';
-        const g = $('p-gauge');
-        const w = clamp(Math.abs(exp) / 200, 0, 0.5) * 100;
-        g.style.width = `${w}%`;
-        g.style.left = exp >= 0 ? '50%' : `${50 - w}%`;
-        g.className = `gauge-bar ${Math.abs(exp) <= 20 ? 'ok' : exp > 0 ? 'long' : 'short'}`;
-        const per = Math.abs(exp) * 100;
-        let txt;
-        if (me.role === 'spec') txt = exp === 0 ? 'Keine Position – kein Risiko, keine Chance.' : `Steigt Kakao um 100 CHF/t, ${exp > 0 ? 'gewinnst' : 'verlierst'} du ${fmt(per)} CHF.`;
-        else if (Math.abs(exp) <= 20) txt = `🛡️ Gut abgesichert. Der Preis kann dir fast egal sein. Abgesichert: <b>${Math.round(me.hedged * 100)} %</b>`;
-        else txt = `${exp > 0 ? '⚠️ Fällt' : '⚠️ Steigt'} Kakao um 100 CHF/t, verlierst du ${fmt(per)} CHF. ${me.role === 'producer' ? 'Verkaufe' : 'Kaufe'} Futures, um dich abzusichern. Abgesichert: <b>${Math.round(me.hedged * 100)} %</b>`;
-        if (exp && me.role !== 'spec' && Math.sign(exp) !== Math.sign(R.physical)) txt = '🎲 Du bist überabgesichert – das ist jetzt eine Wette in die Gegenrichtung.';
-        $('p-exp-text').innerHTML = txt;
-
-        // Position
-        $('p-pos').innerHTML = me.pos ? `<span class="${me.pos > 0 ? 'up' : 'down'}">${me.pos > 0 ? 'Long' : 'Short'} ${Math.abs(me.pos)}</span> <span class="dim">(${Math.abs(me.pos * CFG.size)} t)</span>` : '<span class="dim">keine</span>';
-        $('p-unreal').textContent = signed(me.unreal);
-        $('p-unreal').className = me.unreal > 0 ? 'up' : me.unreal < 0 ? 'down' : '';
-        $('p-margin').textContent = `${fmtCHF(me.eq)} / ${fmt(me.req)}`;
-        const mr = me.req ? clamp(me.eq / me.req, 0, 1.5) / 1.5 : 1;
-        $('p-mbar').style.width = `${mr * 100}%`;
-        $('p-mbar').className = me.req && me.eq < me.req * CFG.maintenance ? 'bad' : me.req && me.eq < me.req ? 'warn' : '';
-        $('p-cash').textContent = fmtCHF(me.cash);
-        if (me.role === 'producer') {
-            $('p-result-l').textContent = 'Dein erzielter Preis';
-            $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
-            $('p-result').className = me.metric >= pub.p0 ? 'up' : 'down';
-        } else if (me.role === 'processor') {
-            $('p-result-l').textContent = 'Dein Einkaufspreis';
-            $('p-result').textContent = `${fmt(me.metric)} CHF/t`;
-            $('p-result').className = me.metric <= pub.p0 ? 'up' : 'down';
-        } else {
-            $('p-result-l').textContent = 'Gewinn';
-            $('p-result').textContent = signed(me.result);
-            $('p-result').className = me.result >= 0 ? 'up' : 'down';
-        }
-
-        // Kurse
-        const ask = Math.round(pub.price * (1 + CFG.spread));
-        const bid = Math.round(pub.price * (1 - CFG.spread));
-        $('p-ask').textContent = fmt(ask);
-        $('p-bid').textContent = fmt(bid);
-        const closed = pub.phase !== 'trading' || me.bankrupt;
-        renderTrade(closed);
-        if (ofPrice === null) ofPrice = pub.price;
-        $('of-qty').textContent = ofQty;
-        $('of-price').textContent = fmt(ofPrice);
-        Scenes.render(me, pub);
-        renderOffers();
+        renderNow();
+        renderGoal();
+        renderTrade(pub.phase !== 'trading' || me.bankrupt);
+        if (me.role === 'spec') $('p-scene').innerHTML = '';
+        else Scenes.render(me, pub);
         renderRolePanel();
         renderCall();
+        coachTriggers();
     }
 
-    // ===== Handels-Karte: jede Rolle hat ihr eigenes Mandat =====
+    // ===== «Was jetzt?» – ein Tipp, der die Entscheidung bewusst macht (ohne sie vorzusagen) =====
+    function nowText() {
+        const hedger = me.role !== 'spec';
+        const lastMonth = pub.month >= pub.months;
+        const end = pub.phase !== 'trading' || pub.secLeft > 10 ? ''
+            : lastMonth ? ` ⏰ Noch ${pub.secLeft}s bis Dezember!` : ` ⏰ Noch ${pub.secLeft}s bis zur Monatsabrechnung.`;
+        if (me.call) return { k: 'bad', t: '📞 <b>Margin Call!</b> Dein Pfand reicht nicht mehr. Geld nachschiessen oder Position verkleinern – sonst wird sie zwangsweise geschlossen.' };
+        if (pub.phase === 'settle') return { k: '', t: '🧾 <b>Monatsabrechnung.</b> Gewinne und Verluste deiner Futures werden jetzt aufs Konto gebucht.' };
+        const r = me.rumor;
+        if (r) {
+            const up = r.impact > 0;
+            const q = me.role === 'producer'
+                ? (up ? 'Jetzt teurer verkaufen – oder warten, ob es stimmt?' : 'Jetzt noch absichern, bevor er weiter fällt – oder ist es falsch?')
+                : me.role === 'processor'
+                    ? (up ? 'Jetzt noch kaufen, bevor es teurer wird – oder ist es falsch?' : 'Jetzt billiger kaufen – oder warten, ob es stimmt?')
+                    : `Wettest du darauf, dass es stimmt (${up ? 'KAUFEN' : 'VERKAUFEN'})?`;
+            return { k: 'rumor', t: `${r.icon} <b>Gerücht:</b> ${esc(r.text)}. Der Preis ${up ? 'steigt' : 'fällt'} schon. ${q}${end}`, left: Math.max(0, r.left), span: r.left + r.since };
+        }
+        if (hedger) {
+            if (lastMonth && me.open > 0 && pub.secLeft <= 20) return { k: 'bad', t: `⏰ <b>Letzte Chance:</b> ${me.open} t sind noch offen. Im Dezember wird das ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt.${end}` };
+            if (me.hedged < 0.05) return { k: '', t: me.role === 'producer'
+                ? `Du hast noch nichts verkauft. Fällt der Preis bis Dezember, verlierst du. <b>Wann sicherst du ab?</b>${end}`
+                : `Du hast noch nichts eingekauft. Steigt der Preis bis Dezember, zahlst du drauf. <b>Wann sicherst du ab?</b>${end}` };
+            if (me.open === 0) return { k: 'ok', t: `🛡️ <b>Alles abgesichert.</b> Der Preis kann dir jetzt fast egal sein.${end}` };
+            return { k: '', t: `${Math.round(me.hedged * 100)} % abgesichert, <b>${me.open} t</b> noch offen. Jetzt mehr – oder auf einen besseren Preis warten?${end}` };
+        }
+        if (!me.pos) return { k: '', t: `Keine Wette offen. Wird Kakao <b>teurer</b> (KAUFEN) oder <b>billiger</b> (VERKAUFEN)?${end}` };
+        return { k: me.unreal >= 0 ? 'ok' : 'bad', t: `Du wettest auf <b>${me.pos > 0 ? 'steigende' : 'fallende'}</b> Preise (${arrow(me.unreal)}${signed(me.unreal)} CHF). Gewinn mitnehmen oder laufen lassen?${end}` };
+    }
+
+    function renderNow() {
+        const n = nowText();
+        const el = $('p-now');
+        el.className = `p-now ${n.k}${pub.phase === 'trading' && pub.secLeft <= 10 ? ' urgent' : ''}`;
+        const bar = n.left !== undefined ? `<i class="rumor-bar" style="width:${Math.min(100, (n.left / Math.max(1, n.span)) * 100)}%"></i><em class="rumor-left">${n.left}s</em>` : '';
+        setHTML(el, `<span>${n.t}</span>${bar}`);
+    }
+
+    // ===== Ziel-Karte: Fortschritt, Preis, Rang, Risiko =====
+    function renderGoal() {
+        const R = ROLES[me.role];
+        let html;
+        const acct = `<div class="g-acct"><span>Futures <b>${me.pos ? `${me.pos > 0 ? 'Long' : 'Short'} ${Math.abs(me.pos * CFG.size)} t` : '–'}</b></span>
+            <span>Offen <b class="${me.unreal > 0 ? 'up' : me.unreal < 0 ? 'down' : ''}">${arrow(me.unreal)}${signed(me.unreal)}</b></span>
+            <span>Pfand <b class="${me.req && me.eq < me.req * CFG.maintenance ? 'bad' : ''}">${me.req ? `${Math.round((me.eq / me.req) * 100)} %` : '–'}</b></span>
+            <span>Bargeld <b>${fmt(me.cash)}</b></span></div>`;
+        if (me.role !== 'spec') {
+            const prod = me.role === 'producer';
+            const need = Math.max(0, prod ? me.physical : -me.physical);
+            const hedged = Math.max(0, prod ? -me.pos * CFG.size : me.pos * CFG.size);
+            const q = need ? hedged / need : 0;
+            const over = hedged > need;
+            const good = prod ? me.metric >= pub.p0 : me.metric <= pub.p0;
+            html = `<div class="g-head">🎯 ${R.goal}</div>
+                <div class="g-bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, q * 100)}%"></i></div>
+                <div class="g-row"><span>Abgesichert <b>${hedged} t</b> von ${need} t</span><b>${Math.round(q * 100)} %</b></div>
+                <div class="g-score">
+                    <div><small>${prod ? 'Dein Preis' : 'Dein Einkauf'} jetzt</small><b class="${good ? 'up' : 'down'}">${fmt(me.metric)}</b></div>
+                    <div><small>Gesichert zu</small><b>${me.secured ? fmt(me.secured) : '–'}</b></div>
+                    <div><small>Platz</small><b>${me.rank}<span class="dim">/${me.roleCount}</span></b></div></div>
+                ${over ? `<div class="g-risk bad">🎲 Du hast mehr abgesichert, als du ${prod ? 'erntest' : 'brauchst'}. Das ist jetzt eine Wette – löse einen Teil auf.</div>`
+                    : me.open ? `<div class="g-risk warn">⚠️ <b>${me.open} t offen.</b> ${prod ? 'Fällt' : 'Steigt'} Kakao um 100 CHF/t, verlierst du ${fmt(me.open * 100)} CHF. Offenes wird im Dezember ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt – das steckt schon in «${prod ? 'Dein Preis' : 'Dein Einkauf'} jetzt».</div>`
+                        : '<div class="g-risk ok">🛡️ Alles abgesichert – fast egal, wohin der Preis geht.</div>'}
+                ${acct}`;
+        } else {
+            const b = me.bounds;
+            const w = (Math.abs(me.pos) / Math.max(1, b.max)) * 50;
+            html = `<div class="g-head">🎯 ${R.goal}</div>
+                <div class="g-score">
+                    <div><small>Gewinn</small><b class="${me.result >= 0 ? 'up' : 'down'}">${arrow(me.result)}${signed(me.result)}</b></div>
+                    <div><small>Wette</small><b>${me.pos ? `${me.pos > 0 ? '▲ steigt' : '▼ fällt'}` : '–'}</b></div>
+                    <div><small>Platz</small><b>${me.rank}<span class="dim">/${me.roleCount}</span></b></div></div>
+                <div class="hm-row"><span>▼ fällt ${b.max * CFG.size} t</span><b>${me.pos ? `${Math.abs(me.pos * CFG.size)} t` : 'keine Wette'}</b><span>▲ steigt ${b.max * CFG.size} t</span></div>
+                <div class="hm-bar mid"><i class="${me.pos >= 0 ? 'long' : 'short'}" style="left:${me.pos >= 0 ? 50 : 50 - w}%;width:${w}%"></i></div>
+                <div class="g-risk ${me.pos ? 'warn' : ''}">${me.pos ? `Bewegt sich Kakao um 100 CHF/t gegen dich, verlierst du ${fmt(Math.abs(me.exposure) * 100)} CHF.` : 'Ohne Wette kein Risiko – aber auch kein Gewinn.'}</div>
+                ${acct}`;
+        }
+        setHTML($('p-goal'), html);
+    }
+
+    // ===== Handelsknöpfe (unten fixiert) =====
 
     // Erlaubte Menge für Kauf (q>0) bzw. Verkauf (q<0) gemäss Mandat.
     function room(dir) {
-        const sug = mkt === 'sugar';
-        const b = sug ? me.sbounds : me.bounds;
-        const pos = sug ? me.spos : me.pos;
-        if (dir > 0) return pos < b.max ? b.max - pos : (pos < 0 ? -pos : 0);
-        return pos > b.min ? pos - b.min : (pos > 0 ? pos : 0);
-    }
-
-    function canSugar() {
-        return pub && pub.sugar && pub.sugar.on && me.role !== 'producer';
+        const b = me.bounds;
+        if (dir > 0) return me.pos < b.max ? b.max - me.pos : (me.pos < 0 ? -me.pos : 0);
+        return me.pos > b.min ? me.pos - b.min : (me.pos > 0 ? me.pos : 0);
     }
 
     function setBtn(id, label, sub) {
@@ -292,41 +330,20 @@ const Player = (() => {
     }
 
     function renderTrade(closed) {
-        if (!canSugar()) mkt = 'cocoa';
-        const seg = $('p-mkt');
-        seg.classList.toggle('hidden', !canSugar());
-        seg.querySelectorAll('[data-mkt]').forEach(x => x.classList.toggle('active', x.dataset.mkt === mkt));
-        if (mkt === 'sugar') return renderSugarTrade(closed);
-        const ask = Math.round(pub.price * (1 + CFG.spread));
-        const bid = Math.round(pub.price * (1 - CFG.spread));
-        $('p-ask').textContent = fmt(ask);
-        $('p-bid').textContent = fmt(bid);
-        $('p-qty-unit').textContent = `Kontrakte à ${CFG.size} t`;
-        const b = me.bounds;
+        $('p-ask').textContent = fmt(Math.round(pub.price * (1 + CFG.spread)));
+        $('p-bid').textContent = fmt(Math.round(pub.price * (1 - CFG.spread)));
         const tb = $('p-tbtns');
-        let hedged;
-        let need;
         if (me.role === 'producer') {
-            need = Math.max(0, me.physical);
-            hedged = Math.max(0, -me.pos * CFG.size);
-            $('p-trade-title').textContent = '🔒 Ernte auf Termin verkaufen';
-            $('p-trade-sub').textContent = 'Nur Short · max. deine Ernte';
             setBtn('p-sell', 'ABSICHERN', 'Ernte verkaufen');
-            setBtn('p-buy', 'AUFLÖSEN', 'Rückkauf');
+            setBtn('p-buy', 'AUFLÖSEN', 'zurücknehmen');
             tb.classList.add('rev');
         } else if (me.role === 'processor') {
-            need = Math.max(0, -me.physical);
-            hedged = Math.max(0, me.pos * CFG.size);
-            $('p-trade-title').textContent = '🔒 Einkauf auf Termin sichern';
-            $('p-trade-sub').textContent = 'Nur Long · max. dein Bedarf';
             setBtn('p-buy', 'ABSICHERN', 'Kakao kaufen');
-            setBtn('p-sell', 'AUFLÖSEN', 'Verkauf');
+            setBtn('p-sell', 'AUFLÖSEN', 'zurücknehmen');
             tb.classList.remove('rev');
         } else {
-            $('p-trade-title').textContent = '⚡ Trading-Desk';
-            $('p-trade-sub').textContent = `Long & Short · Limit ±${b.max}`;
-            setBtn('p-buy', 'KAUFEN', 'Long');
-            setBtn('p-sell', 'VERKAUFEN', 'Short');
+            setBtn('p-buy', 'KAUFEN', '▲ Wette: steigt');
+            setBtn('p-sell', 'VERKAUFEN', '▼ Wette: fällt');
             tb.classList.remove('rev');
         }
         const hedger = me.role !== 'spec';
@@ -336,75 +353,23 @@ const Player = (() => {
         $('p-sell').classList.toggle('secondary', hedger && me.role === 'processor');
         $('p-buy').disabled = closed || room(1) <= 0;
         $('p-sell').disabled = closed || room(-1) <= 0;
-        // Absicherungs-Meter bzw. Positions-Meter
-        let html;
-        if (me.role === 'spec') {
-            const w = (Math.abs(me.pos) / b.max) * 50;
-            html = `<div class="hm-row"><span>Short ${b.max}</span><b class="${me.pos > 0 ? 'up' : me.pos < 0 ? 'down' : ''}">${me.pos > 0 ? 'Long ' : me.pos < 0 ? 'Short ' : ''}${Math.abs(me.pos)}</b><span>Long ${b.max}</span></div>
-                <div class="hm-bar mid"><i class="${me.pos >= 0 ? 'long' : 'short'}" style="left:${me.pos >= 0 ? 50 : 50 - w}%;width:${w}%"></i></div>`;
-        } else {
-            const q = need ? hedged / need : 0;
-            const over = hedged > need;
-            html = `<div class="hm-row"><span>Abgesichert</span><b class="${over ? 'bad' : q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
-                <div class="hm-bar"><i class="${over ? 'over' : 'fill'}" style="width:${Math.min(100, q * 100)}%"></i><em class="bankmark" style="left:${CFG.bankQuota * 100}%"></em><em style="left:100%"></em></div>
-                ${over ? '<div class="small bad">⚠️ Überabgesichert – baue die Position ab (AUFLÖSEN).</div>' : ''}
-                <div class="hedge-effect ${me.hedgeEffect >= 0 ? 'good' : 'bad'}">🛡️ Deine Absicherung hat dir bisher <b>${me.hedgeEffect >= 0 ? `+${fmt(me.hedgeEffect)} CHF gerettet` : `${fmt(-me.hedgeEffect)} CHF gekostet`}</b><small>${me.hedgeEffect >= 0 ? 'Ohne Futures stündest du so viel schlechter da.' : 'Ohne Futures stündest du besser da – dafür warst du geschützt.'}</small></div>
-                <div class="score-line"><span>🎯 ${me.role === 'producer' ? 'Dein Preis bisher' : 'Dein Einkauf bisher'}</span><b class="${(me.role === 'producer' ? me.metric >= pub.p0 : me.metric <= pub.p0) ? 'good' : 'bad'}">${fmt(me.metric)} CHF/t</b><span class="rank-pill">#${me.rank} von ${me.roleCount}</span></div>
-                ${me.bank === 'ok' ? '<div class="bank-line ok">🏦 Bankauflage erfüllt ✔</div>'
-                    : me.bank === 'fail' ? `<div class="bank-line bad">🏦 Bankauflage verfehlt – ${fmt(CFG.bankFee)} CHF Zuschlag bezahlt</div>`
-                    : `<div class="bank-line ${q >= CFG.bankQuota ? 'ok' : 'warn'}">🏦 Bank: bis Ende Monat ${CFG.bankMonth} mind. ${Math.round(CFG.bankQuota * 100)} % absichern${q >= CFG.bankQuota ? ' ✔' : ` – sonst ${fmt(CFG.bankFee)} CHF Zuschlag`}</div>`}`;
-        }
-        if ($('p-hmeter').dataset.h !== html) {
-            $('p-hmeter').dataset.h = html;
-            $('p-hmeter').innerHTML = html;
-        }
     }
 
-    // Zucker-Variante der Handelskarte (Fabrik: nur kaufen bis Bedarf, Fonds: frei)
-    function renderSugarTrade(closed) {
-        const s = pub.sugar;
-        const b = me.sbounds;
-        const tb = $('p-tbtns');
-        $('p-ask').textContent = fmt(Math.round(s.price * (1 + CFG.spread * 1.5)));
-        $('p-bid').textContent = fmt(Math.round(s.price * (1 - CFG.spread * 1.5)));
-        $('p-qty-unit').textContent = `Kontrakte à ${CFG.sSize} t`;
-        tb.classList.remove('rev');
-        let html;
-        if (me.role === 'processor') {
-            $('p-trade-title').textContent = '🍬 Zucker-Einkauf sichern';
-            $('p-trade-sub').textContent = `Bedarf ${-me.sphys} t pro Jahr`;
-            setBtn('p-buy', 'ABSICHERN', 'Zucker kaufen');
-            setBtn('p-sell', 'AUFLÖSEN', 'Verkauf');
-            $('p-buy').classList.add('primary');
-            $('p-sell').classList.add('secondary');
-            $('p-buy').classList.remove('secondary');
-            $('p-sell').classList.remove('primary');
-            const need = Math.max(0, -me.sphys);
-            const hedged = Math.max(0, me.spos * CFG.sSize);
-            const q = need ? hedged / need : 0;
-            html = `<div class="hm-row"><span>Zucker abgesichert</span><b class="${q >= 0.7 ? 'good' : ''}">${hedged} t <span class="dim">/ ${need} t</span></b><span>${Math.round(q * 100)} %</span></div>
-                <div class="hm-bar sugar"><i class="fill" style="width:${Math.min(100, q * 100)}%"></i><em style="left:100%"></em></div>
-                <div class="small dim">Zucker heute ${fmt(s.price)} CHF/t (Plan ${fmt(s.p0)}). Steigt Zucker, wird deine Schokolade teurer – ausser du hast abgesichert.</div>`;
-        } else {
-            $('p-trade-title').textContent = '🍬 Zucker-Desk';
-            $('p-trade-sub').textContent = `Long & Short · Limit ±${b.max}`;
-            setBtn('p-buy', 'KAUFEN', 'Long Zucker');
-            setBtn('p-sell', 'VERKAUFEN', 'Short Zucker');
-            ['p-buy', 'p-sell'].forEach(id => $(id).classList.remove('primary', 'secondary'));
-            const w = (Math.abs(me.spos) / Math.max(1, b.max)) * 50;
-            html = `<div class="hm-row"><span>Short ${b.max}</span><b class="${me.spos > 0 ? 'up' : me.spos < 0 ? 'down' : ''}">${me.spos > 0 ? 'Long ' : me.spos < 0 ? 'Short ' : ''}${Math.abs(me.spos)}</b><span>Long ${b.max}</span></div>
-                <div class="hm-bar mid sugar"><i class="${me.spos >= 0 ? 'long' : 'short'}" style="left:${me.spos >= 0 ? 50 : 50 - w}%;width:${w}%"></i></div>
-                <div class="small">Offener Gewinn Zucker: <b class="${me.sunreal >= 0 ? 'up' : 'down'}">${signed(me.sunreal)}</b></div>`;
-        }
-        $('p-buy').disabled = closed || room(1) <= 0;
-        $('p-sell').disabled = closed || room(-1) <= 0;
-        if ($('p-hmeter').dataset.h !== html) {
-            $('p-hmeter').dataset.h = html;
-            $('p-hmeter').innerHTML = html;
-        }
+    // Klartext nach einem Trade
+    function tradeText(q, price) {
+        const t = Math.abs(q) * CFG.size;
+        const closing = me && me.pos && Math.sign(q) !== Math.sign(me.pos);
+        if (me.role === 'producer') return q < 0
+            ? `Du hast ${t} t zu ${fmt(price)} CHF/t verkauft. Fällt der Preis jetzt, bist du für diese Menge geschützt.`
+            : `${t} t Absicherung zurückgenommen. Diese Menge hängt wieder am Preis.`;
+        if (me.role === 'processor') return q > 0
+            ? `Du hast ${t} t zu ${fmt(price)} CHF/t gekauft. Steigt der Preis jetzt, bist du für diese Menge geschützt.`
+            : `${t} t Absicherung zurückgenommen. Diese Menge hängt wieder am Preis.`;
+        if (closing) return `Wette um ${t} t verkleinert (zu ${fmt(price)}). Gewinn bzw. Verlust ist für diese Menge fix.`;
+        return q > 0 ? `Gekauft: ${t} t zu ${fmt(price)} CHF/t. Du gewinnst, wenn Kakao steigt.` : `Verkauft: ${t} t zu ${fmt(price)} CHF/t. Du gewinnst, wenn Kakao fällt.`;
     }
 
-    // ===== Rollen-Panel: jede Rolle hat eigene Entscheidungen =====
+    // ===== Rollen-Panel: nur Nebenmechaniken, die in diesem Jahr aktiv sind =====
 
     let panelKey = '';
     const seenCards = new Set();
@@ -417,48 +382,39 @@ const Player = (() => {
 
     function renderRolePanel() {
         const el = $('p-rolepanel');
+        const F = me.feat || {};
         let html = '';
         if (me.role === 'producer') {
-            const d = me.physical - 100;
-            const b = me.buyerOffer;
-            const soldT = me.sales.reduce((s, x) => s + x.t, 0);
+            const b = F.buyers && me.buyerOffer;
             const pricey = me.protectPrice > CFG.protectLow;
-            html = `<div class="rp-head"><span>🌱 Deine Plantage</span><b>${me.physical} t</b></div>
-                ${b ? `<div class="order-card buyer${freshCard(b)}"><div class="oc-top"><b>🤝 ${esc(b.client)}</b><span class="oc-left" data-left="${b.left}"></span></div>
+            // Eine Entscheidungskarte zur Zeit
+            if (b) html += `<div class="order-card buyer${freshCard(b)}"><div class="oc-top"><b>🤝 ${esc(b.client)}</b><span class="oc-left" data-left="${b.left}"></span></div>
                     <div>Will <b>${b.t} t</b> zum festen Preis von <b>${fmt(b.price)} CHF/t</b> kaufen.</div>
-                    <div class="small live">Börse gerade ${fmt(pub.price)} → das Angebot ist <b class="${b.price >= pub.price ? 'up' : 'down'}">${b.price >= pub.price ? `${fmt(b.price - pub.price)} besser` : `${fmt(pub.price - b.price)} schlechter`}</b> als die Börse. Wer weiss, wo der Preis im Dezember steht?</div>
-                    <div class="oc-btns"><button class="btn btn-primary" data-rp="buyer-yes">Verkaufen</button><button class="btn btn-ghost" data-rp="buyer-no">Ablehnen</button></div></div>`
-                    : '<div class="small dim">Warte auf das nächste Händler-Angebot …</div>'}
-                <div class="small">Noch nicht verkaufte Ernte: <b>${me.physical} t</b>${soldT ? ` · direkt verkauft: ${soldT} t` : ''}. Abgesichert: <b>${Math.max(0, -me.pos * CFG.size)} t</b>${-me.pos * CFG.size > me.physical ? ' <span class="bad">→ überabgesichert! Löse einen Teil auf.</span>' : ''}</div>
-                ${me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('')}
-                ${me.sales.map(s => `<div class="rp-log live">✔ ${esc(s.client)} · ${s.t} t zu ${fmt(s.price)} · heute <b class="${s.price >= pub.price ? 'up' : 'down'}">${signed((s.price - pub.price) * s.t)}</b></div>`).join('')}
-                ${me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
-                    : `<button class="btn btn-ghost full ${pricey ? 'pricey' : ''}" data-rp="protect">🛡️ Pflanzenschutz (Versicherung) · ${fmt(me.protectPrice)} CHF<small>${pricey ? '⚠️ Ein Gerücht läuft – die Versicherung ist jetzt teuer!' : 'Jetzt günstig. Läuft ein Dürre-Gerücht, kostet sie ' + fmt(CFG.protectHigh) + ' CHF.'} Halbiert Ernteverluste.</small></button>`}`;
-        } else if (me.role === 'processor') {
+                    <div class="small live">Börse gerade ${fmt(pub.price)} → <b class="${b.price >= pub.price ? 'up' : 'down'}">${b.price >= pub.price ? `▲ ${fmt(b.price - pub.price)} besser` : `▼ ${fmt(pub.price - b.price)} schlechter`}</b></div>
+                    <div class="oc-btns"><button class="btn btn-primary" data-rp="buyer-yes">Verkaufen</button><button class="btn btn-ghost" data-rp="buyer-no">Ablehnen</button></div></div>`;
+            if (F.yield) html += me.harvestLog.map(h => `<div class="rp-log ${h.d < 0 ? 'bad' : 'good'}">${h.d < 0 ? '▼' : '▲'} ${Math.abs(h.d)} t · ${esc(h.text)}</div>`).join('');
+            if (F.protect) html += me.protect ? '<div class="rp-ok">🛡️ Pflanzenschutz aktiv: Ernteverluste werden halbiert.</div>'
+                : `<button class="btn btn-ghost full ${pricey ? 'pricey' : ''}" data-rp="protect">🛡️ Pflanzenschutz · ${fmt(me.protectPrice)} CHF<small>${pricey ? '⚠️ Ein Gerücht läuft – jetzt teuer!' : 'Halbiert Ernteverluste. Jetzt günstig.'}</small></button>`;
+        } else if (me.role === 'processor' && F.orders) {
             const o = me.orderOffer;
-            const orderT = me.orders.reduce((s, x) => s + x.t, 0);
-            html = `<div class="rp-head"><span>🏭 Deine Aufträge</span><b>${-me.physical} t Bedarf</b></div>
-                ${o ? `<div class="order-card${freshCard(o)}"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left" data-left="${o.left}"></span></div>
-                    <div>Bestellt Schokolade aus <b>${o.t} t Kakao</b> zum festen Erlös von <b>${fmt(o.price)} CHF/t</b>.</div>
-                    <div class="small live">Heute kostet Kakao ${fmt(pub.price)} → Marge <b class="up">${fmt(o.price - pub.price)} CHF/t</b> (= ${fmt((o.price - pub.price) * o.t)} CHF) – aber nur, wenn du den Einkauf absicherst.</div>
-                    <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`
-                    : '<div class="small dim">Warte auf den nächsten Kundenauftrag …</div>'}
-                <div class="small">Grundbedarf 100 t${orderT ? ` + ${orderT} t aus ${me.orders.length} Aufträgen` : ''}. Abgesichert: <b>${Math.max(0, me.pos * CFG.size)} t</b> von ${-me.physical} t.</div>
-                ${me.orders.slice(-3).map(x => `<div class="rp-log live">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)} · Marge heute <b class="${x.price - pub.price >= 0 ? 'up' : 'down'}">${signed((x.price - pub.price) * x.t)}</b></div>`).join('')}`;
-        } else {
+            if (o) html += `<div class="order-card${freshCard(o)}"><div class="oc-top"><b>📦 ${esc(o.client)}</b><span class="oc-left" data-left="${o.left}"></span></div>
+                    <div>Bestellt Schokolade aus <b>${o.t} t Kakao</b>, fester Erlös <b>${fmt(o.price)} CHF/t</b>.</div>
+                    <div class="small live">Kakao heute ${fmt(pub.price)} → Marge <b class="up">▲ ${fmt(o.price - pub.price)} CHF/t</b>. Dein Bedarf steigt um ${o.t} t.</div>
+                    <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`;
+            else html += '<div class="small dim">📦 Warte auf den nächsten Kundenauftrag …</div>';
+            html += me.orders.slice(-2).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)}</div>`).join('');
+        } else if (me.role === 'spec' && F.research) {
             const last = me.reports[me.reports.length - 1];
-            html = `<div class="rp-head"><span>🦈 Research-Abteilung</span><b>${me.rumorActive ? '🔥 Gerücht läuft' : 'ruhig'}</b></div>
-                ${last ? `<div class="report">🕵️ ${esc(last.text)}</div>` : '<div class="small dim">Noch kein Bericht. Research lohnt sich, solange ein Gerücht läuft: Wer früher weiss, ob es stimmt, kann vor allen anderen handeln.</div>'}
-                <button class="btn btn-ghost full" data-rp="research" ${me.researchReady ? 'disabled' : ''}>🕵️ Research-Bericht kaufen (${fmt(me.rumorActive ? CFG.researchCost : CFG.researchCost / 2)} CHF)${me.researchReady ? ` · bereit in ${me.researchReady}s` : ''}<small>Trefferquote ca. ${Math.round(CFG.researchHit * 100)} % – nicht immer richtig!</small></button>`;
+            if (last) html += `<div class="report">🕵️ ${esc(last.text)}</div>`;
+            html += `<button class="btn btn-ghost full" data-rp="research" ${me.researchReady ? 'disabled' : ''}>🕵️ Research-Bericht · ${fmt(me.rumorActive ? me.researchCostNow : me.researchCostNow / 2)} CHF${me.researchReady ? ` · bereit in ${me.researchReady}s` : ''}<small>Sagt meistens richtig voraus, ob ein Gerücht stimmt (ca. ${Math.round(me.hitRate * 100)} %).</small></button>`;
         }
+        el.classList.toggle('hidden', !html);
         // Countdown und «neu»-Markierung gehören nicht zum Vergleich – sonst würde die Karte jede Sekunde neu gebaut.
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         tmp.querySelectorAll('.live').forEach(n => { n.innerHTML = ''; });
         const key = tmp.innerHTML.replace(/ data-left="\d+"/g, '').replace(/ fresh/g, '');
-        const tickLeft = () => el.querySelectorAll('[data-left]').forEach(s => { s.textContent = `${s.dataset.left}s`; });
         if (key === panelKey) {
-            // Nur die veränderlichen Teile aktualisieren – die Karte selbst bleibt stehen.
             const fresh = document.createElement('div');
             fresh.innerHTML = html;
             const lefts = [...fresh.querySelectorAll('[data-left]')].map(s => s.dataset.left);
@@ -468,9 +424,9 @@ const Player = (() => {
             return;
         }
         panelKey = key;
-        el.className = `card p-rolepanel ${me.role}`;
+        el.className = `card p-rolepanel ${me.role}${html ? '' : ' hidden'}`;
         el.innerHTML = html;
-        tickLeft();
+        el.querySelectorAll('[data-left]').forEach(s => { s.textContent = `${s.dataset.left}s`; });
         el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
             const a = b.dataset.rp;
             if (a === 'protect') send({ t: 'protect' });
@@ -480,30 +436,6 @@ const Player = (() => {
             if (a === 'buyer-no') send({ t: 'buyer', accept: false });
             if (a === 'research') send({ t: 'research' });
         }));
-    }
-
-    function renderOffers() {
-        // Board-Formular: Hedger dürfen nur in ihre Richtung anbieten.
-        const sides = me.role === 'producer' ? ['sell'] : me.role === 'processor' ? ['buy'] : ['sell', 'buy'];
-        if (!sides.includes(ofSide)) ofSide = sides[0];
-        $('of-side').querySelectorAll('[data-side]').forEach(x => {
-            x.classList.toggle('hidden', !sides.includes(x.dataset.side));
-            x.classList.toggle('active', x.dataset.side === ofSide);
-        });
-        const list = pub.offers.map(o => {
-            const mine = o.by === me.id;
-            const takerBuys = o.side === 'sell';
-            const allowed = room(takerBuys ? 1 : -1) >= o.qty;
-            return `<div class="p-offer ${o.side}">
-                <div><b>${ROLES[o.role].icon} ${esc(o.byName)}</b> <span class="${o.side === 'sell' ? 'down' : 'up'}">${o.side === 'sell' ? 'verkauft' : 'kauft'}</span> ${o.qty} @ <b>${fmt(o.price)}</b>
-                <div class="obar"><span style="width:${(o.left / CFG.offerSec) * 100}%"></span></div></div>
-                ${mine ? `<button class="btn btn-ghost btn-sm" data-cancel="${o.id}">Zurückziehen</button>`
-                    : allowed ? `<button class="btn btn-sm ${takerBuys ? 'btn-buy' : 'btn-sell'}" data-accept="${o.id}">${takerBuys ? 'Kaufen' : 'Verkaufen'}</button>`
-                    : '<span class="locked">🔒 nicht dein Mandat</span>'}</div>`;
-        }).join('');
-        $('p-offers').innerHTML = list || '<div class="dim small">Keine Angebote. Stell selbst eines aufs Board – andere Trader können es annehmen.</div>';
-        $('p-offers').querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => send({ t: 'accept', id: Number(b.dataset.accept) })));
-        $('p-offers').querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => send({ t: 'cancel', id: Number(b.dataset.cancel) })));
     }
 
     let callShown = false;
@@ -522,11 +454,40 @@ const Player = (() => {
         ov.classList.remove('hidden');
         ov.innerHTML = `<div class="call-card"><div class="call-title">📞 MARGIN CALL</div>
             <div class="call-timer">${me.call.left}s</div>
-            <p>Dein Margin-Konto liegt unter ${Math.round(CFG.maintenance * 100)} % des nötigen Einschusses. Schiess <b>${fmt(me.call.need)} CHF</b> nach oder verkleinere deine Position – sonst wird sie zwangsweise glattgestellt.</p>
-            <button class="btn btn-primary btn-big" id="call-top" ${me.cash < me.call.need ? 'disabled' : ''}>Nachschiessen (${fmt(me.call.need)})</button>
+            <p>Der Preis ist gegen dich gelaufen. Dein Pfand bei der Börse reicht nicht mehr. Leg <b>${fmt(me.call.need)} CHF</b> nach – oder verkleinere deine Position. Sonst wird sie zwangsweise geschlossen.</p>
+            <button class="btn btn-primary btn-big" id="call-top" ${me.cash < me.call.need ? 'disabled' : ''}>Geld nachschiessen (${fmt(me.call.need)})</button>
             <button class="btn btn-ghost" id="call-reduce">Position halbieren</button></div>`;
         $('call-top').onclick = () => send({ t: 'topup' });
         $('call-reduce').onclick = () => send({ t: 'reduce' });
+    }
+
+    // ===== Geführter Einstieg: kurze Erklärungen genau dann, wenn sie gebraucht werden =====
+    const coachSeen = new Set();
+    const coachQueue = [];
+    function coach(key, html) {
+        if (coachSeen.has(key)) return;
+        coachSeen.add(key);
+        coachQueue.push(html);
+        if (coachQueue.length === 1) showCoach();
+    }
+    function showCoach() {
+        const el = $('p-coach');
+        if (!coachQueue.length) { el.classList.add('hidden'); return; }
+        el.innerHTML = `<div>${coachQueue[0]}</div><button class="btn btn-primary btn-sm">OK</button>`;
+        el.classList.remove('hidden');
+        el.querySelector('button').onclick = () => {
+            coachQueue.shift();
+            showCoach();
+        };
+    }
+    function coachTriggers() {
+        const R = ROLES[me.role];
+        const btn = me.role === 'producer' ? '<b>ABSICHERN</b> verkauft einen Teil deiner Ernte schon heute zum aktuellen Preis.'
+            : me.role === 'processor' ? '<b>ABSICHERN</b> kauft einen Teil deines Kakaos schon heute zum aktuellen Preis.'
+                : '<b>KAUFEN</b> = Wette, dass Kakao steigt. <b>VERKAUFEN</b> = Wette, dass er fällt.';
+        coach('start', `${roleIcon(me.role, 22)} <b>${R.goal}</b><br>${btn}`);
+        if (me.rumor) coach('rumor', '📣 <b>Ein Gerücht!</b> Der Preis bewegt sich schon, bevor klar ist, ob es stimmt. Oben läuft der Countdown bis zur Auflösung.');
+        if (pub.phase === 'settle') coach('settle', '🧾 <b>Monatsende:</b> Gewinne und Verluste deiner Futures werden jetzt aufs Konto gebucht («Mark-to-Market»).');
     }
 
     function spark(data) {
@@ -555,10 +516,7 @@ const Player = (() => {
         const col = up ? '34,229,138' : '255,77,106';
         c.strokeStyle = `rgb(${col})`;
         c.lineWidth = 2;
-        c.shadowColor = `rgba(${col},.6)`;
-        c.shadowBlur = 8;
         c.stroke();
-        c.shadowBlur = 0;
         c.lineTo(W - 2, H);
         c.lineTo(2, H);
         c.closePath();
@@ -573,9 +531,9 @@ const Player = (() => {
         const el = $('p-flash');
         const label = { rumor: 'GERÜCHT', yes: 'BESTÄTIGT', no: 'DEMENTI', flash: 'EILMELDUNG', alert: 'ACHTUNG' }[it.kind];
         el.className = `p-flash ${it.kind}`;
-        el.innerHTML = `<b>${label}</b> ${it.icon} ${esc(it.text.replace(/^[A-ZÄÖÜ ]+: /, ''))}`;
+        el.innerHTML = `<b>${label}</b> ${it.icon} ${esc(it.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}`;
         Sound.play(it.kind === 'alert' ? 'alarm' : 'news');
-        if (navigator.vibrate) navigator.vibrate(60);
+        if (navigator.vibrate) navigator.vibrate(it.kind === 'yes' || it.kind === 'no' ? [60, 60, 120] : 60);
         clearTimeout(newsFlash.t);
         newsFlash.t = setTimeout(() => el.classList.add('hidden'), 4500);
     }
@@ -585,19 +543,22 @@ const Player = (() => {
         el.className = `p-toast ${kind}`;
         el.textContent = text;
         $('p-toasts').appendChild(el);
-        while ($('p-toasts').children.length > 3) $('p-toasts').firstChild.remove();
-        setTimeout(() => el.remove(), 3500);
+        while ($('p-toasts').children.length > 2) $('p-toasts').firstChild.remove();
+        setTimeout(() => el.remove(), 4500);
     }
 
     function renderInfo() {
         const R = ROLES[role];
-        $('tab-info').innerHTML = `<h3>${R.icon} Deine Mission · ${R.job}</h3><p class="future-intro">📜 ${FUTURE_INTRO}</p>${earnHTML(role)}${roleRules(R)}<p>💡 ${R.hint}</p>
+        const hedger = R.physical !== 0;
+        $('tab-info').innerHTML = `<p class="goal-line">🎯 <b>${R.goal}</b></p>
+            <p class="future-intro">📜 ${FUTURE_INTRO}</p>${earnHTML(role)}${roleRules(R)}
             <h3>So läuft's</h3><ul class="info-list">
-                <li>1 Kontrakt = <b>${CFG.size} t</b> Kakao, Lieferung Dezember. Einschuss ${Math.round(CFG.marginRate * 100)} % des Werts.</li>
-                <li><b>Kaufen</b> = Long (gewinnt, wenn Kakao steigt). <b>Verkaufen</b> = Short (gewinnt, wenn Kakao fällt).</li>
-                <li>Am Ende jedes Monats wird abgerechnet (Mark-to-Market). Unter ${Math.round(CFG.maintenance * 100)} % Einschuss gibt's einen Margin Call.</li>
-                <li>Gerüchte bewegen den Preis schon <i>vor</i> der Bestätigung.</li>
-                ${R.physical ? `<li><b>Wertung:</b> Du trittst gegen die anderen ${R.short === 'Fabrik' ? 'Fabriken' : 'Kooperativen'} an. ${role === 'producer' ? 'Wer den höchsten Preis pro Tonne erzielt, gewinnt.' : 'Wer am günstigsten einkauft, gewinnt (Auftragsmargen senken deinen Preis).'}</li><li>🏦 <b>Bankauflage:</b> Bis Ende Monat ${CFG.bankMonth} mindestens ${Math.round(CFG.bankQuota * 100)} % absichern, sonst ${fmt(CFG.bankFee)} CHF Zuschlag.</li><li>💸 Margin Calls treffen auch Hedger: Wer zu viel absichert und zu wenig Bargeld hat, wird zwangsweise glattgestellt.</li>` : '<li><b>Wertung:</b> Der Hedgefonds mit dem höchsten Gewinn gewinnt.</li>'}
+                <li>Es gibt ${CFG.months} Handelsmonate, dann ist Dezember: Jetzt wird geliefert und abgerechnet.</li>
+                <li>Gerüchte bewegen den Preis schon, <i>bevor</i> klar ist, ob sie stimmen.</li>
+                <li>Für jede Absicherung oder Wette hinterlegst du ${Math.round(CFG.marginRate * 100)} % als Pfand bei der Börse. Läuft der Preis gegen dich, musst du nachschiessen (Margin Call).</li>
+                ${hedger ? `<li><b>Wertung:</b> Wer ${role === 'producer' ? 'zum höchsten' : 'zum tiefsten'} Preis pro Tonne ${role === 'producer' ? 'verkauft' : 'einkauft'}, gewinnt. Was im Dezember noch offen ist, wird ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt.</li>`
+                    : '<li><b>Wertung:</b> Der Hedgefonds mit dem höchsten Gewinn gewinnt.</li>'}
+                <li>Pleite? Dann gibt dir die Bank einen Notkredit (${fmt(CFG.loan)} CHF, ${Math.round(CFG.loanRate * 100)} % Zins am Schluss) – du spielst weiter.</li>
             </ul>
             <h3>Begriffe</h3>${GLOSSARY.map(([t, d]) => `<p><b>${t}:</b> ${d}</p>`).join('')}`;
     }
@@ -615,7 +576,7 @@ const Player = (() => {
         const ups = UPGRADES[me.role] || [];
         const yi = yearInfo;
         const last = me.yearsDone[me.yearsDone.length - 1];
-        const key = JSON.stringify([me.upgrades, me.cash, me.level, last, yi && yi.rank, me.stored]);
+        const key = JSON.stringify([me.upgrades, me.cash, me.level, last, yi && yi.rank]);
         $('shop-timer').textContent = `${Math.floor(Math.max(0, pub.shopLeft) / 60)}:${String(Math.max(0, pub.shopLeft) % 60).padStart(2, '0')}`;
         if (key === shopKey) return;
         shopKey = key;
@@ -636,14 +597,7 @@ const Player = (() => {
                 return `<div class="shop-card ${own ? 'own' : ''}" style="--rc:${R.color}"><div class="sc-ico">${u.icon}</div><div class="sc-body"><b>${u.name}</b><p>${u.desc}</p></div>
                     ${own ? '<div class="sc-own">✔ Gekauft</div>' : `<button class="btn ${can ? 'btn-primary' : 'btn-ghost'} sc-buy" data-up="${u.id}" ${can ? '' : 'disabled'}>${fmt(u.cost)} CHF</button>`}</div>`;
             }).join('')}</div>
-            ${me.role === 'producer' && me.upgrades.includes('storage') ? `<div class="card store-card"><div class="shop-h"><span>🏚️ Lagerhaus</span><b>${me.stored} t eingelagert</b></div>
-                <p class="small">Statt zum Schlusskurs von <b>${fmt(pub.price)} CHF/t</b> zu verkaufen, kannst du Kakao einlagern und nächstes Jahr verkaufen. Lohnt sich nur, wenn der Preis um mehr als ${CFG.storeFee} CHF/t (Lagerkosten) steigt!</p>
-                <div class="store-btns">${[0, 20, 40, 60].filter(t => t <= CFG.storeMax).map(t => `<button class="btn ${me.stored === t ? 'btn-primary' : 'btn-ghost'}" data-store="${t}">${t} t</button>`).join('')}</div></div>` : ''}
             <div class="dim small pulse">Der Host startet das nächste Jahr – oder es geht automatisch weiter, wenn die Zeit abläuft.</div>`;
-        $('shop-body').querySelectorAll('[data-store]').forEach(b => b.addEventListener('click', () => {
-            send({ t: 'store', t2: Number(b.dataset.store) });
-            Sound.play('tick');
-        }));
         $('shop-body').querySelectorAll('[data-up]').forEach(b => b.addEventListener('click', () => {
             send({ t: 'upgrade', id: b.dataset.up });
             Sound.play('buy');
@@ -691,35 +645,8 @@ const Player = (() => {
             $('p-qty').querySelectorAll('[data-q]').forEach(x => x.classList.toggle('active', x === b));
         }));
         // Menge automatisch aufs Mandat begrenzen (z. B. nur noch 3 Kontrakte bis zur vollen Absicherung).
-        $('p-buy').addEventListener('click', () => send({ t: 'trade', mkt, q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
-        $('p-sell').addEventListener('click', () => send({ t: 'trade', mkt, q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
-        $('p-mkt').querySelectorAll('[data-mkt]').forEach(b => b.addEventListener('click', () => {
-            mkt = b.dataset.mkt;
-            $('p-hmeter').dataset.h = '';
-            Sound.play('tick');
-            if (me && pub) render();
-        }));
-        $('of-side').querySelectorAll('[data-side]').forEach(b => b.addEventListener('click', () => {
-            ofSide = b.dataset.side;
-            $('of-side').querySelectorAll('[data-side]').forEach(x => x.classList.toggle('active', x === b));
-            if (pub) ofPrice = Math.round(pub.price * (ofSide === 'sell' ? 1.003 : 0.997));
-            render();
-        }));
-        document.querySelectorAll('[data-of]').forEach(b => b.addEventListener('click', () => {
-            const a = b.dataset.of;
-            if (a === 'q-') ofQty = Math.max(1, ofQty - 1);
-            if (a === 'q+') ofQty = Math.min(10, ofQty + 1);
-            const step = Math.max(1, Math.round((pub ? pub.price : CFG.p0) * 0.002));
-            if (a === 'p-') ofPrice -= step;
-            if (a === 'p+') ofPrice += step;
-            render();
-        }));
-        $('of-post').addEventListener('click', () => send({ t: 'offer', side: ofSide, qty: ofQty, price: ofPrice }));
-        document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => {
-            document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('active', x === b));
-            $('tab-board').classList.toggle('hidden', b.dataset.tab !== 'board');
-            $('tab-info').classList.toggle('hidden', b.dataset.tab !== 'info');
-        }));
+        $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
+        $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
         $('btn-rejoin').addEventListener('click', () => join(code, name));
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
             if (b.dataset.role === role) return;

@@ -11,6 +11,7 @@ const Bots = (() => {
                 greed: 6000 + Math.random() * 8000,   // Gewinnmitnahme Spekulant
                 pain: 7000 + Math.random() * 7000,    // Stop-Loss Spekulant
                 bias: Math.random() < 0.5 ? 1 : -1,
+                delay: 3 + Math.floor(Math.random() * 8),   // Reaktionszeit auf Gerüchte (wie ein Mensch)
             });
         }
         return mind.get(p.id);
@@ -48,29 +49,12 @@ const Bots = (() => {
         // Timing: Bauern sichern mehr ab, wenn der Preis hoch ist, Fabriken, wenn er tief ist.
         const rel = G.price / G.p0 - 1;
         let ratio = clamp(m.ratio * 0.55 + (p.role === 'producer' ? rel : -rel) * 3.5, 0.1, 1);
-        // Bankauflage nicht verpassen
-        const left = G.monthSec - (G.clock % G.monthSec);
-        if (G.month > CFG.bankMonth || (G.month === CFG.bankMonth && left < G.monthSec * 0.6)) ratio = Math.max(ratio, CFG.bankQuota + 0.08);
+        // Im letzten Monat den Rest absichern (sonst droht der Notverkauf-Abschlag) – aber nicht alle gleich konsequent.
+        if (G.month >= CFG.months) ratio = Math.max(ratio, m.ratio);
         const target = Math.round((-p.physical / CFG.size) * ratio);
-        // Zucker: Fabriken sichern ihren Zuckerbedarf ähnlich ab
-        if (p.role === 'processor' && G.sug.on && p.sphys < 0 && Math.random() < m.pace * 0.6) {
-            const srel = G.sug.price / G.sug.p0 - 1;
-            const sr = clamp(m.ratio * 0.55 - srel * 3, 0.1, 1);
-            const st = Math.round((-p.sphys / CFG.sSize) * Math.max(sr, G.month > CFG.bankMonth ? 0.5 : 0));
-            if (st !== p.spos) Engine.trade(p.id, Math.sign(st - p.spos), 'sugar');
-        }
         const gap = target - p.pos;
-        // Gute Angebote anderer Spieler in die richtige Richtung annehmen.
-        const good = G.offers.find(o => o.by !== p.id
-            && (gap > 0 ? o.side === 'sell' && o.price <= G.price * 1.002 : o.side === 'buy' && o.price >= G.price * 0.998)
-            && o.qty <= Math.abs(gap));
-        if (good && Math.random() < 0.35) return Engine.acceptOffer(p.id, good.id);
         if (Math.abs(gap) >= 1 && Math.random() < m.pace) {
             Engine.trade(p.id, Math.sign(gap) * Math.min(Math.abs(gap), 1 + Math.floor(Math.random() * 2)));
-        }
-        if (false && Math.abs(gap) >= 2) { // Board ist ausgeblendet
-            const side = gap > 0 ? 'buy' : 'sell';
-            Engine.postOffer(p.id, side, Math.min(3, Math.abs(gap)), G.price * (side === 'buy' ? 0.995 : 1.005));
         }
     }
 
@@ -81,7 +65,7 @@ const Bots = (() => {
             return Engine.trade(p.id, -Math.sign(p.pos) * Math.min(Math.abs(p.pos), 3));
         }
         const rumors = Engine.activeRumors();
-        if (rumors.length && p.researchAt < G.sec - 30 && Math.random() < 0.06) {
+        if (rumors.length && Engine.feat('research') && p.researchAt < G.sec - 30 && Math.random() < 0.06) {
             Engine.research(p.id);
             const r = rumors[0];
             const last = p.reports[p.reports.length - 1];
@@ -90,24 +74,13 @@ const Bots = (() => {
         if (m.view && G.clock < m.view.until) {
             const want = m.view.dir * 8;
             if (want !== p.pos && Math.random() < 0.3) return Engine.trade(p.id, Math.sign(want - p.pos) * Math.min(3, Math.abs(want - p.pos)));
-        } else if (rumors.length) {
+        } else if (rumors.length && rumors[0].since >= m.delay) {
             const r = rumors[0];
             const want = Math.sign(r.impact) * Math.round(4 + Math.abs(r.impact) * 40);
             if (r.left <= 2 && p.pos && Math.random() < 0.5) return Engine.trade(p.id, -Math.sign(p.pos) * Math.min(Math.abs(p.pos), 3));
             if (Math.sign(want - p.pos) !== 0 && Math.random() < 0.25) return Engine.trade(p.id, Math.sign(want - p.pos) * Math.min(3, Math.abs(want - p.pos)));
         } else if (Math.random() < 0.04) {
             Engine.trade(p.id, (Math.random() < 0.55 ? m.bias : -m.bias) * (1 + Math.floor(Math.random() * 2)));
-        }
-        // Zucker: Fonds handeln die Zucker-News mit
-        if (G.sug.on && Math.random() < 0.03) {
-            const h = G.sug.history;
-            const mom = h.length > 6 ? h[h.length - 1].p - h[h.length - 6].p : 0;
-            const want = clamp(Math.sign(mom) * 3 + (Math.random() < 0.5 ? 1 : -1), -6, 6);
-            if (want !== p.spos) Engine.trade(p.id, Math.sign(want - p.spos), 'sugar');
-        }
-        if (false && pl > 5000) { // Board ist ausgeblendet
-            const side = Math.random() < 0.5 ? 'buy' : 'sell';
-            Engine.postOffer(p.id, side, 1 + Math.floor(Math.random() * 3), G.price * (side === 'buy' ? 0.996 : 1.004));
         }
     }
 

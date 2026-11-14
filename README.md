@@ -13,28 +13,43 @@ Ein Multiplayer-Echtzeitspiel um **Kakao-Futures** für das Ergänzungsfach Wirt
 3. Zu wenige Leute? Der Host nimmt **KI-Trader** dazu (auch zum Alleine-Testen).
 4. **Börse eröffnen.** 4 Handelsmonate, nach jedem Monat wird abgerechnet, danach ist Fälligkeit.
 
-## Rollen
+## Rollen (ein Satz pro Rolle)
 
-| Rolle | Ausgangslage | Lernziel |
-|---|---|---|
-| 🌱 Kakao-Kooperative | Erntet im Dezember ca. 100 t, Risiko fallende Preise. **Eigene Mechanik:** Dürre, Krankheit oder Regen verändern die **Erntemenge**. Pflanzenschutz halbiert Verluste. | **Short-Hedge** – und: Futures sichern den Preis, nicht die Menge (Überabsicherung) |
-| 🏭 Schokoladenfabrik | Braucht 100 t, Risiko steigende Preise. **Eigene Mechanik:** Kunden bestellen laufend Schokolade zu einem **festen Verkaufspreis**. Jeder angenommene Auftrag erhöht den Bedarf. | **Long-Hedge**: Marge eines Auftrags mit Futures fixieren |
-| 🦈 Hedgefonds | Kein Kakao, nur Kapital, grösseres Limit. **Eigene Mechanik:** **Research-Berichte** über laufende Gerüchte (ca. 80 % Trefferquote, kostet Geld). | **Spekulation**, Informationsvorsprung, Hebel, Liquiditätsrisiko |
+| Rolle | Ziel |
+|---|---|
+| 🌱 Kakao-Kooperative | Verkaufe deine Ernte zu einem möglichst hohen Preis – bevor er fällt. |
+| 🏭 Schokoladenfabrik | Kaufe deinen Kakao zu einem möglichst tiefen Preis – bevor er steigt. |
+| 🦈 Hedgefonds | Wette auf steigende oder fallende Preise – und mach den grössten Gewinn. |
 
-**Mandate – wie in der Realität:** Die Rollen können nicht dasselbe tun. Die Kooperative darf nur Futures **verkaufen**, und zwar höchstens so viel, wie sie erntet. Die Fabrik darf nur **kaufen**, höchstens ihren Bedarf (der mit jedem Auftrag wächst). Beide dürfen ihre Absicherung wieder auflösen, aber nie auf die andere Seite wechseln. Nur Hedgefonds dürfen in beide Richtungen spekulieren. Das gilt auch für das Board: Hedger sehen nur Angebote, die zu ihrem Mandat passen.
-
-Jeder Spieler wählt beim Beitreten seine Rolle (oder «Zufall») und kann sie im Warteraum bis zum Start wechseln. KI-Trader füllen die Rollen auf, die am wenigsten besetzt sind.
+**Mandate:** Die Kooperative darf nur verkaufen (höchstens ihre Ernte), die Fabrik nur kaufen (höchstens ihren Bedarf). Nur Hedgefonds wetten in beide Richtungen.
 
 ## Regeln
 
-- **Kontrakt:** 1 Kontrakt = 10 t Kakao, Lieferung Dezember. Startpreis (= Plan) 2'400 CHF/t.
-- **Einschuss:** 10 % des Kontraktwerts (Hebel 10×). Margin Call unter 70 %: nachschiessen oder Position verkleinern, sonst **Zwangsglattstellung** nach 25 s.
-- **Mark-to-Market:** Am Ende jedes Monats werden alle Positionen zum Marktpreis abgerechnet.
-- **Handel:**
-  - **Markt:** Kauf/Verkauf beim Market Maker mit Spread und Gebühr. Grosse Orders bewegen den Preis.
-  - **Board:** eigene Angebote für andere Spieler (Block-Deals, halbe Gebühr, kein Spread).
-- **News:** Zuerst kommt ein **Gerücht**, danach eine **Bestätigung** oder ein **Dementi**. Der Markt preist Gerüchte teilweise schon ein. Dazu kommen Eilmeldungen und manchmal eine Erhöhung des Einschusses durch die Börsenaufsicht.
-- **Wertung:** Ergebnis gegenüber dem Plan (inkl. Wirkung des Preises auf Ernte bzw. Einkauf). Kooperativen und Fabriken erhalten bis zu **15'000 CHF Bonus** für konsequente Absicherung (zeitgewichtete Hedge-Quote).
+- **Kontrakt:** 1 Kontrakt = 10 t Kakao, Lieferung Dezember. Auf dem Handy wird in Tonnen gewählt.
+- **Pfand (Einschuss):** 10 % des Werts. Läuft der Preis gegen dich, gibt es einen Margin Call: nachschiessen oder verkleinern, sonst Zwangsverkauf.
+- **Monatsabrechnung (Mark-to-Market)** am Ende jedes der 4 Monate.
+- **Gerüchte:** Der Markt preist den erwarteten Effekt schnell ein. Wer rasch reagiert, hat einen kleinen, aber nie sicheren Vorteil.
+- **Wertung:** Kooperativen = erzielter Preis pro Tonne, Fabriken = Einkaufspreis pro Tonne, Fonds = Gewinn. **Was im Dezember nicht abgesichert ist, wird 5 % schlechter gehandelt** (Notverkauf bzw. Notkauf). So ist Nichtstun eine Wette, die etwas kostet.
+- **Pleite:** Neustart mit Notkredit (25'000 CHF, 30 % Zins am Schluss) – niemand muss zuschauen.
+
+## Schrittweise Einführung
+
+Jahr 1 ist nur das Kernspiel: absichern bzw. wetten, Gerüchte, Monatsabrechnung.
+
+| Ab Jahr | Neu |
+|---|---|
+| 2 | 🌦️ Wetter verändert die Erntemenge · 🛡️ Pflanzenschutz · 📦 Kundenaufträge (Fabrik) · 🕵️ Research (Fonds) |
+| 3 | 🤝 Händler-Angebote (Kooperative) |
+
+Bei «1 Jahr» gibt es das Kernspiel plus eine Besonderheit pro Rolle (Wetter, Aufträge, Research).
+
+## Handy-Cockpit
+
+Alles Wichtige passt ohne Scrollen auf den Bildschirm: Zeile «Was jetzt?» (mit Countdown bei Gerüchten), Preis mit Trend, Ziel-Fortschritt, Rang. Die Handelsknöpfe sind unten fixiert. Kurze Erklärungen erscheinen genau dann, wenn sie gebraucht werden (erster Start, erstes Gerücht, erster Trade, erste Abrechnung, neue Mechaniken). Regeln, Beispiel und Begriffe stehen im einklappbaren Bereich «📖 Hilfe».
+
+## Balance prüfen
+
+`tools/sim.html` spielt die Engine 200-mal mit festen Strategien (nie absichern, alles sofort, Hälfte, Gerüchten folgen) plus KI-Tradern und zeigt Siegquote, Durchschnitt und Streuung pro Rolle.
 
 ## Auswertung
 
@@ -59,9 +74,10 @@ Auf jedem Handy erscheint eine persönliche Auswertung.
 | `js/common.js` | Regeln, Rollen, News, Begriffe, Sound |
 | `js/engine.js` | Markt-Engine: Preis, Konten, Margin, Abrechnung, Wertung |
 | `js/bots.js` | KI-Trader |
-| `js/net.js` | Verbindung mit Raumcode (PeerJS) |
+| `js/net.js` | Verbindung mit Raumcode (PeerJS, Ausweich-Weg über MQTT) |
 | `js/host.js` | Beamer: Lobby, Live-Chart, Rangliste, News, Auswertung |
-| `js/player.js` | Handy: Handel, Board, Margin Call, persönliche Auswertung |
+| `js/player.js` | Handy-Cockpit: Handel, «Was jetzt?», geführter Einstieg, Margin Call |
+| `tools/sim.html` | Balance-Simulation |
 | `js/app.js` | Start und Navigation |
 
 
@@ -81,7 +97,6 @@ Ränge: Junior → Trader → Senior → Legende (ein Aufstieg für jedes Jahr, 
 **Endergebnis** = Summe der Jahresergebnisse − Ausbau − Zinsen. Am Ende läuft eine **Preisverleihung**: Beste Kooperative, beste Fabrik, bester Hedgefonds und der Trader des Tages, danach die ganze Karriere-Bilanz.
 
 
-## Etappe 2: Weltkarte, Lagerhaus
+## Weltkarte
 
-- **🌍 Weltkarte** auf dem Beamer (statt der Abschlussliste): Punkte-Karte mit den Kakao-Regionen Ghana, Elfenbeinküste, Ecuador und Indonesien. Jede Kooperative bekommt eine Region; Ernte-Ereignisse treffen nur diese Region. Gerüchte und Meldungen erscheinen als pulsierende Marker auf der Karte.
-- **🏚️ Lagerhaus** (Ausbau für Kooperativen, 10'000 CHF): In der Ausbauphase bis zu 60 t Ernte zum Schlusskurs einlagern (60 CHF/t Lagerkosten) und im nächsten Jahr zum dann gültigen Preis verkaufen. Lohnt sich nur, wenn der Preis um mehr als die Lagerkosten steigt.
+Jede Kooperative bekommt eine Anbauregion (Ghana, Elfenbeinküste, Ecuador, Indonesien). Gerüchte und Meldungen erscheinen als Marker auf der Karte. Ab Jahr 2 treffen Ernte-Ereignisse nur die betroffene Region.

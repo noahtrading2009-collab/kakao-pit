@@ -1025,3 +1025,95 @@ body.typing .bg-aurora i, body.typing .ticker-track, body.typing .hero-emblem, b
     .ls-cloud, .ls-tree, .ls-sun, .ls-smoke circle, .ls-belt, .ls-candle, .ls-line, .scene .tree-g, .scene .drift, .scene .bird, .rk-group .rank-row.lead::after { animation: none; }
     #ambient { display: none; }
 }
+
+/* =====================================================================
+   HANDY-COCKPIT: alles Wichtige ohne Scrollen, Knöpfe unten
+   ===================================================================== */
+#v-player { height: 100dvh; overflow: hidden; }
+.p-scroll { padding: 8px 12px 12px; gap: 8px; }
+.p-rank { display: flex; align-items: baseline; gap: 2px; font-size: 18px; }
+.p-rank small { font-size: 10px; opacity: .75; }
+
+/* «Was jetzt?» */
+.p-now { position: relative; overflow: hidden; padding: 9px 14px 11px; font-size: 14px; line-height: 1.35; background: rgba(255, 181, 71, .1); border-bottom: 1px solid rgba(255, 181, 71, .25); min-height: 48px; flex: none; }
+.p-now span { position: relative; z-index: 1; }
+.p-now.ok { background: rgba(34, 229, 138, .1); border-bottom-color: rgba(34, 229, 138, .3); }
+.p-now.bad { background: rgba(255, 77, 106, .14); border-bottom-color: rgba(255, 77, 106, .4); }
+.p-now.rumor { background: linear-gradient(90deg, rgba(255, 181, 71, .2), rgba(255, 181, 71, .06)); padding-right: 52px; }
+.p-now.urgent { animation: nowPulse 1s ease-in-out infinite; }
+@keyframes nowPulse { 50% { background-color: rgba(255, 77, 106, .22); } }
+.p-now .rumor-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--amber); box-shadow: 0 0 8px var(--amber); transition: width 1s linear; }
+.p-now .rumor-left { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-style: normal; font-weight: 800; font-size: 18px; color: var(--amber); }
+
+/* Preis kompakt */
+.p-price { padding: 8px 12px; }
+.p-price .big-price { font-size: 30px; line-height: 1.1; }
+#p-spark { height: 44px; }
+
+/* Szene kompakt */
+.scene { height: 118px; border-radius: 14px; }
+.scene .sc-big b { font-size: 26px; }
+.scene .sc-big small { font-size: 11px; }
+
+/* Ziel-Karte */
+.p-goal { padding: 12px 14px; display: grid; gap: 8px; }
+.g-head { font-weight: 700; font-size: 14px; line-height: 1.3; }
+.g-bar { height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .08); overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, .06) inset; }
+.g-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #f59e0b, #22e58a); transition: width .6s cubic-bezier(.2, 1, .3, 1); }
+.g-bar.over i { background: repeating-linear-gradient(135deg, #ff4d6a 0 8px, #b3263f 8px 16px); }
+.g-row { display: flex; justify-content: space-between; font-size: 13px; }
+.g-row b { font-family: var(--mono); }
+.g-score { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.g-score > div { background: rgba(0, 0, 0, .22); border-radius: 10px; padding: 6px 8px; display: grid; gap: 1px; min-width: 0; }
+.g-score small { font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-score b { font-family: var(--mono); font-size: 17px; white-space: nowrap; }
+.g-risk { font-size: 12.5px; padding: 6px 9px; border-radius: 8px; background: rgba(255, 255, 255, .05); }
+.g-risk.warn { background: rgba(255, 181, 71, .12); }
+.g-risk.ok { background: rgba(34, 229, 138, .1); }
+.g-risk.bad { background: rgba(255, 77, 106, .14); }
+.g-acct { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 4px; font-size: 11px; color: var(--dim); }
+.g-acct span { display: grid; }
+.g-acct b { color: var(--text); font-family: var(--mono); font-size: 12px; }
+
+/* Rollen-Panel nur bei aktiven Nebenmechaniken */
+.p-rolepanel.hidden { display: none !important; }
+
+/* Hilfe einklappbar */
+.p-help { padding: 0; }
+.p-help summary { padding: 12px 14px; cursor: pointer; font-weight: 700; font-size: 14px; list-style: none; min-height: 44px; }
+.p-help summary::-webkit-details-marker { display: none; }
+.p-help summary::after { content: "▾"; float: right; opacity: .6; }
+.p-help[open] summary::after { content: "▴"; }
+.p-help #tab-info { padding: 0 14px 14px; }
+.goal-line { font-size: 15px; background: color-mix(in srgb, var(--rc, #ffb547) 14%, transparent); border-radius: 10px; padding: 8px 10px; }
+
+/* Knöpfe unten fixiert (Daumenreichweite) */
+.p-dock { flex: none; padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(5, 8, 15, .7), rgba(5, 8, 15, .97)); border-top: 1px solid color-mix(in srgb, var(--rc) 35%, transparent); backdrop-filter: blur(10px); display: grid; gap: 8px; max-width: 560px; width: 100%; margin: 0 auto; box-shadow: 0 -12px 30px rgba(0, 0, 0, .45); }
+.p-dock .qty { flex-wrap: nowrap; justify-content: space-between; }
+.p-dock .qty button { flex: 1; min-height: 44px; font-size: 14px; }
+.p-dock .qty > span { flex: none; margin-right: 2px; }
+.p-dock .tbtn { min-height: 76px; padding: 10px 8px; }
+.p-dock .tbtn span { font-size: 17px; }
+.p-dock .tbtn b { font-size: 15px; }
+
+/* Geführter Einstieg */
+.p-coach { position: fixed; left: 12px; right: 12px; bottom: calc(180px + env(safe-area-inset-bottom)); z-index: 25; max-width: 520px; margin: 0 auto; display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; background: linear-gradient(135deg, #1c2a4a, #121a30); border: 1px solid rgba(255, 181, 71, .5); box-shadow: 0 0 0 4px rgba(255, 181, 71, .12), 0 20px 50px rgba(0, 0, 0, .6); font-size: 14px; line-height: 1.4; animation: coachIn .45s cubic-bezier(.2, 1.4, .4, 1); }
+.p-coach > div { flex: 1; }
+.p-coach .btn { flex: none; min-width: 56px; min-height: 44px; }
+.p-coach .role-ico { vertical-align: -5px; }
+@keyframes coachIn { from { transform: translateY(20px); opacity: 0; } }
+#p-toasts { bottom: calc(176px + env(safe-area-inset-bottom)); }
+
+/* Touch-Ziele ≥ 44 px */
+#v-player .btn, .role-pick button, .seg button { min-height: 44px; }
+
+/* Preis mit Trend für alle Rollen; die Szene zeigt ihn nicht doppelt */
+body[data-role] #v-player .p-price { display: flex; min-height: 0; padding: 8px 12px; }
+body[data-role] #v-player .p-price > div:first-child { display: block; }
+.scene .sc-chip.tr, .scene .sc-big { display: none; }
+/* Kopfzeile: Name hat Vorrang, Monat steht klein über der Uhr */
+.p-top { gap: 8px; }
+.p-role { min-width: 0; flex: 1 1 auto; }
+.p-clock { flex: none; display: grid; justify-items: center; gap: 0; line-height: 1.1; }
+.p-clock span { font-size: 10px; white-space: nowrap; }
+.p-dock .qty button { white-space: nowrap; font-size: 13px; padding-left: 4px; padding-right: 4px; }

@@ -18,7 +18,7 @@ const App = (() => {
         modal(`<h2>So funktioniert KAKAO PIT</h2>
             <p>Ihr handelt <b>Kakao-Futures</b> mit Lieferung im Dezember. Ein grosser Bildschirm ist die Börse: Live-Kurs, News und Rangliste. Alle anderen spielen auf dem Handy.</p>
             <p class="future-intro">📜 ${FUTURE_INTRO}</p>
-            <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><div class="dim small">${R.job}</div><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
+            <div class="how-roles">${Object.entries(ROLES).map(([k, R]) => `<div class="how-role" style="--rc:${R.color}"><b>${roleIcon(k, 28)} ${R.name}</b><p class="goal-line">🎯 <b>${R.goal}</b></p><p>${R.mission}</p>${earnHTML(k)}${roleRules(R)}</div>`).join('')}</div>
             <p>Jede Rolle hat ein eigenes <b>Mandat</b> – wie in der Realität: Hedger dürfen nur ihr echtes Geschäft absichern, nur Hedgefonds dürfen spekulieren.</p>
             <ul class="info-list">
                 <li>🌍 <b>Weltkarte:</b> Jede Kooperative liegt in einer Region (Ghana, Elfenbeinküste, Ecuador, Indonesien). Dürre, Krankheit oder Rekordernten treffen nur die betroffene Region.</li>
@@ -27,7 +27,7 @@ const App = (() => {
                 <li>1 Kontrakt = 10 t. Einschuss 10 % – darum wirkt jede Kursbewegung mit Hebel. Margin Call unter 70 %.</li>
                 <li>News kommen zuerst als <b>Gerücht</b>, dann als Bestätigung oder Dementi. Der Preis reagiert schon auf das Gerücht.</li>
                 <li><b>Wertung:</b> Ergebnis gegenüber dem Plan (Startpreis ${fmt(CFG.p0)} CHF/t). Jede Rolle hat ihre eigene Rangliste: Kooperativen kämpfen um den <b>besten Verkaufspreis</b>, Fabriken um den <b>günstigsten Einkauf</b>, Hedgefonds um den <b>höchsten Gewinn</b>.</li>
-                <li>🏦 Die Bank verlangt von Kooperativen und Fabriken bis Ende Monat ${CFG.bankMonth} mindestens ${Math.round(CFG.bankQuota * 100)} % Absicherung – sonst ${fmt(CFG.bankFee)} CHF Zuschlag.</li>
+                <li>⏰ Was Kooperativen und Fabriken bis Dezember nicht abgesichert haben, wird dann ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt (Notverkauf bzw. Notkauf).</li>
                 <li>Zu wenig Leute? Der Host kann <b>KI-Trader</b> dazunehmen.</li>
             </ul>
             <p class="dim small">Technik: Die Geräte verbinden sich direkt über WebRTC. Zum Finden dient ein öffentlicher Vermittler (PeerJS) – dafür braucht es Internet.</p>`);

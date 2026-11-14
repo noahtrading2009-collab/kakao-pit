@@ -15,10 +15,9 @@ const Engine = (() => {
             phase: 'lobby', len, monthSec: CFG.monthSec[len] || CFG.monthSec.normal,
             clock: 0, sec: 0, month: 1, settleLeft: 0,
             p0: CFG.p0, price: CFG.p0, ref: CFG.p0, marginRate: CFG.marginRate, pendingRate: null,
-            history: [{ s: 0, p: CFG.p0 }], marks: [], feed: [], events: [], players: [], offers: [], tape: [],
+            history: [{ s: 0, p: CFG.p0 }], marks: [], feed: [], events: [], players: [], tape: [],
             flow: 0, drift: 0, seq: 1, trades: [],
             year: 1, years: years || CFG.years, yearLog: [], shopLeft: 0,
-            sug: { on: false, price: CFG.sP0, ref: CFG.sP0, p0: CFG.sP0, history: [{ s: 0, p: CFG.sP0 }], flow: 0, events: [] },
         };
         return G;
     }
@@ -47,18 +46,12 @@ const Engine = (() => {
             call: null, expAcc: 0, expN: 0, startValue: R.cash + R.physical * G.p0, planValue: R.physical * G.p0, notes: [],
             physical: R.physical, basePhys: R.physical, revenue: 0, protect: false, harvestLog: [],
             upgrades: [], total: 0, yearPts: [], years: [], upSpent: 0, interest: 0, loans: 0, level: 0,
-            spos: 0, sphys: 0, sbase: 0, region: null, stored: 0, storedNow: 0, storeFee: 0,
+            region: null, settled: false, lastResult: 0, spotPaid: 0,
             orders: [], orderOffer: null, nextOrderAt: 8 + Math.floor(Math.random() * CFG.orderEvery),
             reports: [], researchAt: -999, researchSpent: 0,
             costs: 0,                                   // Pflanzenschutz, Bankzuschlag (für den Hedge-Vergleich)
-            buyerOffer: null, nextBuyerAt: 10 + Math.floor(Math.random() * CFG.buyerEvery), sales: [], extraAt: [],
-            cancels: 0, nextCancelAt: 40 + Math.floor(Math.random() * 30),
+            buyerOffer: null, nextBuyerAt: 10 + Math.floor(Math.random() * CFG.buyerEvery), sales: [],
         };
-        if (role === 'producer') {
-            // 1–2 Mal liefern Mitglieder Nachernte (zufälliger Zeitpunkt in Monat 1–3)
-            const n = 1 + (Math.random() < 0.5 ? 1 : 0);
-            for (let i = 0; i < n; i++) p.extraAt.push(0.1 + Math.random() * 0.6);   // Anteil der Spielzeit
-        }
         if (role === 'producer') p.region = pickRegion();
         G.players.push(p);
         return p;
@@ -95,14 +88,25 @@ const Engine = (() => {
     const cooldown = p => (has(p, "network") ? CFG.researchCooldown / 2 : CFG.researchCooldown);
     const hitRate = p => (has(p, "analysts") ? 0.93 : CFG.researchHit);
     const unrealC = p => p.pos * (G.price - G.ref) * CFG.size;
-    const sunreal = p => p.spos * (G.sug.price - G.sug.ref) * CFG.sSize;
-    const unreal = p => unrealC(p) + sunreal(p);
-    const futEq = p => p.margin + unreal(p);
-    const req = (p, pos = p.pos, spos = p.spos) => (Math.abs(pos) * G.price * CFG.size + Math.abs(spos) * G.sug.price * CFG.sSize) * G.marginRate;
+    const futEq = p => p.margin + unrealC(p);
+    const req = (p, pos = p.pos) => Math.abs(pos) * G.price * CFG.size * G.marginRate;
     const exposure = p => p.physical + p.pos * CFG.size;
-    const liveResult = p => p.cash + futEq(p) + p.physical * G.price + p.sphys * G.sug.price + p.revenue - p.startValue;
-    // Was hat die Absicherung (Futures inkl. Gebühren) bisher gebracht? Geschäft und Zusatzkosten herausgerechnet.
-    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - p.planValue + p.sphys * G.sug.price - p.sbase * G.sug.p0) + p.costs + p.researchSpent;
+    // Was im Dezember nicht abgesichert ist, muss kurzfristig zum Tagespreis gehandelt werden –
+    // mit Abschlag (Notverkauf) bzw. Aufschlag (Notkauf). So ist Nichtstun eine Wette, die etwas kostet.
+    const openTons = p => (p.role === 'producer' ? Math.max(0, p.physical + Math.min(0, p.pos) * CFG.size)
+        : p.role === 'processor' ? Math.max(0, -p.physical - Math.max(0, p.pos) * CFG.size) : 0);
+    const spotCost = p => openTons(p) * G.price * CFG.spotPenalty;
+    const liveResult = p => (p.settled ? p.lastResult : p.cash + futEq(p) + p.physical * G.price + p.revenue - p.startValue - spotCost(p));
+    // Was hat die Absicherung bisher gebracht? Vergleich mit «gar nichts abgesichert» (inkl. Notverkauf-Abschlag).
+    const hedgeEffect = p => liveResult(p) - (p.physical * G.price + p.revenue - p.planValue - Math.abs(p.physical) * G.price * CFG.spotPenalty) + p.costs + p.researchSpent;
+    // Gesicherter Durchschnittspreis der abgesicherten Tonnen (Futures-Einstieg)
+    const securedPrice = p => (p.pos && p.role !== 'spec' && p.hedgeT ? Math.round(p.hedgeV / p.hedgeT) : null);
+    // Progressive Einführung: Jahr 1 nur das Kernspiel, Nebenmechaniken ab Jahr 2 bzw. 3.
+    function feat(k) {
+        if (!G) return false;
+        if (G.years === 1) return CFG.singleYearFeatures.includes(k);
+        return G.year >= (CFG.featureYear[k] || 1);
+    }
     function hedgeQuote(p) {
         if (p.role === 'spec' || !p.expN) return 0;
         return clamp(1 - p.expAcc / p.expN / 100, 0, 1);
@@ -126,24 +130,6 @@ const Engine = (() => {
         return 0;
     }
 
-    function bankCheck() {
-        for (const p of G.players) {
-            if (p.role === 'spec' || p.bankrupt) continue;
-            const q = hedgedShare(p);
-            if (q + 1e-9 >= CFG.bankQuota) {
-                p.bank = 'ok';
-                note(p, 'good', `🏦 Bankauflage erfüllt (${Math.round(q * 100)} % abgesichert). Dein Kredit bleibt günstig.`);
-            } else {
-                p.bank = 'fail';
-                p.cash -= CFG.bankFee;
-                p.costs += CFG.bankFee;
-                p.bankPaid = CFG.bankFee;
-                note(p, 'bad', `🏦 Bankauflage verfehlt (nur ${Math.round(q * 100)} % statt ${Math.round(CFG.bankQuota * 100)} %): Die Bank verlangt ${fmt(CFG.bankFee)} CHF Risikozuschlag.`);
-            }
-        }
-        feed({ kind: 'alert', icon: '🏦', text: `Bankprüfung: Hedger mit weniger als ${Math.round(CFG.bankQuota * 100)} % Absicherung zahlen ${fmt(CFG.bankFee)} CHF Zuschlag.` });
-    }
-
     function note(p, kind, text) {
         p.notes.push({ kind, text, sec: G.sec });
         if (p.notes.length > 20) p.notes.shift();
@@ -157,6 +143,17 @@ const Engine = (() => {
         G.trades.push({ s: G.clock, pid: p.id, q, price, open: Math.abs(p.pos + q) > Math.abs(p.pos) });
         if (G.trades.length > 3000) G.trades.shift();
         p.margin += q * (G.ref - price) * CFG.size;
+        // Durchschnittlicher Einstiegspreis der offenen Position (für «gesicherter Preis»)
+        if (Math.sign(p.pos + q) !== Math.sign(p.pos) && p.pos !== 0) { p.hedgeT = 0; p.hedgeV = 0; }
+        if (Math.abs(p.pos + q) > Math.abs(p.pos)) {
+            const add = Math.abs(p.pos + q) - Math.abs(p.pos);
+            p.hedgeT = (p.hedgeT || 0) + add * CFG.size;
+            p.hedgeV = (p.hedgeV || 0) + add * CFG.size * price;
+        } else if (p.hedgeT) {
+            const keep = Math.abs(p.pos + q) * CFG.size;
+            p.hedgeV = p.hedgeT ? (p.hedgeV / p.hedgeT) * keep : 0;
+            p.hedgeT = keep;
+        }
         p.pos += q;
         p.cash -= fee;
         p.fees += fee;
@@ -214,8 +211,7 @@ const Engine = (() => {
         return null;
     }
 
-    function trade(id, q, mkt) {
-        if (mkt === 'sugar') return tradeSugar(id, q);
+    function trade(id, q) {
         const p = byId(id);
         q = Math.trunc(q);
         if (!q) return { ok: false, msg: 'Ungültige Menge.' };
@@ -230,105 +226,10 @@ const Engine = (() => {
         return { ok: true, price, q };
     }
 
-    // ===== Zucker-Markt (ab Jahr 2) =====
-    function sbounds(p) {
-        if (!G.sug.on || p.role === 'producer') return { min: 0, max: 0 };
-        if (p.role === 'processor') return { min: 0, max: Math.floor(Math.max(0, -p.sphys) / CFG.sSize) };
-        const lim = CFG.sLimit + (has(p, 'credit') ? 5 : 0);
-        return { min: -lim, max: lim };
-    }
-
-    function tradeSugar(id, q) {
-        const p = byId(id);
-        q = Math.trunc(q);
-        if (!q) return { ok: false, msg: 'Ungültige Menge.' };
-        if (!p || p.bankrupt) return { ok: false, msg: 'Dein Konto ist gesperrt (Konkurs).' };
-        if (!G.sug.on) return { ok: false, msg: `Zucker wird erst ab Jahr ${CFG.sugarYear} gehandelt.` };
-        if (G.phase !== 'trading') return { ok: false, msg: 'Die Börse ist gerade geschlossen.' };
-        const b = sbounds(p);
-        const np = p.spos + q;
-        const reducing = Math.abs(np) < Math.abs(p.spos) && Math.sign(np) !== -Math.sign(p.spos);
-        if ((np < b.min || np > b.max) && !reducing) {
-            if (p.role === 'producer') return { ok: false, msg: 'Kooperativen handeln keinen Zucker.' };
-            if (p.role === 'processor') return { ok: false, msg: np < 0 ? 'Als Fabrik darfst du Zucker nur kaufen – zum Absichern.' : `Mandat: höchstens dein Zuckerbedarf – ${-p.sphys} t = ${b.max} Kontrakte.` };
-            return { ok: false, msg: `Zucker-Limit: höchstens ${b.max} Kontrakte.` };
-        }
-        const fee = Math.abs(q) * CFG.sFee;
-        if (Math.abs(np) > Math.abs(p.spos) && p.cash + futEq(p) - fee < req(p, p.pos, np)) {
-            return { ok: false, msg: `Zu wenig Geld für den Einschuss (${fmt(req(p, p.pos, np))} CHF nötig).` };
-        }
-        const price = Math.round(G.sug.price * (1 + Math.sign(q) * CFG.spread * 1.5));
-        p.margin += q * (G.sug.ref - price) * CFG.sSize;
-        p.spos = np;
-        p.cash -= fee;
-        p.fees += fee;
-        p.trades++;
-        const need = req(p);
-        const eq = futEq(p);
-        if (eq < need) {
-            const t = Math.min(need - eq, Math.max(0, p.cash));
-            p.cash -= t;
-            p.margin += t;
-        } else if (reducing && eq > need) {
-            const r = Math.min(eq - need, Math.max(0, p.margin));
-            p.margin -= r;
-            p.cash += r;
-        }
-        G.sug.flow += q;
-        pushTape({ who: `${p.name} · Zucker`, role: p.role, q, price, kind: 'sugar' });
-        return { ok: true, price, q, mkt: 'sugar' };
-    }
-
     function pushTape(t) {
         G.tape.unshift({ ...t, sec: G.sec });
         if (G.tape.length > 30) G.tape.pop();
         emit('trade', t);
-    }
-
-    // ===== Angebote zwischen Spielern (Block-Deals) =====
-
-    function postOffer(id, side, qty, price) {
-        const p = byId(id);
-        qty = Math.trunc(qty);
-        price = Math.round(price);
-        if (!(qty >= 1 && qty <= 10)) return { ok: false, msg: 'Menge 1 bis 10 Kontrakte.' };
-        if (Math.abs(price / G.price - 1) > CFG.offerBand) return { ok: false, msg: `Preis höchstens ±${CFG.offerBand * 100} % vom Markt.` };
-        if (G.offers.filter(o => o.by === id).length >= 2) return { ok: false, msg: 'Höchstens 2 offene Angebote.' };
-        const q = side === 'buy' ? qty : -qty;
-        const err = check(p, p && p.pos + q, 0);
-        if (err) return { ok: false, msg: err };
-        const o = { id: G.seq++, by: id, byName: p.name, role: p.role, side, qty, price, until: G.sec + CFG.offerSec };
-        G.offers.push(o);
-        emit('offer', o);
-        return { ok: true, offer: o };
-    }
-
-    function cancelOffer(id, offerId) {
-        G.offers = G.offers.filter(o => !(o.id === offerId && o.by === id));
-        return { ok: true };
-    }
-
-    function acceptOffer(id, offerId) {
-        const o = G.offers.find(x => x.id === offerId);
-        if (!o) return { ok: false, msg: 'Angebot ist weg – jemand war schneller.' };
-        if (o.by === id) return { ok: false, msg: 'Das ist dein eigenes Angebot.' };
-        const maker = byId(o.by);
-        const taker = byId(id);
-        const qm = o.side === 'buy' ? o.qty : -o.qty;
-        const fee = (o.qty * CFG.fee) / 2;
-        const errT = check(taker, taker && taker.pos - qm, fee);
-        if (errT) return { ok: false, msg: errT };
-        const errM = check(maker, maker.pos + qm, fee);
-        if (errM) {
-            G.offers = G.offers.filter(x => x !== o);
-            return { ok: false, msg: `${maker.name} kann nicht mehr liefern – Angebot gelöscht.` };
-        }
-        G.offers = G.offers.filter(x => x !== o);
-        execute(maker, qm, o.price, fee, Math.abs(maker.pos + qm) < Math.abs(maker.pos));
-        execute(taker, -qm, o.price, fee, Math.abs(taker.pos - qm) < Math.abs(taker.pos));
-        pushTape({ who: `${taker.name} ⇄ ${maker.name}`, role: taker.role, q: -qm, price: o.price, kind: 'deal' });
-        note(maker, 'good', `${taker.name} hat dein Angebot angenommen: ${o.side === 'buy' ? 'gekauft' : 'verkauft'} ${o.qty} × ${fmt(o.price)}.`);
-        return { ok: true, price: o.price, q: -qm };
     }
 
     function topUp(id) {
@@ -346,13 +247,6 @@ const Engine = (() => {
     }
 
     function liquidate(p, why) {
-        if (p.spos !== 0) {
-            const q = -p.spos;
-            const price = Math.round(G.sug.price * (1 + Math.sign(q) * CFG.spread * 3));
-            p.margin += q * (G.sug.ref - price) * CFG.sSize;
-            p.spos = 0;
-            G.sug.flow += q;
-        }
         if (p.pos !== 0) {
             const q = -p.pos;
             const price = Math.round(G.price * (1 + Math.sign(q) * CFG.spread * 2));
@@ -363,11 +257,15 @@ const Engine = (() => {
         p.call = null;
         p.liquidations++;
         if (p.cash + p.margin < 0) {
+            // Niemand fällt aus dem Spiel: Neustart mit Notkredit (Zins wird am Ende abgezogen).
             p.cash += p.margin;
             p.margin = 0;
-            p.bankrupt = true;
-            note(p, 'bad', 'KONKURS: Dein Konto ist leer. Du kannst nicht mehr handeln.');
-            feed({ kind: 'alert', icon: '💀', text: `${p.name} ist pleite!` });
+            p.cash += CFG.loan;
+            p.startValue += CFG.loan;
+            p.loans++;
+            p.interest += CFG.loan * CFG.loanRate;
+            note(p, 'bad', `💀 Pleite! Die Bank gibt dir einen Notkredit von ${fmt(CFG.loan)} CHF (${fmt(CFG.loan * CFG.loanRate)} CHF Zins am Schluss). Du spielst weiter – mit kleinerem Risiko!`);
+            feed({ kind: 'alert', icon: '💀', text: `${p.name} ist pleite – Neustart mit Notkredit.` });
         } else {
             p.cash += p.margin;
             p.margin = 0;
@@ -388,6 +286,7 @@ const Engine = (() => {
     function protect(id) {
         const p = byId(id);
         if (!p || p.role !== 'producer') return { ok: false, msg: 'Nur für Kooperativen.' };
+        if (!feat('protect')) return { ok: false, msg: 'Pflanzenschutz gibt es erst später in der Karriere.' };
         if (p.protect) return { ok: false, msg: 'Deine Plantage ist schon geschützt.' };
         if (G.phase !== 'trading' && G.phase !== 'settle') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
         const c = protectPrice(p);
@@ -400,19 +299,11 @@ const Engine = (() => {
 
     // Kooperative: Händler bieten Direktverkäufe zu festem Preis an (Terminverkauf ohne Börse).
     function spawnBuyers() {
+        if (!feat('buyers')) return;
         const total = CFG.months * G.monthSec;
         for (const p of G.players) {
             if (p.role !== 'producer' || p.bankrupt) continue;
             if (p.buyerOffer && G.sec >= p.buyerOffer.until) p.buyerOffer = null;
-            // Nachernte von Mitgliedern
-            while (p.extraAt.length && G.clock / total >= p.extraAt[0]) {
-                p.extraAt.shift();
-                const t = 10 + 5 * Math.floor(Math.random() * 3);
-                p.physical += t;
-                p.startValue += t * G.p0;
-                p.planValue += t * G.p0;   // die Mitglieder werden zum Planpreis bezahlt – zählt nur die Preisänderung + Marge
-                note(p, 'good', `🚜 Mitglieder liefern Nachernte: +${t} t. Diese Menge ist noch nicht abgesichert!`);
-            }
             if (p.buyerOffer || G.clock < p.nextBuyerAt || G.clock > total - 15 || p.physical < 20) continue;
             const t = Math.min(10 * (1 + Math.floor(Math.random() * 3)), Math.floor(p.physical / 10) * 10 - 10);
             if (t < 10) continue;
@@ -437,26 +328,8 @@ const Engine = (() => {
         return { ok: true, msg: `Verkauft: ${o.t} t an ${o.client} zu ${fmt(o.price)} CHF/t – dieser Preis ist fix.${over ? ' ⚠️ Jetzt bist du überabgesichert – löse einen Teil auf!' : ''}` };
     }
 
-    // Fabrik: Kunden stornieren manchmal Aufträge – dann ist man plötzlich überabgesichert.
-    function cancelOrders() {
-        const total = CFG.months * G.monthSec;
-        for (const p of G.players) {
-            if (p.role !== 'processor' || p.bankrupt || !p.orders.length) continue;
-            if (G.clock < p.nextCancelAt || G.clock > total - 20) continue;
-            p.nextCancelAt = G.clock + 45 + Math.floor(Math.random() * 40);
-            if (Math.random() > CFG.cancelProb) continue;
-            const i = Math.floor(Math.random() * p.orders.length);
-            const o = p.orders.splice(i, 1)[0];
-            p.physical += o.t;
-            p.revenue -= o.t * o.price;
-            p.cancels++;
-            const over = p.pos * CFG.size > -p.physical;
-            note(p, 'bad', `❌ ${o.client} storniert den Auftrag über ${o.t} t. Dein Bedarf sinkt auf ${-p.physical} t.${over ? ' Du bist jetzt überabgesichert – löse einen Teil auf!' : ''}`);
-        }
-    }
-
     function harvestShock(def, confirmed, region) {
-        if (!def.yield || !confirmed) return;
+        if (!def.yield || !confirmed || !feat('yield')) return;
         for (const p of G.players) {
             if (p.role !== 'producer') continue;
             if (region && p.region !== region) continue;
@@ -476,6 +349,7 @@ const Engine = (() => {
 
     // Fabrik: Kundenaufträge zu festem Verkaufspreis.
     function spawnOrders(mult = 1) {
+        if (!feat('orders')) return;
         const total = CFG.months * G.monthSec;
         for (const p of G.players) {
             if (p.role !== 'processor' || p.bankrupt) continue;
@@ -505,6 +379,7 @@ const Engine = (() => {
     function research(id) {
         const p = byId(id);
         if (!p || p.role !== 'spec') return { ok: false, msg: 'Nur für Hedgefonds.' };
+        if (!feat('research')) return { ok: false, msg: 'Research gibt es erst später in der Karriere.' };
         if (G.phase !== 'trading') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
         if (G.sec - p.researchAt < cooldown(p)) return { ok: false, msg: `Die Analysten brauchen noch ${cooldown(p) - (G.sec - p.researchAt)} s.` };
         const rumor = G.events.find(e => e.stage === 'rumor');
@@ -550,9 +425,7 @@ const Engine = (() => {
         shuffleArr([...SURPRISES]).slice(0, 2).forEach((s, i) => {
             evs.push({ type: 'surprise', def: s, at: Math.round(G.monthSec * (1.3 + i * 1.4) + Math.random() * 20), stage: 'pending' });
         });
-        if (Math.random() < 0.6) evs.push({ type: 'hike', def: MARGIN_HIKE, at: Math.round(G.monthSec * (1.5 + Math.random())), stage: 'pending' });
         G.events = evs.filter(e => e.at < total - 3).sort((a, b) => a.at - b.at);
-        G.sug.events = G.sug.on ? shuffleArr([...SUGAR_NEWS]).slice(0, 3).map((def, i) => ({ def, at: Math.round(total * (0.15 + i * 0.27 + Math.random() * 0.12)), done: false })) : [];
     }
 
     function runNews() {
@@ -561,17 +434,13 @@ const Engine = (() => {
             if (e.stage === 'pending' && G.clock >= e.at) {
                 if (e.type === 'rumor') {
                     e.stage = 'rumor';
-                    e.target = e.def.impact * e.def.prob * 0.6;
+                    e.target = e.def.impact * e.def.prob * CFG.rumorPriced;
                     feed({ kind: 'rumor', icon: e.def.icon, text: `GERÜCHT${e.region ? ` (${REGIONS[e.region].name})` : ''}: ${e.def.rumor}`, dir: Math.sign(e.def.impact), region: e.region || null });
-                    if (e.def.yield) G.players.filter(p => p.role === 'producer' && (!e.region || p.region === e.region)).forEach(p => note(p, 'bad', `🌱 Achtung: Dieses Gerücht betrifft deine Region ${REGIONS[p.region].name} (${e.def.yield < 1 ? `bis −${Math.round((1 - e.def.yield) * 100)} %` : `bis +${Math.round((e.def.yield - 1) * 100)} %`}).`));
+                    if (e.def.yield && feat('yield')) G.players.filter(p => p.role === 'producer' && (!e.region || p.region === e.region)).forEach(p => note(p, 'bad', `🌱 Achtung: Dieses Gerücht betrifft deine Region ${REGIONS[p.region].name} (${e.def.yield < 1 ? `bis −${Math.round((1 - e.def.yield) * 100)} %` : `bis +${Math.round((e.def.yield - 1) * 100)} %`}).`));
                 } else if (e.type === 'surprise') {
                     e.stage = 'done';
                     drift += e.def.impact;
                     feed({ kind: 'flash', icon: e.def.icon, text: e.def.text, dir: Math.sign(e.def.impact) });
-                } else if (e.type === 'hike') {
-                    e.stage = 'done';
-                    G.pendingRate = e.def.rate;
-                    feed({ kind: 'alert', icon: e.def.icon, text: e.def.text });
                 }
             }
             if (e.stage === 'rumor') {
@@ -583,7 +452,7 @@ const Engine = (() => {
                     harvestShock(e.def, e.confirmed, e.region);
                     if (e.def.orders && e.confirmed) G.orderBoost = G.clock + 40;
                 } else {
-                    const d = (e.target - e.priced) * 0.22;
+                    const d = (e.target - e.priced) * CFG.rumorSpeed;
                     e.priced += d;
                     drift += d;
                 }
@@ -593,7 +462,7 @@ const Engine = (() => {
     }
 
     function activeRumors() {
-        return G.events.filter(e => e.stage === 'rumor').map(e => ({ impact: e.def.impact, priced: e.priced, left: e.resolveAt - G.clock }));
+        return G.events.filter(e => e.stage === 'rumor').map(e => ({ impact: e.def.impact, priced: e.priced, left: e.resolveAt - G.clock, since: G.clock - e.at, icon: e.def.icon, text: e.def.rumor, region: e.region || null }));
     }
 
     // ===== Ablauf =====
@@ -609,10 +478,6 @@ const Engine = (() => {
     function settle() {
         G.phase = 'settle';
         G.settleLeft = CFG.settleSec;
-        if (G.pendingRate) {
-            G.marginRate = G.pendingRate;
-            G.pendingRate = null;
-        }
         const results = [];
         for (const p of G.players) {
             const pl = p.pos * (G.price - G.ref) * CFG.size;
@@ -620,12 +485,10 @@ const Engine = (() => {
             results.push({ pid: p.id, pl });
         }
         G.ref = G.price;
-        for (const p of G.players) p.margin += p.spos * (G.sug.price - G.sug.ref) * CFG.sSize;
-        G.sug.ref = G.sug.price;
         for (const p of G.players) {
             if (p.bankrupt) continue;
             const need = req(p);
-            if ((p.pos !== 0 || p.spos !== 0) && p.margin < need * CFG.maintenance) {
+            if (p.pos !== 0 && p.margin < need * CFG.maintenance) {
                 p.call = { need: need - p.margin, until: G.sec + CFG.callSec };
                 note(p, 'bad', `MARGIN CALL: Schiess ${fmt(need - p.margin)} CHF nach oder reduziere deine Position – sonst Zwangsglattstellung in ${CFG.callSec} s!`);
             } else if (p.margin > need) {
@@ -634,7 +497,6 @@ const Engine = (() => {
                 p.cash += r;
             }
         }
-        if (G.month === CFG.bankMonth) bankCheck();
         G.marks.push({ month: G.month, price: G.price, clock: G.clock });
         feed({ kind: 'settle', icon: '🧾', text: `Abrechnung Monat ${G.month}: Alle Positionen zu ${fmt(G.price)} CHF/t bewertet.` });
         emit('settle', { month: G.month, results });
@@ -645,12 +507,14 @@ const Engine = (() => {
         for (const p of G.players) {
             p.cash += p.margin;
             p.margin = 0;
-            p.cash += p.physical * G.price + p.revenue + p.sphys * G.sug.price;
+            // Nicht abgesicherte Tonnen: Notverkauf bzw. Notkauf mit Abschlag
+            const sc = spotCost(p);
+            p.spotPaid = Math.round(sc);
+            p.cash += p.physical * G.price + p.revenue - sc;
             p.orderOffer = null;
             p.buyerOffer = null;
             p.call = null;
         }
-        G.offers = [];
         feed({ kind: 'bell', icon: '🔔', text: `Fälligkeit Jahr ${G.year}! Schlusskurs ${fmt(G.price)} CHF/t.` });
         const d = debrief();
         // Zusatzerträge aus dem Kerngeschäft (unabhängig vom Handel): Ernte-Marge und Fairtrade-Prämie
@@ -658,17 +522,19 @@ const Engine = (() => {
             const p = byId(r.id);
             let extra = 0;
             if (p.role === 'producer') {
-                const tons = p.physical - p.storedNow + p.sales.reduce((s, x) => s + x.t, 0);
+                const tons = p.physical + p.sales.reduce((s, x) => s + x.t, 0);
                 extra = tons * CFG.farmMargin + (has(p, 'fairtrade') ? tons * CFG.fairPremium : 0);
             } else if (p.role === 'processor') {
                 extra = -p.basePhys * CFG.chocMargin;   // Verarbeitungsmarge auf den Grundbedarf
             }
             // Kasse sauber abschliessen: Ernte bzw. Grundbedarf zum Planwert ist schon im Startwert enthalten,
             // damit bleibt nach dem Jahr genau «Start + Jahresergebnis» in der Kasse.
-            p.cash -= p.basePhys * G.p0 + p.sbase * G.sug.p0;
+            p.cash -= p.basePhys * G.p0;
             p.cash += extra;
             r.extra = Math.round(extra);
             r.yearResult = r.result + r.extra;
+            p.settled = true;
+            p.lastResult = r.result;
             p.total += r.yearResult;
             p.yearPts.push(r.points);
             p.years.push({ year: G.year, result: r.yearResult, metric: r.metric, points: r.points });
@@ -729,25 +595,6 @@ const Engine = (() => {
         return { ok: true, msg: `${u.icon} ${u.name} gekauft!` };
     }
 
-    // Lagerhaus: Ernte zum Schlusskurs zurückbehalten, nächstes Jahr zum dann gültigen Preis verkaufen
-    function storeHarvest(id, t) {
-        const p = byId(id);
-        if (!p || G.phase !== 'shop' || p.role !== 'producer') return { ok: false, msg: 'Nur Kooperativen in der Ausbauphase.' };
-        if (!has(p, 'storage')) return { ok: false, msg: 'Dafür brauchst du ein Lagerhaus.' };
-        t = clamp(Math.round(t / 10) * 10, 0, CFG.storeMax);
-        // vorherige Einlagerung rückgängig machen
-        p.cash += p.stored * G.price + p.storeFee;
-        const cost = t * G.price + t * CFG.storeFee;
-        if (p.cash < cost) {
-            p.cash -= p.stored * G.price + p.storeFee;
-            return { ok: false, msg: 'Zu wenig Geld für so viel Lager.' };
-        }
-        p.cash -= cost;
-        p.stored = t;
-        p.storeFee = t * CFG.storeFee;
-        return { ok: true, msg: t ? `🏚️ ${t} t eingelagert (Wert ${fmt(t * G.price)} CHF, Lagerkosten ${fmt(p.storeFee)} CHF).` : 'Lager geleert.' };
-    }
-
     function nextYear() {
         if (G.phase !== 'shop') return;
         G.year++;
@@ -760,15 +607,8 @@ const Engine = (() => {
         G.marks = [];
         G.trades = [];
         G.tape = [];
-        G.offers = [];
         G.marginRate = CFG.marginRate;
-        G.pendingRate = null;
         G.orderBoost = 0;
-        G.sug.on = G.year >= CFG.sugarYear;
-        G.sug.p0 = G.sug.price;
-        G.sug.ref = G.sug.price;
-        G.sug.history = [{ s: 0, p: G.sug.price }];
-        G.sug.flow = 0;
         for (const p of G.players) {
             const R = ROLES[p.role];
             // Notkredit für Pleitiers – mit saftigem Zins
@@ -783,11 +623,11 @@ const Engine = (() => {
             p.margin = 0;
             p.call = null;
             p.basePhys = R.physical + (p.role === 'producer' && has(p, 'land') ? 30 : 0);
-            p.physical = p.basePhys + p.stored;
-            p.storedNow = p.stored;
-            p.spos = 0;
-            p.sbase = p.role === 'processor' && G.sug.on ? -CFG.sNeed : 0;
-            p.sphys = p.sbase;
+            p.physical = p.basePhys;
+            p.settled = false;
+            p.spotPaid = 0;
+            p.hedgeT = 0;
+            p.hedgeV = 0;
             p.revenue = 0;
             p.protect = false;
             p.harvestLog = [];
@@ -798,27 +638,15 @@ const Engine = (() => {
             p.costs = 0;
             p.researchSpent = 0;
             p.reports = [];
-            p.bank = null;
-            p.bankPaid = 0;
             p.expAcc = 0;
             p.expN = 0;
             p.fees = 0;
             p.liquidations = 0;
-            p.cancels = 0;
             p.lastSky = null;
             p.nextOrderAt = 8 + Math.floor(Math.random() * CFG.orderEvery);
             p.nextBuyerAt = 10 + Math.floor(Math.random() * CFG.buyerEvery);
-            p.nextCancelAt = 40 + Math.floor(Math.random() * 30);
-            p.extraAt = [];
-            if (p.role === 'producer') {
-                const n = 1 + (Math.random() < 0.5 ? 1 : 0);
-                for (let i = 0; i < n; i++) p.extraAt.push(0.1 + Math.random() * 0.6);
-            }
-            p.startValue = p.cash + p.physical * G.p0 + p.sphys * G.sug.p0 + p.storeFee;
+            p.startValue = p.cash + p.physical * G.p0;
             p.planValue = p.physical * G.p0;
-            if (p.stored) note(p, 'good', `🏚️ Aus dem Lager: ${p.stored} t vom letzten Jahr sind wieder im Verkauf (Einstand ${fmt(G.p0)} CHF/t).`);
-            p.stored = 0;
-            p.storeFee = 0;
             if (p.role === 'processor' && has(p, 'contract')) {
                 const price = G.p0 + 150;
                 p.physical -= 30;
@@ -829,7 +657,9 @@ const Engine = (() => {
         scheduleNews();
         G.phase = 'trading';
         feed({ kind: 'bell', icon: '🔔', text: `Jahr ${G.year} beginnt! Neuer Planpreis: ${fmt(G.p0)} CHF/t.` });
-        if (G.sug.on && G.year === CFG.sugarYear) feed({ kind: 'alert', icon: '🍬', text: `NEU: Zucker-Futures! Fabriken brauchen ${CFG.sNeed} t Zucker pro Jahr. Zucker: ${fmt(G.sug.price)} CHF/t.` });
+        // «Neu in diesem Jahr»: Nebenmechaniken kommen schrittweise dazu
+        const fresh = Object.keys(CFG.featureYear).filter(k => CFG.featureYear[k] === G.year);
+        if (fresh.length) emit('newFeatures', { year: G.year, keys: fresh });
         emit('year', { year: G.year });
         emit('open', { month: 1 });
     }
@@ -851,34 +681,17 @@ const Engine = (() => {
             const next = G.price * (1 + gauss() * CFG.vol + news + flow);
             G.price = Math.round(clamp(next, CFG.minPrice, CFG.maxPrice));
             G.history.push({ s: G.clock, p: G.price });
-            if (G.sug.on) {
-                let sj = 0;
-                for (const e of G.sug.events) {
-                    if (!e.done && G.clock >= e.at) {
-                        e.done = true;
-                        sj += e.def.impact;
-                        feed({ kind: 'flash', icon: e.def.icon, text: e.def.text, dir: Math.sign(e.def.impact), region: e.def.region, sugar: true });
-                    }
-                }
-                const sf = clamp(G.sug.flow * CFG.impact * 0.6, -0.003, 0.003);
-                G.sug.flow = 0;
-                const pull = 0.0015 * (CFG.sP0 / G.sug.price - 1);   // Zucker pendelt langfristig um den Normalpreis
-                G.sug.price = Math.round(clamp(G.sug.price * (1 + gauss() * CFG.sVol + sj + sf + pull), 200, 3000));
-                G.sug.history.push({ s: G.clock, p: G.sug.price });
-            }
             for (const p of G.players) {
                 if (p.role !== 'spec') {
                     p.expAcc += Math.abs(exposure(p));
                     p.expN++;
                 }
             }
-            G.offers = G.offers.filter(o => o.until > G.sec);
             spawnOrders(G.orderBoost && G.clock < G.orderBoost ? 1.6 : 1);
             spawnBuyers();
-            cancelOrders();
         }
         for (const p of G.players) {
-            if (p.bankrupt || (p.pos === 0 && p.spos === 0)) continue;
+            if (p.bankrupt || p.pos === 0) continue;
             if (futEq(p) < 0) {
                 // Konto leer: zuerst automatisch vom freien Geld nachschiessen, nur wenn das nicht reicht → Zwangsglattstellung.
                 const gap = -futEq(p) + req(p) * 0.3;
@@ -921,10 +734,8 @@ const Engine = (() => {
         return {
             phase: G.phase, month: G.month, months: CFG.months, secLeft: secLeft(), monthSec: G.monthSec,
             year: G.year, years: G.years, shopLeft: G.shopLeft,
-            sugar: { on: G.sug.on, price: G.sug.price, p0: G.sug.p0, history: G.sug.history.slice(full ? 0 : -90).map(h => (full ? h : h.p)) },
-            price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate, pendingRate: G.pendingRate,
+            price: G.price, ref: G.ref, p0: G.p0, marginRate: G.marginRate,
             history: full ? G.history : G.history.slice(-90).map(h => h.p),
-            offers: G.offers.map(o => ({ id: o.id, by: o.by, byName: o.byName, role: o.role, side: o.side, qty: o.qty, price: o.price, left: o.until - G.sec })),
             tape: G.tape.slice(0, full ? 12 : 5),
             feed: G.feed.slice(0, full ? 8 : 4),
             ranking: ranking(),
@@ -940,7 +751,9 @@ const Engine = (() => {
         return {
             roleCount: rk.length, metric: metric(p), hedgeEffect: Math.round(hedgeEffect(p)), protectPrice: protectPrice(p),
             buyerOffer: p.buyerOffer ? { client: p.buyerOffer.client, t: p.buyerOffer.t, price: p.buyerOffer.price, left: Math.max(0, p.buyerOffer.until - G.sec) } : null,
-            sales: p.sales.slice(-3), cancels: p.cancels, hedged: hedgedShare(p), bank: p.bank || null, bankDue: G.month <= CFG.bankMonth,
+            sales: p.sales.slice(-3), hedged: hedgedShare(p), open: openTons(p), spotCost: Math.round(spotCost(p)), secured: securedPrice(p),
+            feat: Object.fromEntries(Object.keys(CFG.featureYear).map(k => [k, feat(k)])),
+            rumor: activeRumors()[0] || null,
             id: p.id, name: p.name, role: p.role, cash: Math.round(p.cash), margin: Math.round(p.margin), pos: p.pos,
             eq: Math.round(futEq(p)), unreal: Math.round(unrealC(p)), req: Math.round(req(p)), exposure: exposure(p),
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
@@ -956,7 +769,7 @@ const Engine = (() => {
             month: G.month, year: G.year, years: G.years, shopLeft: G.shopLeft,
             upgrades: p.upgrades.slice(), level: p.level, total: Math.round(p.total), upSpent: p.upSpent, interest: p.interest, loans: p.loans,
             yearsDone: p.years.slice(),
-            spos: p.spos, sphys: p.sphys, sbounds: sbounds(p), sunreal: Math.round(sunreal(p)), region: p.region, stored: p.stored, storeFee: p.storeFee,
+            region: p.region,
         };
     }
 
@@ -972,7 +785,7 @@ const Engine = (() => {
                 orderMargin: Math.round(p.orders.reduce((s, o) => s + o.t * (o.price - G.price), 0)), researchSpent: p.researchSpent, reports: p.reports.length,
                 futPL: Math.round(result - physPL), fees: Math.round(p.fees), bonus: bonus(p), score: Math.round(result + bonus(p)),
                 hedgeQuote: hedgeQuote(p), liquidations: p.liquidations, bankrupt: p.bankrupt, trades: p.trades,
-                metric: metric(p, result), bank: p.bank || null, bankPaid: p.bankPaid || 0,
+                metric: metric(p, result), spotPaid: p.spotPaid || 0, open: openTons(p),
             };
         }).sort((a, b) => b.score - a.score);
         // Trader des Tages: Punkte = wie viel besser als der Durchschnitt der eigenen Rolle,
@@ -1006,9 +819,9 @@ const Engine = (() => {
     }
 
     return {
-        create, addPlayer, setRole, removePlayer, start, tick, trade, postOffer, cancelOffer, acceptOffer, topUp,
-        protect, answerOrder, research, answerBuyer, protectPrice, buyUpgrade, nextYear, storeHarvest, sbounds,
-        publicState, personal, debrief, activeRumors, exposure, futEq, req, byId,
+        create, addPlayer, setRole, removePlayer, start, tick, trade, topUp,
+        protect, answerOrder, research, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
+        publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },
     };
 })();
