@@ -25,9 +25,6 @@ const CFG = {
     buyerEvery: 32,        // Kooperative: ungefähr alle x Sekunden ein Händler-Angebot
     orderEvery: 28,        // Fabrik: ungefähr alle x Sekunden ein Kundenauftrag
     orderSec: 20,          // so lange ist ein Auftrag gültig
-    researchCost: 2500,    // Hedgefonds: Research-Bericht
-    researchHit: 0.8,      // Trefferquote der Research-Quelle
-    researchCooldown: 20,
     minPrice: 900,
     maxPrice: 7000,
     // Wertung: Was im Dezember nicht abgesichert ist, wird kurzfristig gehandelt – 5 % schlechter als die Börse.
@@ -36,10 +33,12 @@ const CFG = {
     // Wer sofort reagiert, hat einen kleinen Vorteil – sicher ist er nie.
     rumorPriced: 0.95,
     rumorSpeed: 0.3,
+    rumorMin: 24,          // so lange läuft ein Gerücht mindestens (Sekunden) …
+    rumorSpread: 14,       // … plus bis zu so viel Zufall
     // Progressive Einführung: ab welchem Jahr eine Nebenmechanik dazukommt
-    featureYear: { yield: 2, protect: 2, orders: 2, research: 2, buyers: 3 },
+    featureYear: { yield: 2, protect: 2, orders: 2, buyers: 3 },
     // Bei nur 1 Jahr: Kernspiel plus genau eine Besonderheit pro Rolle
-    singleYearFeatures: ['yield', 'orders', 'research'],
+    singleYearFeatures: ['yield', 'orders'],
 };
 
 // Kurzer Text für «Neu in diesem Jahr»
@@ -47,7 +46,6 @@ const FEATURE_TEXT = {
     yield: { role: 'producer', icon: '🌦️', name: 'Wetter & Ernte', text: 'Wetter verändert jetzt deine Erntemenge. Futures sichern den Preis – nicht die Menge.' },
     protect: { role: 'producer', icon: '🛡️', name: 'Pflanzenschutz', text: 'Eine Versicherung, die Ernteverluste halbiert. Günstig, solange es ruhig ist.' },
     orders: { role: 'processor', icon: '📦', name: 'Kundenaufträge', text: 'Kunden bestellen Schokolade zu festen Preisen. Jeder Auftrag erhöht deinen Bedarf.' },
-    research: { role: 'spec', icon: '🕵️', name: 'Research', text: 'Berichte verraten meistens, ob ein Gerücht stimmt. Nicht immer!' },
     buyers: { role: 'producer', icon: '🤝', name: 'Händler-Angebote', text: 'Händler bieten dir feste Preise für einen Teil der Ernte.' },
 };
 
@@ -200,9 +198,9 @@ const ROLES = {
         name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a78bfa', physical: 0, cash: 120000, limit: 20,
         goal: 'Wette auf steigende oder fallende Preise – und mach den grössten Gewinn.',
         mission: 'Ihr habt keinen Kakao. Ihr wettet auf den Preis – und übernehmt so das Risiko der anderen.',
-        hint: 'Gerüchte bewegen den Preis. Wer zuerst richtig liegt, gewinnt – wer falsch liegt, verliert doppelt.',
+        hint: 'Jedes Gerücht hat einen Ort. Im Terminal fragst du dort Berichte an – jeder ist nur ein Indiz.',
         job: 'Spekulant', tagline: 'Übernimm das Risiko der anderen – und verdiene daran.',
-        can: ['Auf steigende Preise wetten (KAUFEN) oder auf fallende (VERKAUFEN) – bis 20 Kontrakte'],
+        can: ['Auf steigende Preise wetten (KAUFEN) oder auf fallende (VERKAUFEN) – bis 20 Kontrakte', 'Im Terminal (Laptop) Berichte zu Gerüchten anfordern'],
         cannot: ['Kakao ernten oder verarbeiten'],
     },
 };
@@ -226,6 +224,82 @@ const SURPRISES = [
     { id: 'frost', icon: '❄️', impact: 0.04, text: 'EILMELDUNG: Ungewöhnliche Kälte in Brasiliens Kakaoregion' },
     { id: 'recession', icon: '📉', impact: -0.045, text: 'EILMELDUNG: Rezessionsangst – Konsumgüter unter Druck' },
 ];
+
+// ===== Hedgefonds-Terminal: Intel-Karte =====
+// Jedes Gerücht hat einen Ort. Wer weiss, WO er nachschauen muss, bekommt Indizien – nie die Lösung.
+// Quellen-Typen: Kosten (CHF), Dauer (s), Zuverlässigkeit (Chance, dass das Indiz in die richtige Richtung zeigt)
+const INTEL_TYPES = {
+    sat: { icon: '🛰️', name: 'Satellitenbild', cost: 3000, dur: 8, rel: 0.8 },
+    field: { icon: '📋', name: 'Feldbericht', cost: 2000, dur: 7, rel: 0.75 },
+    weather: { icon: '🌧️', name: 'Wetterstation', cost: 1500, dur: 5, rel: 0.75 },
+    port: { icon: '⚓', name: 'Hafenradar', cost: 2500, dur: 6, rel: 0.78 },
+    gov: { icon: '🏛️', name: 'Quelle in der Politik', cost: 2500, dur: 7, rel: 0.72 },
+    demand: { icon: '🏭', name: 'Bestelldaten Hersteller', cost: 2500, dur: 6, rel: 0.75 },
+    whs: { icon: '📦', name: 'Lagerbestände', cost: 1500, dur: 4, rel: 0.62 },
+    funds: { icon: '💼', name: 'Fondsflüsse (COT-Bericht)', cost: 2500, dur: 6, rel: 0.78 },
+    social: { icon: '💬', name: 'Social Media', cost: 300, dur: 2, rel: 0.55 },
+};
+// Orte auf der Karte (Längen-/Breitengrad) mit den Quellen, die es dort gibt
+const INTEL_LOCS = {
+    gh: { name: 'Ghana · Plantagen', lon: -1.6, lat: 7.6, types: ['sat', 'field', 'weather'], region: 'ghana' },
+    ci: { name: 'Elfenbeinküste · Plantagen', lon: -6.2, lat: 7.8, types: ['sat', 'field', 'weather'], region: 'ivory' },
+    ec: { name: 'Ecuador', lon: -79, lat: -1.5, types: ['sat', 'field', 'weather', 'port'], region: 'ecuador' },
+    id: { name: 'Indonesien · Sulawesi', lon: 120.5, lat: -2, types: ['sat', 'field', 'weather'], region: 'indonesia' },
+    abj: { name: 'Abidjan · Hafen', lon: -4, lat: 4.4, types: ['port', 'gov'] },
+    acc: { name: 'Accra · Hafen Tema', lon: 0.6, lat: 5.0, types: ['port', 'gov'] },
+    lon: { name: 'London · Börse & Lager', lon: -0.1, lat: 51.5, types: ['whs'] },
+    bru: { name: 'Brüssel · EU', lon: 4.4, lat: 50.8, types: ['gov', 'demand'] },
+    nyc: { name: 'New York · Fonds', lon: -74, lat: 40.7, types: ['funds'] },
+    sha: { name: 'Shanghai · Hersteller Asien', lon: 121.5, lat: 31.2, types: ['demand'] },
+    web: { name: 'Social Media', lon: -150, lat: 30, types: ['social'] },
+};
+const REGION_LOC = { ghana: 'gh', ivory: 'ci', ecuador: 'ec', indonesia: 'id' };
+// Pro Gerücht: welche Quelle an welchem Ort etwas aussagt ('R' = Region des Gerüchts) und was sie zeigt
+// [Text, wenn das Indiz für BESTÄTIGT spricht, Text, wenn es für DEMENTI spricht]
+const INTEL_HINTS = {
+    drought: {
+        'sat@R': ['Vegetationsindex {R}: −11 % gegenüber Vorjahr. Blätter welken.', 'Vegetationsindex {R}: normal (+1 %). Die Bäume sind grün.'],
+        'weather@R': ['Seit 5 Wochen kaum Regen in {R} (−70 %).', 'Regenmengen in {R} im Normalbereich.'],
+        'field@R': ['Bauern in {R} melden vertrocknete Schoten.', 'Feldbericht {R}: Schoten entwickeln sich normal.'],
+    },
+    blackpod: {
+        'field@R': ['Feldbericht {R}: schwarze, faulende Schoten auf vielen Höfen.', 'Feldbericht {R}: nur vereinzelte kranke Schoten.'],
+        'sat@R': ['Satellit {R}: dunkle Flecken in den Plantagen.', 'Satellit {R}: Plantagen unauffällig.'],
+    },
+    record: {
+        'sat@R': ['Vegetationsindex {R}: +12 % – sehr dichte Kronen.', 'Vegetationsindex {R}: durchschnittlich.'],
+        'field@R': ['Feldbericht {R}: Bäume hängen voller Schoten.', 'Feldbericht {R}: normale Zahl an Schoten.'],
+        'weather@R': ['Ideale Regen- und Sonnenphasen in {R}.', 'Wetter in {R}: durchschnittlich.'],
+    },
+    rain: {
+        'weather@R': ['Regen in {R} genau zur richtigen Zeit (+15 %).', 'Regen in {R} eher knapp.'],
+        'sat@R': ['Vegetationsindex {R}: +9 %.', 'Vegetationsindex {R}: normal.'],
+    },
+    export: {
+        'gov@acc': ['Quelle im Ministerium in Accra: Der Exportstopp ist unterschriftsreif.', 'Quelle in Accra: Der Exportstopp ist vom Tisch.'],
+        'port@acc': ['Hafen Tema: Kakao-Verladung gestoppt, Lager füllen sich.', 'Hafen Tema: Verladung läuft normal.'],
+    },
+    asia: {
+        'demand@sha': ['Shanghai: Hersteller bestellen 40 % mehr Kakaobutter.', 'Shanghai: Bestellungen auf Vorjahresniveau.'],
+        'whs@lon': ['Lagerbestände London sinken schnell – es wird viel abgeholt.', 'Lagerbestände London stabil.'],
+    },
+    diet: {
+        'gov@bru': ['EU-Parlament: Mehrheit für die Zuckersteuer steht.', 'EU-Parlament: Zuckersteuer hat keine Mehrheit.'],
+        'demand@bru': ['Europas Hersteller kürzen vorsorglich ihre Bestellungen.', 'Europas Hersteller bestellen normal.'],
+    },
+    strike: {
+        'port@abj': ['Hafen Abidjan: 14 Schiffe warten (normal 6), die Kräne stehen still.', 'Hafen Abidjan: 5 Schiffe am Pier, Verladung normal.'],
+        'gov@abj': ['Gewerkschaft Abidjan: Streikbeschluss gefasst.', 'Gewerkschaft Abidjan: Einigung in Sicht.'],
+    },
+    ecuador: {
+        'port@ec': ['Hafen Guayaquil: Rekord-Verschiffung von Kakao angemeldet.', 'Hafen Guayaquil: Verschiffung normal.'],
+        'field@ec': ['Feldbericht Ecuador: Die neuen Plantagen tragen schon.', 'Feldbericht Ecuador: Die jungen Bäume tragen noch kaum.'],
+    },
+    fund: {
+        'funds@nyc': ['COT-Bericht: Grosse Fonds bauen Long-Positionen massiv ab.', 'COT-Bericht: Die Fonds halten ihre Positionen.'],
+        'whs@lon': ['London: Fonds lassen Kakao aus den Lagern verkaufen.', 'London: keine auffälligen Lagerbewegungen.'],
+    },
+};
 
 const BUYERS = ['Barry Callebaut', 'Lindt & Sprüngli', 'Cargill', 'Nestlé', 'Ferrero', 'Olam Food', 'Touton Trading'];
 const CLIENTS = ['Alpenmarkt', 'Kaufhaus Helvetia', 'Bahnhofkiosk AG', 'Pralinen-Boutique', 'Export Asien', 'Hotelkette Seeblick', 'Discounter Spar-Fix', 'Café-Kette Bohne'];
@@ -344,9 +418,9 @@ const UPGRADES = {
         { id: 'marketing', icon: '📣', name: 'Marketing', cost: 10000, desc: 'Kunden bestellen deutlich häufiger.' },
     ],
     spec: [
-        { id: 'analysts', icon: '🧠', name: 'Analysten-Team', cost: 18000, desc: 'Research-Berichte stimmen zu 93 % statt 80 %.' },
+        { id: 'analysts', icon: '🧠', name: 'Analysten-Team', cost: 18000, desc: 'Alle Berichte werden zuverlässiger (+8 Prozentpunkte).' },
         { id: 'credit', icon: '🏦', name: 'Kreditlinie', cost: 22000, desc: 'Positionslimit +10 Kontrakte (30 statt 20).' },
-        { id: 'network', icon: '📡', name: 'Netzwerk', cost: 12000, desc: 'Research halb so teuer und doppelt so schnell verfügbar.' },
+        { id: 'network', icon: '📡', name: 'Netzwerk', cost: 12000, desc: 'Berichte halb so teuer und doppelt so schnell.' },
     ],
 };
 

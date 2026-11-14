@@ -50,7 +50,7 @@ const Engine = (() => {
             upgrades: [], total: 0, yearPts: [], years: [], upSpent: 0, interest: 0, loans: 0, level: 0,
             region: null, settled: false, lastResult: 0, spotPaid: 0,
             orders: [], orderOffer: null, nextOrderAt: 8 + Math.floor(Math.random() * CFG.orderEvery),
-            reports: [], researchAt: -999, researchSpent: 0,
+            reports: [], job: null, researchSpent: 0,
             costs: 0,                                   // Pflanzenschutz, Bankzuschlag (für den Hedge-Vergleich)
             buyerOffer: null, nextBuyerAt: 10 + Math.floor(Math.random() * CFG.buyerEvery), sales: [],
         };
@@ -89,8 +89,6 @@ const Engine = (() => {
 
     const byId = id => G.players.find(p => p.id === id);
     const has = (p, u) => p.upgrades.includes(u);
-    const cooldown = p => (has(p, "network") ? CFG.researchCooldown / 2 : CFG.researchCooldown);
-    const hitRate = p => (has(p, "analysts") ? 0.93 : CFG.researchHit);
     const unrealC = p => p.pos * (G.price - G.ref) * CFG.size;
     const futEq = p => p.margin + unrealC(p);
     const req = (p, pos = p.pos) => Math.abs(pos) * G.price * CFG.size * G.marginRate;
@@ -380,29 +378,69 @@ const Engine = (() => {
         return { ok: true, msg: `Auftrag angenommen: ${o.t} t zu ${fmt(o.price)} CHF/t. Dein Bedarf steigt auf ${-p.physical} t – sichere ihn ab!` };
     }
 
-    // Hedgefonds: Research-Bericht über ein laufendes Gerücht.
-    function research(id) {
+    // ===== Hedgefonds: Intel-Karte =====
+    // Ein Bericht kostet Geld und Zeit und liefert ein Indiz – keine Lösung.
+    const intelCost = (p, t) => Math.round(INTEL_TYPES[t].cost * (has(p, 'network') ? 0.5 : 1));
+    const intelDur = (p, t) => Math.max(1, Math.round(INTEL_TYPES[t].dur * (has(p, 'network') ? 0.5 : 1)));
+    const intelRel = (p, t) => Math.min(0.95, INTEL_TYPES[t].rel + (has(p, 'analysts') ? 0.08 : 0));
+
+    function investigate(id, key) {
         const p = byId(id);
         if (!p || p.role !== 'spec') return { ok: false, msg: 'Nur für Hedgefonds.' };
-        if (!feat('research')) return { ok: false, msg: 'Research gibt es erst später in der Karriere.' };
-        if (G.phase !== 'trading') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
-        if (G.sec - p.researchAt < cooldown(p)) return { ok: false, msg: `Die Analysten brauchen noch ${cooldown(p) - (G.sec - p.researchAt)} s.` };
-        const rumor = G.events.find(e => e.stage === 'rumor');
-        const cost = Math.round((rumor ? CFG.researchCost : CFG.researchCost / 2) * (has(p, "network") ? 0.5 : 1));
-        if (p.cash < cost) return { ok: false, msg: 'Zu wenig Geld für Research.' };
+        if (G.phase !== 'trading' && G.phase !== 'settle') return { ok: false, msg: 'Erst wenn die Börse läuft.' };
+        if (G.paused) return { ok: false, msg: 'Pause.' };
+        const [loc, type] = String(key).split(':');
+        if (!INTEL_LOCS[loc] || !INTEL_LOCS[loc].types.includes(type)) return { ok: false, msg: 'Unbekannte Quelle.' };
+        if (p.job) return { ok: false, msg: 'Dein Team arbeitet noch am letzten Bericht.' };
+        const cost = intelCost(p, type);
+        if (p.cash < cost) return { ok: false, msg: 'Zu wenig Geld für diesen Bericht.' };
         p.cash -= cost;
         p.researchSpent += cost;
-        p.researchAt = G.sec;
-        let text;
-        if (rumor) {
-            const says = Math.random() < hitRate(p) ? rumor.confirmed : !rumor.confirmed;
-            const dir = (says ? rumor.def.impact : -rumor.priced) > 0 ? 'steigen' : 'fallen';
-            text = `«${rumor.def.rumor}»: Unsere Quelle erwartet ein ${says ? 'BESTÄTIGT' : 'DEMENTI'}. Kakao dürfte dann ${dir}. (Trefferquote ca. ${Math.round(hitRate(p) * 100)} %, Auflösung in ca. ${rumor.resolveAt - G.clock} s)`;
-        } else {
-            text = 'Zurzeit läuft kein Gerücht. Die Analysten sehen nichts Konkretes (halber Preis verrechnet).';
+        const dur = intelDur(p, type);
+        p.job = { loc, type, until: G.sec + dur, dur, rids: G.events.filter(e => e.stage === 'rumor').map(e => e.id) };
+        return { ok: true, msg: `${INTEL_TYPES[type].icon} ${INTEL_TYPES[type].name} ${INTEL_LOCS[loc].name} angefordert – kommt in ${dur} s.` };
+    }
+
+    // Passt die Quelle zu einem laufenden Gerücht?
+    function hintFor(e, loc, type) {
+        const map = INTEL_HINTS[e.def.id];
+        if (!map) return null;
+        for (const [k, texts] of Object.entries(map)) {
+            const [t, l] = k.split('@');
+            const where = l === 'R' ? REGION_LOC[e.region] : l;
+            if (t === type && where === loc) return texts;
         }
-        p.reports.push({ text, sec: G.sec });
-        return { ok: true, msg: 'Research-Bericht ist da.', report: text };
+        return null;
+    }
+
+    function finishJob(p) {
+        const { loc, type, rids } = p.job;
+        p.job = null;
+        const T = INTEL_TYPES[type];
+        // Gerüchte, die beim Anfordern liefen (auch wenn sie inzwischen aufgelöst sind), plus neue
+        const rumors = G.events.filter(e => e.type === 'rumor' && (rids.includes(e.id) || e.stage === 'rumor'));
+        let rep = null;
+        const rel = intelRel(p, type);
+        if (type === 'social' && rumors.length) {
+            const e = rumors[0];
+            const says = Math.random() < rel ? e.confirmed : !e.confirmed;
+            rep = { rid: e.id, dir: says ? 1 : -1, text: says ? `Viral: «${e.def.rumor}» – alle reden davon.` : `Viele halten «${e.def.rumor}» für Fake.` };
+        } else {
+            for (const e of rumors) {
+                const texts = hintFor(e, loc, type);
+                if (!texts) continue;
+                const says = Math.random() < rel ? e.confirmed : !e.confirmed;
+                const R = e.region ? REGIONS[e.region].name : '';
+                rep = { rid: e.id, dir: says ? 1 : -1, text: (says ? texts[0] : texts[1]).replace(/\{R\}/g, R) };
+                break;
+            }
+        }
+        if (!rep) rep = { rid: null, dir: 0, text: 'Nichts Auffälliges zu den laufenden Gerüchten.' };
+        const e = rep.rid ? G.events.find(x => x.id === rep.rid) : null;
+        if (e && e.stage === 'done') rep.text += ' (Zu spät: Das Gerücht ist schon aufgelöst.)';
+        p.reports.push({ ...rep, loc, type, rel, icon: T.icon, src: T.name, place: INTEL_LOCS[loc].name, rumor: e ? e.def.rumor : null, sec: G.sec, year: G.year });
+        if (p.reports.length > 40) p.reports.shift();
+        note(p, 'good', `${T.icon} Bericht da: ${rep.text}`);
     }
 
     // ===== News =====
@@ -424,7 +462,7 @@ const Engine = (() => {
             for (let k = 0; k < n && pool.length; k++) {
                 const at = base + Math.round(10 + (k + Math.random() * 0.8) * ((G.monthSec - 25) / n));
                 const def = pool.pop();
-                evs.push({ type: 'rumor', def, at, resolveAt: Math.min(total - 4, at + 14 + Math.round(Math.random() * 12)), confirmed: Math.random() < def.prob, priced: 0, stage: 'pending', region: def.yield ? rand(COCOA_REGIONS) : null });
+                evs.push({ id: G.seq++, type: 'rumor', def, at, resolveAt: Math.min(total - 4, at + CFG.rumorMin + Math.round(Math.random() * CFG.rumorSpread)), confirmed: Math.random() < def.prob, priced: 0, stage: 'pending', region: def.yield ? rand(COCOA_REGIONS) : null });
             }
         }
         shuffleArr([...SURPRISES]).slice(0, 2).forEach((s, i) => {
@@ -643,6 +681,7 @@ const Engine = (() => {
             p.costs = 0;
             p.researchSpent = 0;
             p.reports = [];
+            p.job = null;
             p.expAcc = 0;
             p.expN = 0;
             p.fees = 0;
@@ -696,6 +735,7 @@ const Engine = (() => {
             spawnOrders(G.orderBoost && G.clock < G.orderBoost ? 1.6 : 1);
             spawnBuyers();
         }
+        for (const p of G.players) if (p.job && G.sec >= p.job.until) finishJob(p);
         for (const p of G.players) {
             if (p.bankrupt || p.pos === 0) continue;
             if (futEq(p) < 0) {
@@ -768,7 +808,7 @@ const Engine = (() => {
             physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
             orderOffer: p.orderOffer ? { client: p.orderOffer.client, t: p.orderOffer.t, price: p.orderOffer.price, left: Math.max(0, p.orderOffer.until - G.sec) } : null,
-            reports: p.reports.slice(-2), researchReady: Math.max(0, cooldown(p) - (G.sec - p.researchAt)), researchCostNow: Math.round(CFG.researchCost * (has(p, "network") ? 0.5 : 1)), hitRate: hitRate(p),
+            intel: p.role === 'spec' ? intelState(p) : null,
             rumorActive: G.events.some(e => e.stage === 'rumor'),
             sky: ((G.events.find(e => e.stage === 'rumor' && e.def.yield && (!e.region || e.region === p.region)) || {}).def || {}).id || p.lastSky || 'sun',
             skyRumor: G.events.some(e => e.stage === 'rumor' && e.def.yield && (!e.region || e.region === p.region)),
@@ -776,6 +816,21 @@ const Engine = (() => {
             upgrades: p.upgrades.slice(), level: p.level, total: Math.round(p.total), upSpent: p.upSpent, interest: p.interest, loans: p.loans,
             yearsDone: p.years.slice(),
             region: p.region,
+        };
+    }
+
+    // Für das Terminal: laufender Auftrag, Berichte, Gerüchte mit Szenarien (Risiko-Cockpit)
+    function intelState(p) {
+        return {
+            job: p.job ? { loc: p.job.loc, type: p.job.type, left: Math.max(0, p.job.until - G.sec), dur: p.job.dur } : null,
+            reports: p.reports.filter(r => r.year === G.year).slice(-16),
+            costs: Object.fromEntries(Object.keys(INTEL_TYPES).map(t => [t, { cost: intelCost(p, t), dur: intelDur(p, t), rel: Math.round(intelRel(p, t) * 100) }])),
+            rumors: G.events.filter(e => e.stage === 'rumor').map(e => ({
+                id: e.id, icon: e.def.icon, text: e.def.rumor, region: e.region || null,
+                left: Math.max(0, e.resolveAt - G.clock), since: G.clock - e.at,
+                jumpYes: e.def.impact - e.priced, jumpNo: -e.priced,
+            })),
+            spent: p.researchSpent,
         };
     }
 
@@ -826,7 +881,7 @@ const Engine = (() => {
 
     return {
         create, addPlayer, setRole, removePlayer, start, tick, trade, topUp, setPaused: v => { if (G) G.paused = !!v; },
-        protect, answerOrder, research, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
+        protect, answerOrder, investigate, answerBuyer, protectPrice, buyUpgrade, nextYear, feat,
         publicState, personal, debrief, activeRumors, exposure, futEq, req, byId, openTons,
         get G() { return G; },
     };

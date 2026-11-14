@@ -183,7 +183,7 @@ const Host = (() => {
         else if (msg.t === 'protect') r = Engine.protect(e.pid);
         else if (msg.t === 'order') r = Engine.answerOrder(e.pid, !!msg.accept);
         else if (msg.t === 'buyer') r = Engine.answerBuyer(e.pid, !!msg.accept);
-        else if (msg.t === 'research') r = Engine.research(e.pid);
+        else if (msg.t === 'intel') r = Engine.investigate(e.pid, String(msg.src));
         else if (msg.t === 'upgrade') r = Engine.buyUpgrade(e.pid, String(msg.id));
         send(e, { t: 'res', rid: msg.rid, ok: r.ok, msg: r.msg || null, price: r.price || null, q: r.q || null });
         push(e);
@@ -1123,7 +1123,7 @@ const Host = (() => {
         const factory = d.rows.filter(r => r.role === 'processor' && r.orders).sort((a, b) => b.orderT - a.orderT)[0];
         if (factory) out.push(`🏭 <b>${esc(factory.name)}</b> hat ${factory.orders} Kundenaufträge über ${factory.orderT} t angenommen. Marge zum Schlusskurs: <b class="${factory.orderMargin >= 0 ? 'up' : 'down'}">${signed(factory.orderMargin)} CHF</b>. Mit Long-Futures war diese Marge schon beim Annehmen fix.`);
         const analyst = d.rows.filter(r => r.role === 'spec' && r.reports).sort((a, b) => b.result - a.result)[0];
-        if (analyst) out.push(`🕵️ <b>${esc(analyst.name)}</b> hat ${analyst.reports} Research-Berichte gekauft (${fmt(analyst.researchSpent)} CHF). Information hat einen Preis – und ist nie ganz sicher.`);
+        if (analyst) out.push(`🕵️ <b>${esc(analyst.name)}</b> hat ${analyst.reports} Berichte angefordert (${fmt(analyst.researchSpent)} CHF) und ${analyst.result >= 0 ? 'damit gewonnen' : 'trotzdem verloren'}. Informationen helfen – sicher sind sie nie.`);
         const liq = d.rows.filter(r => r.liquidations > 0);
         if (liq.length) out.push(`📞 ${liq.length} ${liq.length === 1 ? 'Trader wurde' : 'Trader wurden'} zwangsweise glattgestellt (${liq.map(r => esc(r.name)).join(', ')}). Hebel wirkt in beide Richtungen – wer nicht nachschiessen kann, verliert die Position.`);
         return out;

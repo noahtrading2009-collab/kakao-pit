@@ -64,6 +64,19 @@ Alles Wichtige passt ohne Scrollen auf den Bildschirm: Zeile «Was jetzt?» (mit
 - **Spätes Beitreten** ist möglich: Wer später kommt, startet neutral zum aktuellen Preis.
 - Getestet mit 33 Spielern (32 KI + 1 Handy).
 
+## Hedgefonds-Terminal (Laptop)
+
+Hedgefonds, die auf einem breiten Bildschirm (ab 1000 px) spielen, bekommen statt des Handy-Cockpits ein Vollbild-Terminal:
+
+- **Intel-Karte:** Jedes Gerücht hat einen Ort. Auf der Weltkarte (mit Ausschnitt Westafrika) fordert man dort Berichte an: 🛰️ Satellitenbild, 📋 Feldbericht, 🌧️ Wetterstation, ⚓ Hafenradar, 🏛️ Quelle in der Politik, 🏭 Bestelldaten, 📦 Lagerbestände, 💼 Fondsflüsse, 💬 Social Media.
+- Jeder Bericht kostet **Geld und Zeit** (2–8 s), das Team arbeitet einen Bericht nach dem anderen ab. Passt die Quelle nicht zum Gerücht, findet man nichts.
+- Jeder Bericht ist nur ein **Indiz** (Zuverlässigkeit 55–80 %), Berichte können sich widersprechen.
+- **Beweis-Waage:** zeigt, wohin die gesammelten Indizien zeigen (zuverlässige Quellen zählen mehr).
+- **Risiko-Cockpit:** Position, Hebel, Pfand und für jedes Gerücht die Szenarien «bestätigt» / «dementiert» in CHF.
+- Order-Ticket und Kurs der letzten 90 Sekunden.
+
+Gerüchte laufen 24–38 Sekunden, damit Zeit für 2–3 Berichte bleibt.
+
 ## Balance prüfen
 
 `tools/sim.html` spielt die Engine 200-mal mit festen Strategien (nie absichern, alles sofort, Hälfte, Gerüchten folgen) plus KI-Tradern und zeigt Siegquote, Durchschnitt und Streuung pro Rolle.

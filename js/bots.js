@@ -65,12 +65,6 @@ const Bots = (() => {
             return Engine.trade(p.id, -Math.sign(p.pos) * Math.min(Math.abs(p.pos), 3));
         }
         const rumors = Engine.activeRumors();
-        if (rumors.length && Engine.feat('research') && p.researchAt < G.sec - 30 && Math.random() < 0.06) {
-            Engine.research(p.id);
-            const r = rumors[0];
-            const last = p.reports[p.reports.length - 1];
-            if (last) m.view = { until: G.clock + r.left, dir: last.text.includes('steigen') ? 1 : -1 };
-        }
         if (m.view && G.clock < m.view.until) {
             const want = m.view.dir * 8;
             if (want !== p.pos && Math.random() < 0.3) return Engine.trade(p.id, Math.sign(want - p.pos) * Math.min(3, Math.abs(want - p.pos)));

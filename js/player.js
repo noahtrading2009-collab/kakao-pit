@@ -114,9 +114,10 @@ const Player = (() => {
                 renderShop();
                 return;
             }
-            if (pub.phase !== 'lobby' && !ended && !$('v-player').classList.contains('active')) {
+            const view = termMode() ? 'v-term' : 'v-player';
+            if (pub.phase !== 'lobby' && !ended && !$(view).classList.contains('active')) {
                 const fromShop = $('v-shop').classList.contains('active');
-                App.show('v-player');
+                App.show(view);
                 Sound.play('bell');
                 renderInfo();
                 if (fromShop) {
@@ -124,7 +125,7 @@ const Player = (() => {
                     yearBanner(pub.year);
                 }
             }
-            if (pub.phase !== 'lobby') render();
+            if (pub.phase !== 'lobby') (view === 'v-term' ? renderTerm() : render());
             return;
         }
         if (msg.t === 'yearEnd') {
@@ -424,10 +425,8 @@ const Player = (() => {
                     <div class="oc-btns"><button class="btn btn-primary" data-rp="order-yes">Annehmen</button><button class="btn btn-ghost" data-rp="order-no">Ablehnen</button></div></div>`;
             else html += '<div class="small dim">📦 Warte auf den nächsten Kundenauftrag …</div>';
             html += me.orders.slice(-2).map(x => `<div class="rp-log">✔ ${esc(x.client)} · ${x.t} t zu ${fmt(x.price)}</div>`).join('');
-        } else if (me.role === 'spec' && F.research) {
-            const last = me.reports[me.reports.length - 1];
-            if (last) html += `<div class="report">🕵️ ${esc(last.text)}</div>`;
-            html += `<button class="btn btn-ghost full" data-rp="research" ${me.researchReady ? 'disabled' : ''}>🕵️ Research-Bericht · ${fmt(me.rumorActive ? me.researchCostNow : me.researchCostNow / 2)} CHF${me.researchReady ? ` · bereit in ${me.researchReady}s` : ''}<small>Sagt meistens richtig voraus, ob ein Gerücht stimmt (ca. ${Math.round(me.hitRate * 100)} %).</small></button>`;
+        } else if (me.role === 'spec') {
+            html += '<div class="small">💻 <b>Tipp:</b> Öffne das Spiel am Laptop. Dort hast du das Hedgefonds-Terminal mit Weltkarte, Berichten und Risiko-Cockpit.</div>';
         }
         el.classList.toggle('hidden', !html);
         // Countdown und «neu»-Markierung gehören nicht zum Vergleich – sonst würde die Karte jede Sekunde neu gebaut.
@@ -455,7 +454,6 @@ const Player = (() => {
             if (a === 'order-no') send({ t: 'order', accept: false });
             if (a === 'buyer-yes') send({ t: 'buyer', accept: true });
             if (a === 'buyer-no') send({ t: 'buyer', accept: false });
-            if (a === 'research') send({ t: 'research' });
         }));
     }
 
@@ -584,6 +582,254 @@ const Player = (() => {
             <h3>Begriffe</h3>${GLOSSARY.map(([t, d]) => `<p><b>${t}:</b> ${d}</p>`).join('')}`;
     }
 
+    // ===== Hedgefonds-Terminal (Laptop, Vollbild) =====
+    // Hedgefonds auf einem breiten Bildschirm bekommen das Terminal statt des Handy-Cockpits.
+    const termMode = () => me && me.role === 'spec' && window.innerWidth >= 1000;
+    let tSel = null;          // gewählter Ort auf der Karte
+    let tQty = 5;             // Kontrakte pro Order
+    let tMapBuilt = false;
+
+    // Weltkarte (zugeschnitten auf die relevanten Breiten) + vergrösserter Ausschnitt Westafrika
+    const TW = 630;
+    const TH = 210;
+    const tx = lon => ((lon + 165) / 315) * TW;
+    const ty = lat => ((70 - lat) / 100) * TH;
+    const WEST = ['gh', 'ci', 'abj', 'acc'];
+    const IW = 300;
+    const IH = 150;
+    const ix = lon => ((lon + 9) / 12) * IW;
+    const iy = lat => ((10.2 - lat) / 7.2) * IH;
+
+    // Beweis-Waage: Jedes Indiz verschiebt die Wahrscheinlichkeit – zuverlässige Quellen stärker.
+    function evidence(reports) {
+        let L = 0;
+        for (const r of reports) if (r.dir) L += r.dir * Math.log(r.rel / (1 - r.rel));
+        return 1 / (1 + Math.exp(-L));
+    }
+    const stars = rel => '★'.repeat(rel >= 0.8 ? 3 : rel >= 0.7 ? 2 : 1) + '☆'.repeat(rel >= 0.8 ? 0 : rel >= 0.7 ? 1 : 2);
+
+    function pin(k, x, y, side, label) {
+        const L = INTEL_LOCS[k];
+        const icons = L.types.map(t => INTEL_TYPES[t].icon).join('');
+        const right = side === 'l';
+        return `<g class="t-pin" data-loc="${k}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
+            <circle class="t-pulse" r="13"/><circle class="t-dot" r="5.5"/>
+            <text class="t-pl" x="${right ? -9 : 9}" y="-4" text-anchor="${right ? 'end' : 'start'}">${esc(label || L.name)}</text>
+            <text class="t-pi" x="${right ? -9 : 9}" y="10" text-anchor="${right ? 'end' : 'start'}">${icons}</text></g>`;
+    }
+
+    function buildMap() {
+        let dots = '';
+        for (const [lat, ranges] of LAND) {
+            if (lat > 72 || lat < -32) continue;
+            for (const [a, b] of ranges) {
+                for (let lon = a; lon <= b; lon += 2.5) if (lon >= -165 && lon <= 150) dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r="1.6"/>`;
+            }
+        }
+        const world = Object.keys(INTEL_LOCS).filter(k => !WEST.includes(k))
+            .map(k => pin(k, tx(INTEL_LOCS[k].lon), ty(INTEL_LOCS[k].lat), ['sha', 'id', 'lon'].includes(k) ? 'l' : 'r')).join('');
+        // Rahmen um Westafrika auf der Weltkarte
+        const bx = tx(-10);
+        const by = ty(11);
+        const box = `<g class="t-west"><rect x="${bx}" y="${by}" width="${tx(4) - bx}" height="${ty(3) - by}" rx="3"/><text x="${bx}" y="${by + (ty(3) - by) + 12}">Westafrika ↓</text></g>`;
+        // Ausschnitt Westafrika: Küste am Golf von Guinea, Grenze Elfenbeinküste/Ghana
+        const coast = [[-9, 4.6], [-7.5, 4.3], [-6, 4.9], [-4.6, 5.2], [-3, 5.1], [-2, 4.8], [-1, 5.1], [0, 5.6], [1, 6.1], [2, 6.3], [3, 6.4]];
+        const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
+        const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
+            <polygon points="0,0 ${IW},0 ${cpts.split(' ').reverse().join(' ')}" class="t-ins-land" transform="scale(1)"/>
+            <polyline points="${cpts}" class="t-ins-coast"/>
+            <line x1="${ix(-3)}" y1="${iy(10.2)}" x2="${ix(-3)}" y2="${iy(5.1)}" class="t-ins-border"/>
+            <text x="${ix(-8.6)}" y="${iy(9.6)}" class="t-ins-c">ELFENBEINKÜSTE</text><text x="${ix(-2.6)}" y="${iy(9.6)}" class="t-ins-c">GHANA</text>
+            <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
+            ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
+            ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
+        $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><g class="t-land">${dots}</g>
+            <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/>`).join('')}</g>${box}${world}</svg>
+            <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
+        $('t-map').querySelectorAll('.t-pin').forEach(g => g.addEventListener('click', () => {
+            tSel = g.dataset.loc;
+            Sound.play('tick');
+            renderTerm();
+        }));
+        tMapBuilt = true;
+    }
+
+    function renderTerm() {
+        if (!me || !pub || !me.intel) return;
+        if (!tMapBuilt) buildMap();
+        const I = me.intel;
+        document.body.dataset.role = 'spec';
+        // Kopfzeile
+        $('t-fund').innerHTML = `${roleIcon('spec', 22)} <b>${esc(me.name)}</b><small>${RANKS[me.level].icon} ${RANKS[me.level].name}</small>`;
+        const ch = pub.price / pub.p0 - 1;
+        $('t-price').textContent = fmt(pub.price);
+        $('t-chg').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${arrow(ch)}${pct(ch)}</span>`;
+        $('t-pl').innerHTML = `<span class="${me.result >= 0 ? 'up' : 'down'}">${arrow(me.result)}${signed(me.result)}</span>`;
+        $('t-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>`;
+        $('t-month').textContent = pub.phase === 'settle' ? 'ABRECHNUNG' : `MONAT ${pub.month}/${pub.months}${pub.years > 1 ? ` · JAHR ${pub.year}` : ''}`;
+        $('t-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
+        $('t-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
+        const n = nowText();
+        $('t-now').className = `t-now ${n.k}`;
+        setHTML($('t-now'), n.t);
+
+        // Gerüchte + Beweis-Waage
+        const rum = I.rumors;
+        setHTML($('t-rumors'), rum.length ? rum.map(r => {
+            const reps = I.reports.filter(x => x.rid === r.id);
+            const p = evidence(reps);
+            const span = Math.max(1, r.left + r.since);
+            return `<div class="t-rumor ${r.left <= 3 ? 'tense' : ''}">
+                <div class="tr-h"><span>${r.icon} ${esc(r.text)}</span><b>${r.left}s</b></div>
+                ${r.region ? `<div class="tr-reg">📍 Betrifft: ${esc(REGIONS[r.region].name)}</div>` : ''}
+                <i class="tr-bar" style="width:${(r.left / span) * 100}%"></i>
+                <div class="t-scale"><span>DEMENTI</span><div class="ts-track"><em style="left:${(p * 100).toFixed(1)}%"></em></div><span>BESTÄTIGT</span></div>
+                <div class="ts-read">${reps.length ? `${reps.length} ${reps.length === 1 ? 'Indiz' : 'Indizien'} → <b class="${p >= 0.5 ? 'up' : 'down'}">${Math.round(Math.max(p, 1 - p) * 100)} % für ${p >= 0.5 ? 'BESTÄTIGT' : 'DEMENTI'}</b>` : '<span class="dim">Noch keine Indizien. Wo auf der Karte würdest du nachschauen?</span>'}</div>
+                ${reps.length ? `<div class="ts-chips">${reps.map(x => `<span class="${x.dir > 0 ? 'up' : 'down'}" title="${esc(x.text)}">${x.icon}${x.dir > 0 ? '▲' : '▼'}</span>`).join('')}</div>` : ''}
+            </div>`;
+        }).join('') : '<div class="t-empty">Kein Gerücht offen. Beobachte den Markt – das nächste kommt bestimmt.</div>');
+
+        // Risiko-Cockpit
+        const posT = me.pos * CFG.size;
+        const lev = me.eq > 0 ? Math.abs(posT * pub.price) / Math.max(1, me.cash + me.eq) : 0;
+        const reserve = me.req ? me.eq / me.req : null;
+        const basis = me.pos ? posT : tQty * CFG.size;
+        const scen = rum.map(r => {
+            const yes = basis * pub.price * r.jumpYes;
+            const no = basis * pub.price * r.jumpNo;
+            return `<div class="t-scen"><div class="sc-t">${r.icon} ${esc(r.text)}</div>
+                <div class="sc-row"><span>✅ Bestätigt: Kakao ${arrow(r.jumpYes)}${pct(r.jumpYes)}</span><b class="${yes >= 0 ? 'up' : 'down'}">${arrow(yes)}${signed(yes)}</b></div>
+                <div class="sc-row"><span>❌ Dementi: Kakao ${arrow(r.jumpNo)}${pct(r.jumpNo)}</span><b class="${no >= 0 ? 'up' : 'down'}">${arrow(no)}${signed(no)}</b></div></div>`;
+        }).join('');
+        setHTML($('t-risk'), `<div class="t-kvs">
+                <div><small>POSITION</small><b class="${me.pos > 0 ? 'up' : me.pos < 0 ? 'down' : ''}">${me.pos ? `${me.pos > 0 ? '▲ Long' : '▼ Short'} ${Math.abs(posT)} t` : 'flat'}</b></div>
+                <div><small>OFFEN</small><b class="${me.unreal >= 0 ? 'up' : 'down'}">${arrow(me.unreal)}${signed(me.unreal)}</b></div>
+                <div><small>HEBEL</small><b class="${lev > 4 ? 'down' : ''}">${lev.toFixed(1)}×</b></div>
+                <div><small>PFAND</small><b class="${reserve !== null && reserve < CFG.maintenance ? 'down' : ''}">${reserve === null ? '–' : `${Math.round(reserve * 100)} %`}</b></div>
+                <div><small>BARGELD</small><b>${fmt(me.cash)}</b></div>
+                <div><small>INTEL-KOSTEN</small><b>${fmt(I.spent)}</b></div></div>
+            ${rum.length ? `<div class="sc-h">Szenarien ${me.pos ? 'für deine Position' : `für ${tQty * CFG.size} t Long (Beispiel)`}</div>${scen}` : '<div class="t-empty">Szenarien erscheinen, sobald ein Gerücht läuft.</div>'}`);
+
+        // Karte: Auswahl, laufender Auftrag, betroffene Region
+        const hot = new Set(rum.filter(r => r.region).map(r => REGION_LOC[r.region]));
+        $('t-map').querySelectorAll('.t-pin').forEach(g => {
+            const k = g.dataset.loc;
+            g.classList.toggle('sel', k === tSel);
+            g.classList.toggle('hot', hot.has(k));
+            g.classList.toggle('busy', !!(I.job && I.job.loc === k));
+        });
+        const job = I.job;
+        $('t-job').classList.toggle('hidden', !job);
+        if (job) setHTML($('t-job'), `<span>${INTEL_TYPES[job.type].icon} ${esc(INTEL_TYPES[job.type].name)} · ${esc(INTEL_LOCS[job.loc].name)}</span><b>${job.left}s</b><i style="width:${((job.dur - job.left) / Math.max(1, job.dur)) * 100}%"></i>`);
+        $('t-loc').classList.toggle('hidden', !tSel);
+        if (tSel) {
+            const L = INTEL_LOCS[tSel];
+            setHTML($('t-loc'), `<div class="tl-h"><b>📍 ${esc(L.name)}</b><button class="t-x" data-tx="close">✕</button></div>
+                ${L.types.map(t => {
+                    const c = I.costs[t];
+                    const can = !job && pub.phase !== 'end' && me.cash >= c.cost;
+                    return `<div class="tl-src"><span class="tl-ico">${INTEL_TYPES[t].icon}</span><span class="tl-n"><b>${esc(INTEL_TYPES[t].name)}</b><small>${c.dur} s · Zuverlässigkeit ${stars(c.rel / 100)} (${c.rel} %)</small></span>
+                        <button class="t-btn" data-src="${tSel}:${t}" ${can ? '' : 'disabled'}>${fmt(c.cost)} CHF</button></div>`;
+                }).join('')}
+                <div class="tl-hint">${job ? 'Dein Team arbeitet noch – ein Bericht nach dem anderen.' : 'Passt die Quelle nicht zum Gerücht, findest du nichts – und das Geld ist weg.'}</div>`);
+        }
+
+        // Intel-Feed
+        const feed = I.reports.slice().reverse();
+        setHTML($('t-feed'), feed.length ? feed.map(r => `<div class="t-rep ${r.dir > 0 ? 'yes' : r.dir < 0 ? 'no' : 'none'}">
+                <div class="rp-top"><span>${r.icon} ${esc(r.src)} · ${esc(r.place)}</span><small>${stars(r.rel)}</small></div>
+                <div class="rp-txt">${esc(r.text)}</div>
+                <div class="rp-tag">${r.dir > 0 ? '▲ spricht für BESTÄTIGT' : r.dir < 0 ? '▼ spricht für DEMENTI' : '– kein Bezug zu einem Gerücht'}${r.rumor ? ` · «${esc(r.rumor)}»` : ''}</div></div>`).join('')
+            : '<div class="t-empty">Noch keine Berichte. Klicke auf der Karte einen Ort an.</div>');
+
+        // Order-Ticket
+        const closed = pub.phase !== 'trading' || pub.paused || me.bankrupt;
+        const ask = Math.round(pub.price * (1 + CFG.spread));
+        const bid = Math.round(pub.price * (1 - CFG.spread));
+        setHTML($('t-ticket'), `<div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10, 20].filter(q => q <= me.bounds.max).map(q => `<button class="${q === tQty ? 'on' : ''}" data-tq="${q}">${q * CFG.size} t</button>`).join('')}</div>
+            <div class="tk-btns"><button class="tk-buy" data-tt="1" ${closed || room(1) <= 0 ? 'disabled' : ''}><b>KAUFEN</b><span>${fmt(ask)}</span><small>▲ Wette: steigt</small></button>
+                <button class="tk-sell" data-tt="-1" ${closed || room(-1) <= 0 ? 'disabled' : ''}><b>VERKAUFEN</b><span>${fmt(bid)}</span><small>▼ Wette: fällt</small></button></div>
+            ${me.pos ? `<button class="t-btn wide" data-tt="close" ${closed ? 'disabled' : ''}>Position schliessen (${Math.abs(posT)} t)</button>` : ''}
+            <div class="tk-lim">Limit ±${me.bounds.max * CFG.size} t · Pfand ${Math.round(CFG.marginRate * 100)} % · Gebühr ${CFG.fee} CHF/Kontrakt</div>`);
+
+        tChart();
+        renderCall();
+        coach('term', '🛰️ <b>Dein Terminal.</b> Jedes Gerücht hat einen Ort. Klicke ihn auf der Karte an und fordere einen Bericht an. Jeder Bericht ist nur ein Indiz – die Beweis-Waage links zeigt, wohin sie zeigen.');
+        if (rum.length) coach('term-scen', '⚖️ <b>Risiko-Cockpit:</b> Links unten siehst du, was deine Position bei «bestätigt» und bei «dementiert» wert wäre. Wer zu früh oder zu gross wettet, riskiert viel.');
+    }
+
+    function tChart() {
+        const cv = $('t-chart');
+        const dpr = window.devicePixelRatio || 1;
+        const W = cv.clientWidth;
+        const H = cv.clientHeight;
+        if (!W || !H) return;
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+            cv.width = Math.round(W * dpr);
+            cv.height = Math.round(H * dpr);
+        }
+        const c = cv.getContext('2d');
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        c.clearRect(0, 0, W, H);
+        const d = pub.history || [];
+        if (d.length < 2) return;
+        const lo = Math.min(...d, pub.p0) - 10;
+        const hi = Math.max(...d, pub.p0) + 10;
+        const X = i => 54 + (i / (d.length - 1)) * (W - 70);
+        const Y = v => 10 + ((hi - v) / (hi - lo)) * (H - 26);
+        c.font = '11px "JetBrains Mono", monospace';
+        c.fillStyle = '#5b6b85';
+        c.strokeStyle = 'rgba(120,150,200,.12)';
+        for (let i = 0; i <= 3; i++) {
+            const v = lo + ((hi - lo) * i) / 3;
+            c.beginPath();
+            c.moveTo(54, Y(v));
+            c.lineTo(W - 16, Y(v));
+            c.stroke();
+            c.fillText(fmt(v), 4, Y(v) + 4);
+        }
+        c.setLineDash([3, 4]);
+        c.strokeStyle = 'rgba(255,255,255,.3)';
+        c.beginPath();
+        c.moveTo(54, Y(pub.p0));
+        c.lineTo(W - 16, Y(pub.p0));
+        c.stroke();
+        c.setLineDash([]);
+        const up = d[d.length - 1] >= pub.p0;
+        const col = up ? '#22e58a' : '#ff4d6a';
+        c.beginPath();
+        d.forEach((v, i) => (i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v))));
+        c.strokeStyle = col;
+        c.lineWidth = 2;
+        c.stroke();
+        c.lineTo(X(d.length - 1), H - 16);
+        c.lineTo(X(0), H - 16);
+        c.closePath();
+        const g = c.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, up ? 'rgba(34,229,138,.22)' : 'rgba(255,77,106,.22)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = g;
+        c.fill();
+        c.fillStyle = '#5b6b85';
+        c.fillText('letzte 90 s', W - 90, H - 3);
+    }
+
+    function bindTerm() {
+        $('v-term').addEventListener('click', ev => {
+            const b = ev.target.closest('button');
+            if (!b || b.disabled) return;
+            if (b.dataset.src) { send({ t: 'intel', src: b.dataset.src }); Sound.play('tick'); }
+            if (b.dataset.tx === 'close') { tSel = null; renderTerm(); }
+            if (b.dataset.tq) { tQty = Number(b.dataset.tq); renderTerm(); }
+            if (b.dataset.tt === 'close') send({ t: 'trade', q: -me.pos });
+            else if (b.dataset.tt) {
+                const dir = Number(b.dataset.tt);
+                send({ t: 'trade', q: dir * Math.max(1, Math.min(tQty, room(dir))) });
+            }
+        });
+        window.addEventListener('resize', () => { if (me && pub && pub.phase !== 'lobby' && !ended) onData({ t: 's', pub, me }); });
+    }
+
     // ===== Ende =====
 
     // ===== Jahresende & Ausbau (Handy) =====
@@ -694,6 +940,7 @@ const Player = (() => {
         $('p-buy').addEventListener('click', () => send({ t: 'trade', q: me ? Math.max(1, Math.min(qty, room(1))) : qty }));
         $('p-sell').addEventListener('click', () => send({ t: 'trade', q: -(me ? Math.max(1, Math.min(qty, room(-1))) : qty) }));
         $('btn-rejoin').addEventListener('click', () => join(code, name));
+        bindTerm();
         document.addEventListener('visibilitychange', revive);
         window.addEventListener('online', revive);
         $('w-roles').querySelectorAll('[data-role]').forEach(b => b.addEventListener('click', () => {
