@@ -1850,3 +1850,21 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .farm-map .river { stroke: url(#texWater); opacity: .95; }
 .farm-map .river-bank { stroke: rgba(70, 52, 28, .75); }
 .farm-map .road { stroke: #7a6242; }
+
+/* ===== Gerechnete Leitstand-Bilder: nur noch die Status-Ebene darüber ===== */
+.farm-map.rendered .vil-hit { fill: rgba(0, 0, 0, 0); }
+.farm-map.rendered .vil-ring { fill: none; stroke-width: 2.4; filter: drop-shadow(0 0 4px rgba(0, 0, 0, .7)); }
+.farm-map.rendered .vil.deal .vil-ring { stroke: #7fb6ff; }
+.farm-map.rendered .vil.fut .vil-ring { stroke: #ffc446; }
+.farm-map.rendered .vil.open .vil-ring { stroke: rgba(255, 255, 255, .75); }
+.farm-map.rendered .vil.lost .vil-ring { stroke: #ff4d6a; }
+.farm-map.rendered .vil.lost { opacity: .85; }
+.farm-map.rendered .river-flow { stroke: rgba(230, 245, 255, .35); stroke-width: 1; }
+.farm-map.rendered .bridge rect { fill: #6b5236; stroke: #2a1d10; }
+.plant-map.rendered .s-hit { fill: rgba(0, 0, 0, 0); }
+.plant-map.rendered .silo.r .s-id { fill: #ffcf8a; }
+.plant-map.rendered .pipe-flow { stroke: rgba(255, 207, 107, .5); }
+
+/* Dörfer nur einblenden (transform würde die Position überschreiben) */
+.vil { animation: vilIn .5s both; }
+@keyframes vilIn { from { opacity: 0; } }

@@ -1109,6 +1109,13 @@ const Player = (() => {
         const badge = { deal: ['📜', 'Vertrag'], fut: ['🔒', 'Future'], lost: ['🚚', 'weg'], open: ['○', 'offen'] };
         // Bei vielen Dörfern werden sie etwas kleiner
         const vs = tiles.length > 16 ? 0.82 : 1;
+        const occupied = tiles.map((_, i) => [VILLAGES[i][0], VILLAGES[i][1] * k]);
+        const FIELDS = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14]];
+        const river = sy('M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300', k);
+        const road = sy('M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360', k);
+        // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
+        const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
+        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS.map(([fx, fy, fw, fh, fr]) => [fx, fy * k, fw, fh * Math.min(k, 1.4), fr]) }, pxW, () => renderDesk()) : null;
         const villages = tiles.map((kk, i) => {
             const [x, y0] = VILLAGES[i];
             const y = y0 * k;
@@ -1119,18 +1126,17 @@ const Player = (() => {
             }).join('');
             const [ico, lbl] = badge[kk];
             return `<g class="vil ${kk}" transform="translate(${x} ${y.toFixed(1)}) scale(${vs})" style="animation-delay:${i * 0.04}s"><title>${unit} t · ${tip(kk, i)}</title>
-                <ellipse class="vil-ground" rx="40" ry="17" cy="10"/><ellipse class="vil-ring" rx="40" ry="17" cy="10"/>
+                ${img ? '<ellipse class="vil-hit" rx="44" ry="28"/><ellipse class="vil-ring" rx="44" ry="28"/>' : `<ellipse class="vil-ground" rx="40" ry="17" cy="10"/><ellipse class="vil-ring" rx="40" ry="17" cy="10"/>
                 <ellipse rx="27" ry="10" cy="9" fill="#a8865a" opacity=".55"/>
                 <g class="dry-mat"><rect x="-26" y="10" width="14" height="6" rx="1" fill="#6b3d1e"/><rect x="-25" y="11" width="12" height="4" fill="url(#dBeans)"/></g>
                 ${trees}
-                ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}
+                ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}`}
                 ${kk !== 'lost' ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
                 ${kk === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
                 <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g></g>`;
         }).join('');
-        const occupied = tiles.map((_, i) => [VILLAGES[i][0], VILLAGES[i][1] * k]);
-        // Felder (Kakao-Reihen) und Waldstücke als Hintergrund
-        const fields = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14]]
+        // Felder (Kakao-Reihen) und Waldstücke als Hintergrund (nur ohne gerechnetes Bild)
+        const fields = FIELDS
             .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${(y + h / 2) * k})"><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#texSoil)"/><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(30,22,10,.55)" stroke-width="1.2"/></g>`).join('');
         const forest = Array.from({ length: Math.round(60 * k) }, (_, i) => {
             const x = rnd(i * 3.1) * 800;
@@ -1143,9 +1149,7 @@ const Player = (() => {
         const nT = Math.floor(VH / 50);
         const ticks = Array.from({ length: 17 }, (_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${i % 2 ? 4 : 8}"/><line x1="${i * 50}" y1="${VH}" x2="${i * 50}" y2="${VH - (i % 2 ? 4 : 8)}"/>`).join('')
             + Array.from({ length: nT + 1 }, (_, i) => `<line x1="0" y1="${i * 50}" x2="${i % 2 ? 4 : 8}" y2="${i * 50}"/><line x1="800" y1="${i * 50}" x2="${i % 2 ? 796 : 792}" y2="${i * 50}"/>`).join('');
-        const river = sy('M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300', k);
-        const road = sy('M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360', k);
-        return `<svg viewBox="0 0 800 ${VH}" class="d-svg farm-map" preserveAspectRatio="xMidYMid meet">
+        return `<svg viewBox="0 0 800 ${VH}" class="d-svg farm-map ${img ? 'rendered' : ''}" preserveAspectRatio="xMidYMid meet">
             <defs><radialGradient id="dfl" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#3a7a32"/><stop offset=".6" stop-color="#25562a"/><stop offset="1" stop-color="#132c16"/></radialGradient>
             <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="2.2" fill="rgba(110,190,90,.22)"/><circle cx="16" cy="15" r="3" fill="rgba(40,100,40,.3)"/><circle cx="17" cy="4" r="1" fill="rgba(200,230,150,.18)"/></pattern>
             <pattern id="dRows" width="12" height="10" patternUnits="userSpaceOnUse"><circle cx="7" cy="6" r="3.6" fill="rgba(20,14,6,.45)"/><circle cx="6" cy="5" r="3.5" fill="#3f8a36"/><circle cx="7.4" cy="5.6" r="1.6" fill="#2e6e28"/><circle cx="4.8" cy="3.8" r="1.4" fill="rgba(200,240,150,.25)"/></pattern>
@@ -1155,10 +1159,10 @@ const Player = (() => {
             <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
             <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
             <radialGradient id="dVig" cx="50%" cy="50%" r="72%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
-            <rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
+            ${img ? `<image href="${img}" x="0" y="0" width="800" height="${VH}" preserveAspectRatio="none"/><path d="${river}" class="river-flow"/>` : `<rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
             ${contours}${fields}${forest}
             <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
-            <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>
+            <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>`}
             <g class="bridge" transform="translate(560 ${(368 * k).toFixed(1)}) rotate(-8)"><rect x="-12" y="-10" width="24" height="20" rx="2"/></g>
             <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
             <g class="port" transform="translate(735 ${(360 * k).toFixed(1)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
@@ -1166,7 +1170,7 @@ const Player = (() => {
             <g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>
             ${villages}
             <g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>
-            <rect width="800" height="${VH}" fill="url(#dVig)" pointer-events="none"/>
+            ${img ? '' : `<rect width="800" height="${VH}" fill="url(#dVig)" pointer-events="none"/>`}
             <g class="map-ticks">${ticks}</g>
             <g class="compass" transform="translate(760 70)"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
             <g class="scalebar" transform="translate(30 ${VH - 30})"><rect width="100" height="5" fill="#e7f5df"/><rect width="50" height="5" fill="#25562a"/><rect width="100" height="5" fill="none" stroke="#e7f5df"/><text x="0" y="18">0</text><text x="100" y="18" text-anchor="end">10 km</text></g>
@@ -1200,6 +1204,18 @@ const Player = (() => {
         const top = 50;
         const ly = top + rows * rowH;
         const HH = Math.max(Math.round(800 * ar), Math.round(ly + 165));
+        const by = HH - 130; // Produktionslinie unten
+        const pipeY = Math.min(ly + 4, by - 6);
+        const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
+        const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
+        const xa = cx(lastRow[0] || 0);
+        const xb = cx(lastRow[lastRow.length - 1] || 0);
+        const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
+        const img = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}`, {
+            HH, by, pipeY, xa, xb,
+            silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: kk, i })),
+            drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
+        }, pxW, () => renderDesk()) : null;
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
             const y = top + Math.floor(i / per) * rowH;
@@ -1207,7 +1223,16 @@ const Player = (() => {
             const fillId = kk === 'deal' ? 'pFillD' : 'pFillF';
             const gauge = Array.from({ length: 9 }, (_, j) => `<line x1="-5" x2="${j % 2 ? -2 : -7}" y1="${12 + j * 10}" y2="${12 + j * 10}"/>`).join('');
             const ladder = Array.from({ length: 9 }, (_, j) => `<line x1="${w + 2}" x2="${w + 8}" y1="${10 + j * 10}" y2="${10 + j * 10}"/>`).join('');
-            return `<g class="silo ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})" style="animation-delay:${i * 0.03}s"><title>${unit} t · ${kk === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : kk === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : kk === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}</title>
+            const tipS = `${unit} t · ${kk === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : kk === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : kk === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}`;
+            if (img) {
+                return `<g class="silo r ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})"><title>${tipS}</title>
+                    <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
+                    <text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
+                    <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
+                    ${kk === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
+                    <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${kk === 'deal' ? '📜 Vertrag' : kk === 'fut' ? '🔒 Future' : kk === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
+            }
+            return `<g class="silo ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})" style="animation-delay:${i * 0.03}s"><title>${tipS}</title>
                 <ellipse cx="${w / 2 + 4}" cy="124" rx="${w / 2 + 6}" ry="6" fill="rgba(0,0,0,.4)"/>
                 <path d="M8 100 L4 122 M${w - 8} 100 L${w - 4} 122 M${w / 2} 104 L${w / 2} 122" class="s-legs"/>
                 <path d="M0 96 L${w / 2 - 8} 112 L${w / 2 + 8} 112 L${w} 96 Z" fill="url(#pMetal)" stroke="#5b6576"/>
@@ -1227,17 +1252,11 @@ const Player = (() => {
                 <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${kk === 'deal' ? '📜 Vertrag' : kk === 'fut' ? '🔒 Future' : kk === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
         }).join('');
         const mm = Math.round((me.marginMult || 1) * 100);
-        const by = HH - 130; // Produktionslinie unten
-        const pipeY = Math.min(ly + 4, by - 6);
-        const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
-        const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
         const drops = lastRow.map(i => `<path d="M${cx(i).toFixed(1)} ${(top + (rows - 1) * rowH + 122 * s).toFixed(1)} V${pipeY}" class="pipe-v"/>`).join('');
-        const xa = cx(lastRow[0] || 0);
-        const xb = cx(lastRow[lastRow.length - 1] || 0);
         const lights = [120, 300, 500, 680].map(x => `<g><rect x="${x - 30}" y="0" width="60" height="5" fill="#2a3240"/><ellipse cx="${x}" cy="6" rx="36" ry="4" fill="rgba(255,230,170,.75)"/><path d="M${x - 36} 6 L${x - 110} ${HH} L${x + 110} ${HH} L${x + 36} 6Z" fill="url(#pBeam)"/></g>`).join('');
         // Wandbeschriftung und Lüftungsgitter für mehr Tiefe
         const vents = [60, 740].map(x => `<g transform="translate(${x - 26} ${Math.max(20, top - 36)})"><rect width="52" height="22" rx="3" fill="#0d1117" stroke="#2a3240"/>${[0, 1, 2, 3].map(j => `<rect x="5" y="${4 + j * 4.2}" width="42" height="2" fill="#2a3240"/>`).join('')}</g>`).join('');
-        return `<svg viewBox="0 0 800 ${HH}" class="d-svg plant-map" preserveAspectRatio="xMidYMid meet">
+        return `<svg viewBox="0 0 800 ${HH}" class="d-svg plant-map ${img ? 'rendered' : ''}" preserveAspectRatio="xMidYMid meet">
             <defs><linearGradient id="pMetal" x1="0" x2="1"><stop offset="0" stop-color="#2a313c"/><stop offset=".25" stop-color="#4b5566"/><stop offset=".45" stop-color="#6b778a"/><stop offset=".7" stop-color="#3a4250"/><stop offset="1" stop-color="#232933"/></linearGradient>
             <linearGradient id="pGlass" x1="0" x2="1"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset=".2" stop-color="rgba(255,255,255,.16)"/><stop offset=".3" stop-color="rgba(255,255,255,0)"/></linearGradient>
             <linearGradient id="pFillF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf6b"/><stop offset=".15" stop-color="#d98a2b"/><stop offset="1" stop-color="#6b3a12"/></linearGradient>
@@ -1248,13 +1267,13 @@ const Player = (() => {
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
-            <rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
-            ${lights}${vents}
+            ${img ? `<image href="${img}" x="0" y="0" width="800" height="${HH}" preserveAspectRatio="none"/>` : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
+            ${lights}${vents}`}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
-            <rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
+            ${img ? `<path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>` : `<rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
             <rect x="0" y="${by + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
             ${drops}<path d="M${xa.toFixed(1)} ${pipeY} H${xb.toFixed(1)}" class="pipe-h"/>
-            <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>
+            <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>`}
             ${silos}
             <g transform="translate(0 ${by})">
                 <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
