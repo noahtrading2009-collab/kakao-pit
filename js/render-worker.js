@@ -391,23 +391,31 @@ const RenderCore = (() => {
             const path = new Path2D();
             poly.forEach(([px, py], q) => (q ? path.lineTo(px, py) : path.moveTo(px, py)));
             path.closePath();
+            // Feldrand: niedergetretenes Gras, weich auslaufend
+            x.save();
+            x.filter = `blur(${(2.2 * k).toFixed(1)}px)`;
+            x.strokeStyle = 'rgba(120,118,64,.55)';
+            x.lineWidth = 7;
+            x.stroke(path);
+            x.restore();
+            x.save();
+            x.filter = `blur(${(0.9 * k).toFixed(1)}px)`;
             x.fillStyle = soilPat;
             x.fill(path);
+            x.restore();
             x.save();
             x.clip(path);
             x.strokeStyle = 'rgba(40,24,10,.32)';
             x.lineWidth = 0.5;
             for (let yy = -fh / 2; yy < fh / 2; yy += 1.9) { x.beginPath(); x.moveTo(-fw / 2 - 4, yy); x.lineTo(fw / 2 + 4, yy); x.stroke(); }
             x.restore();
-            x.strokeStyle = 'rgba(60,80,30,.7)';
-            x.lineWidth = 1.4;
-            x.stroke(path);
             const ca = Math.cos((rot * Math.PI) / 180);
             const sa = Math.sin((rot * Math.PI) / 180);
             const sp = 5.4;
             for (let yy = -fh / 2 + sp / 2; yy < fh / 2 - 1; yy += sp) {
                 for (let xx = -fw / 2 + sp / 2; xx < fw / 2 - 1; xx += sp) {
-                    if (r() < 0.07) continue;
+                    const edge = Math.min(fw / 2 - Math.abs(xx), fh / 2 - Math.abs(yy));
+                    if (r() < (edge < 4 ? 0.35 : 0.07)) continue;
                     const lx = xx + (r() - 0.5) * 1.2;
                     const ly = yy + (r() - 0.5) * 1.2;
                     cocoa.push([fx + fw / 2 + lx * ca - ly * sa, fy + fh / 2 + lx * sa + ly * ca, 2.2 + r() * 0.9, 1 + ((r() * 2) | 0), (r() * 3) | 0]);
@@ -463,10 +471,14 @@ const RenderCore = (() => {
                 const py = vy + Math.sin(a) * 23 * rad;
                 q ? blob.lineTo(px, py) : blob.moveTo(px, py);
             }
-            x.fillStyle = 'rgba(60,40,20,.25)';
-            x.save(); x.translate(0.8, 0.8); x.fill(blob); x.restore();
-            x.fillStyle = '#a86e44';
+            x.save();
+            x.filter = `blur(${(4 * k).toFixed(1)}px)`;
+            x.fillStyle = 'rgba(150,120,70,.55)';
+            x.save(); x.translate(vx, vy); x.scale(1.18, 1.22); x.translate(-vx, -vy); x.fill(blob); x.restore();
+            x.filter = `blur(${(1.4 * k).toFixed(1)}px)`;
+            x.fillStyle = '#a46c44';
             x.fill(blob);
+            x.restore();
             x.save();
             x.clip(blob);
             for (let q = 0; q < 260; q++) { x.fillStyle = rr() < 0.5 ? 'rgba(200,140,90,.35)' : 'rgba(90,56,30,.3)'; x.fillRect(vx - 40 + rr() * 80, vy - 26 + rr() * 52, 0.5 + rr(), 0.4 + rr() * 0.6); }
@@ -487,7 +499,8 @@ const RenderCore = (() => {
                 const dr = dRiver(px, py);
                 const riparian = dr > 8.5 && dr < 20;
                 let p = f > 0.47 ? 0.95 : f > 0.42 ? 0.35 : riparian ? 0.62 : 0.025;
-                if (dr < 9 || dRoad(px, py) < 7 || inField(px, py, 2.5) || villageAt(px, py, 1.05)) p = 0;
+                if (dr < 9 || dRoad(px, py) < 7 || inField(px, py, -2) || villageAt(px, py, 0.95)) p = 0;
+                else if (inField(px, py, 3)) p *= 0.5;
                 if (r() > p) continue;
                 const big = f > 0.55 ? 1.25 : 1;
                 const R = (2.8 + r() * 2.8) * big * (p < 0.1 ? 1.35 : 1);
@@ -948,7 +961,7 @@ const RenderCore = (() => {
     }
 
 
-    return { farm, plant };
+    return { farm, plant, samplePath };
 })();
 
 // Als Web Worker: Auftrag annehmen, Bild rechnen, als JPEG zurückschicken

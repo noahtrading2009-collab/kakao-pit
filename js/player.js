@@ -1115,12 +1115,67 @@ const Player = (() => {
     }
     let deskUnitNow = 10;
 
+    // Landschaft der Kooperative: Fluss, Strasse, Felder und Dörfer so anordnen, dass alles seinen Platz hat –
+    // kein Dorf auf Fluss, Strasse oder Feld, keine Felder über Wasser oder Weg, Abstand zu den Kartenbeschriftungen.
+    const FIELDS_BASE = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14], [120, 300, 110, 50, 6], [520, 420, 150, 60, -8]];
+    const layoutCache = new Map();
+    function farmLayout(VH, n) {
+        const key = `${VH}|${n}`;
+        if (layoutCache.has(key)) return layoutCache.get(key);
+        const k = VH / 400;
+        const river = sy('M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300', k);
+        const road = sy('M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360', k);
+        const samp = typeof RenderCore !== 'undefined' && RenderCore.samplePath ? RenderCore.samplePath : () => [];
+        const rp = samp(river, 5);
+        const qp = samp(road, 5);
+        const dist = (pts, x, y) => { let b = 1e12; for (const [px, py] of pts) { const d = (px - x) ** 2 + (py - y) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
+        const ptsOf = ([fx, fy, fw, fh, fr]) => {
+            const a = (fr * Math.PI) / 180;
+            const cx = fx + fw / 2;
+            const cy = fy + fh / 2;
+            const out = [];
+            for (const u of [-0.5, -0.25, 0, 0.25, 0.5]) for (const v of [-0.5, 0, 0.5]) out.push([cx + u * fw * Math.cos(a) - v * fh * Math.sin(a), cy + u * fw * Math.sin(a) + v * fh * Math.cos(a)]);
+            return out;
+        };
+        const fields = FIELDS_BASE.map(([fx, fy, fw, fh, fr]) => [fx, fy * k, fw, fh * Math.min(k, 1.4), fr])
+            .filter(f => f[1] + f[3] < VH - 20 && ptsOf(f).every(([x, y]) => dist(rp, x, y) > 18 && dist(qp, x, y) > 13 && x > 22 && x < 790));
+        const inField = (x, y, pad) => fields.some(([fx, fy, fw, fh, fr]) => {
+            const a = (-fr * Math.PI) / 180;
+            const dx = x - (fx + fw / 2);
+            const dy = y - (fy + fh / 2);
+            return Math.abs(dx * Math.cos(a) - dy * Math.sin(a)) < fw / 2 + pad && Math.abs(dx * Math.sin(a) + dy * Math.cos(a)) < fh / 2 + pad;
+        });
+        const free = ([x, y]) => y > 48 && y < VH - 58 && x > 60 && x < 742
+            && dist(rp, x, y) > 48 && dist(qp, x, y) > 42 && !inField(x, y, 30)
+            && !(x > 660 && y < 120) && !(x < 170 && y > VH - 80) && !(x > 670 && Math.abs(y - 360 * k) < 55);
+        const cands = [];
+        for (let y = 50; y <= VH - 50; y += 18) for (let x = 60; x <= 740; x += 20) {
+            const c = [x + (rnd(x * 7 + y) - 0.5) * 14, y + (rnd(x + y * 3) - 0.5) * 10];
+            if (free(c)) cands.push(c);
+        }
+        // Gleichmässig verteilen: immer den Platz wählen, der am weitesten von den bisherigen Dörfern weg ist
+        const villages = [];
+        const gap = ([x, y]) => villages.reduce((m, [vx, vy]) => Math.min(m, Math.hypot(x - vx, (y - vy) * 1.45)), 1e9);
+        if (cands.length) villages.push(cands.reduce((b, c) => (Math.hypot(c[0] - 400, c[1] - VH / 2) < Math.hypot(b[0] - 400, b[1] - VH / 2) ? c : b)));
+        while (villages.length < n && cands.length) {
+            let best = null;
+            let bg = -1;
+            for (const c of cands) { const g = gap(c); if (g > bg) { bg = g; best = c; } }
+            if (!best || bg < 70) break;
+            villages.push(best);
+        }
+        const out = { river, road, fields, villages };
+        layoutCache.set(key, out);
+        return out;
+    }
+
     function farmSVG() {
         const H = holdings();
-        const { unit, tiles } = tilesFor(H, true, VILLAGES.length);
-        deskUnitNow = unit;
         const VH = Math.round((800 * deskAspect()) / 40) * 40; // in Stufen, damit kleine Grössenänderungen kein neues Bild auslösen
         const k = VH / 400;
+        const LAY = farmLayout(VH, 24);
+        const { unit, tiles } = tilesFor(H, true, Math.max(4, LAY.villages.length));
+        deskUnitNow = unit;
         const smuggle = me.decision && me.decision.kind === 'smuggle';
         const partners = [];
         ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += unit) partners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
@@ -1128,17 +1183,16 @@ const Player = (() => {
         const badge = { deal: ['📜', 'Vertrag'], fut: ['🔒', 'Future'], lost: ['🚚', 'weg'], open: ['○', 'offen'] };
         // Bei vielen Dörfern werden sie etwas kleiner
         const vs = tiles.length > 16 ? 0.82 : 1;
-        const occupied = tiles.map((_, i) => [VILLAGES[i][0], VILLAGES[i][1] * k]);
-        const FIELDS = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14]];
-        const river = sy('M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300', k);
-        const road = sy('M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360', k);
+        // Plätze für so viele Dörfer, wie es braucht – in Lese-Reihenfolge (oben links → unten rechts)
+        const occupied = LAY.villages.slice(0, tiles.length).sort((a, b) => (Math.round(a[1] / 90) - Math.round(b[1] / 90)) || a[0] - b[0]);
+        const { river, road } = LAY;
+        const FIELDS = LAY.fields;
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
         const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
-        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS.map(([fx, fy, fw, fh, fr]) => [fx, fy * k, fw, fh * Math.min(k, 1.4), fr]) }, pxW, () => renderDesk()) : null;
+        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS }, pxW, () => renderDesk()) : null;
         deskBg(img);
-        const villages = tiles.map((kk, i) => {
-            const [x, y0] = VILLAGES[i];
-            const y = y0 * k;
+        const villages = tiles.slice(0, occupied.length).map((kk, i) => {
+            const [x, y] = occupied[i];
             const trees = Array.from({ length: 7 }, (_, j) => {
                 const a = rnd(i * 13 + j) * Math.PI * 2;
                 const r = 34 + rnd(i * 7 + j * 3) * 14;
@@ -1157,7 +1211,7 @@ const Player = (() => {
         }).join('');
         // Felder (Kakao-Reihen) und Waldstücke als Hintergrund (nur ohne gerechnetes Bild)
         const fields = FIELDS
-            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${(y + h / 2) * k})"><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#texSoil)"/><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(30,22,10,.55)" stroke-width="1.2"/></g>`).join('');
+            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${y + h / 2})"><rect x="${x}" y="${y.toFixed(1)}" width="${w}" height="${h.toFixed(1)}" rx="4" fill="url(#texSoil)"/><rect x="${x}" y="${y.toFixed(1)}" width="${w}" height="${h.toFixed(1)}" rx="4" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})"/></g>`).join('');
         const forest = Array.from({ length: Math.round(60 * k) }, (_, i) => {
             const x = rnd(i * 3.1) * 800;
             const y = rnd(i * 5.7 + 2) * VH;
@@ -1179,11 +1233,10 @@ const Player = (() => {
             <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
             <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
             <radialGradient id="dVig" cx="50%" cy="50%" r="72%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
-            ${img ? `<path d="${river}" class="river-flow"/>` : `<rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
+            ${img ? '' : `<rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
             ${contours}${fields}${forest}
             <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
             <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>`}
-            <g class="bridge" transform="translate(560 ${(368 * k).toFixed(1)}) rotate(-8)"><rect x="-12" y="-10" width="24" height="20" rx="2"/></g>
             <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
             <g class="port" transform="translate(735 ${(360 * k).toFixed(1)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
             ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="${368 * k}">🚚</text><text class="truck t2" x="420" y="${362 * k}">🚚</text><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
