@@ -665,7 +665,7 @@ const Player = (() => {
 
     function spark(data) {
         const cv = $('p-spark');
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = HQ();
         const W = cv.clientWidth || 140;
         const H = cv.clientHeight || 56;
         if (cv.width !== W * dpr) {
@@ -1034,8 +1034,23 @@ const Player = (() => {
         return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
     }
 
-    // Kooperative: Region mit den Dörfern der Mitglieder (1 Dorf = 10 t)
+    // Kooperative: Region mit den Dörfern der Mitglieder (1 Dorf = 10 t) – detaillierte Landkarte
     const VILLAGES = [[150, 120], [260, 90], [380, 130], [500, 95], [610, 140], [200, 210], [320, 235], [450, 205], [570, 240], [680, 215], [130, 300], [250, 320], [390, 315], [520, 330], [640, 310], [730, 120]];
+    // Feste Pseudo-Zufallszahlen, damit die Karte bei jedem Neuzeichnen gleich aussieht
+    const rnd = s => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+    function cocoaTree(x, y, s, k) {
+        return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})"><ellipse cx="3" cy="2" rx="9" ry="3.5" fill="rgba(0,0,0,.28)"/>
+            <rect x="-1.2" y="-8" width="2.4" height="9" fill="#5b3a1f"/><circle cx="0" cy="-11" r="7.5" fill="url(#dTreeG)"/>
+            <circle cx="-2.5" cy="-13.5" r="2.6" fill="rgba(255,255,255,.14)"/>${k % 3 === 0 ? '<ellipse cx="1.6" cy="-4" rx="1.2" ry="2" fill="#f0a63a"/>' : ''}</g>`;
+    }
+    function hut(x, y, s, i) {
+        const wall = ['#e9d3a6', '#dcc191', '#f1dfb8'][i % 3];
+        return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="2" cy="9.5" rx="11" ry="3" fill="rgba(0,0,0,.3)"/>
+            <rect x="-8" y="-1" width="16" height="10" fill="${wall}"/><rect x="-8" y="-1" width="5" height="10" fill="rgba(0,0,0,.12)"/>
+            <rect x="-1.6" y="3" width="3.6" height="6" fill="#4a2c16"/><rect x="3.5" y="1.5" width="3" height="2.6" fill="#3b2a1a"/>
+            <path d="M-11 0 L0 -10 L11 0 Z" fill="#9a6538"/><path d="M0 -10 L11 0 L0 0 Z" fill="#6f4423"/>
+            <path d="M-11 0 L0 -10 L11 0" fill="none" stroke="rgba(255,230,180,.35)" stroke-width=".8"/></g>`;
+    }
     function farmSVG() {
         const H = holdings();
         const tiles = [];
@@ -1045,37 +1060,73 @@ const Player = (() => {
         push(Math.round(H.open / 10), 'open');
         push(Math.round(H.lost / 10), 'lost');
         const smuggle = me.decision && me.decision.kind === 'smuggle';
-        const sky = (Scenes.SKY && Scenes.SKY[me.sky]) || null;
-        // Welcher Vertrag gehört zu welchem Dorf? (für den Infotext beim Darüberfahren)
         const partners = [];
         ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += 10) partners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
         const tip = (k, i) => (k === 'deal' ? partners[i] || 'Per Vertrag verkauft' : k === 'fut' ? 'Mit Futures abgesichert – der Preis ist fix' : k === 'lost' ? 'An Schmuggler verloren' : 'Offen – hängt am Preis im Dezember');
+        const badge = { deal: ['📜', 'Vertrag'], fut: ['🔒', 'Future'], lost: ['🚚', 'weg'], open: ['○', 'offen'] };
         const villages = tiles.slice(0, VILLAGES.length).map((k, i) => {
             const [x, y] = VILLAGES[i];
+            const trees = Array.from({ length: 7 }, (_, j) => {
+                const a = rnd(i * 13 + j) * Math.PI * 2;
+                const r = 34 + rnd(i * 7 + j * 3) * 14;
+                return cocoaTree(Math.cos(a) * r, Math.sin(a) * r * 0.55 + 8, 0.75 + rnd(i + j * 5) * 0.4, i + j);
+            }).join('');
+            const [ico, lbl] = badge[k];
             return `<g class="vil ${k}" transform="translate(${x} ${y})" style="animation-delay:${i * 0.04}s"><title>10 t · ${tip(k, i)}</title>
-                ${k !== 'lost' ? `<g class="hut-smoke"><circle cx="2" cy="-16" r="3"/><circle cx="5" cy="-24" r="4"/></g>` : ''}
-                <ellipse class="vil-ground" rx="34" ry="14" cy="16"/>
-                <g class="vil-huts"><path d="M-22 6 L-14 -4 L-6 6Z"/><rect x="-20" y="6" width="12" height="9"/><path d="M-4 2 L6 -10 L16 2Z"/><rect x="-2" y="2" width="16" height="13"/><path d="M14 8 L20 0 L26 8Z"/><rect x="15" y="8" width="10" height="7"/></g>
+                <ellipse class="vil-ground" rx="40" ry="17" cy="10"/><ellipse class="vil-ring" rx="40" ry="17" cy="10"/>
+                <ellipse rx="27" ry="10" cy="9" fill="#a8865a" opacity=".55"/>
+                <g class="dry-mat"><rect x="-26" y="10" width="14" height="6" rx="1" fill="#6b3d1e"/><rect x="-25" y="11" width="12" height="4" fill="url(#dBeans)"/></g>
+                ${trees}
+                ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}
+                ${k !== 'lost' ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
                 ${k === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
-                <text y="38" class="vil-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'lost' ? '🚚 weg' : 'offen'}</text></g>`;
+                <g class="vil-tag" transform="translate(0 40)"><rect x="-34" y="-10" width="68" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl}</text></g></g>`;
         }).join('');
+        // Felder (Kakao-Reihen) und Waldstücke als Hintergrund
+        const fields = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10]]
+            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${y + h / 2})"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(20,40,15,.5)" stroke-width="1.5"/></g>`).join('');
+        const forest = Array.from({ length: 60 }, (_, i) => {
+            const x = rnd(i * 3.1) * 800;
+            const y = rnd(i * 5.7 + 2) * 400;
+            if (VILLAGES.some(([vx, vy]) => Math.hypot(vx - x, (vy - y) * 1.6) < 70)) return '';
+            return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(6 + rnd(i) * 9).toFixed(1)}" fill="url(#dForest)"/>`;
+        }).join('');
+        const contours = [0, 1, 2, 3].map(i => `<path d="M${-20} ${60 + i * 18} C 180 ${20 + i * 22}, 380 ${110 + i * 12}, 560 ${50 + i * 20} S 760 ${10 + i * 24}, 820 ${40 + i * 18}" class="contour"/>`).join('');
+        const ticks = Array.from({ length: 17 }, (_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${i % 2 ? 4 : 8}"/><line x1="${i * 50}" y1="400" x2="${i * 50}" y2="${i % 2 ? 396 : 392}"/>`).join('')
+            + Array.from({ length: 9 }, (_, i) => `<line x1="0" y1="${i * 50}" x2="${i % 2 ? 4 : 8}" y2="${i * 50}"/><line x1="800" y1="${i * 50}" x2="${i % 2 ? 796 : 792}" y2="${i * 50}"/>`).join('');
         return `<svg viewBox="0 0 800 400" class="d-svg farm-map">
-            <defs><radialGradient id="dfl" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#2f6b2a"/><stop offset="1" stop-color="#16321a"/></radialGradient>
-            <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="3" fill="rgba(80,170,70,.35)"/><circle cx="16" cy="15" r="4" fill="rgba(60,140,60,.3)"/></pattern></defs>
+            <defs><radialGradient id="dfl" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#3a7a32"/><stop offset=".6" stop-color="#25562a"/><stop offset="1" stop-color="#132c16"/></radialGradient>
+            <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="2.2" fill="rgba(110,190,90,.22)"/><circle cx="16" cy="15" r="3" fill="rgba(40,100,40,.3)"/><circle cx="17" cy="4" r="1" fill="rgba(200,230,150,.18)"/></pattern>
+            <pattern id="dRows" width="12" height="10" patternUnits="userSpaceOnUse"><rect width="12" height="10" fill="#2f6a2a"/><circle cx="6" cy="5" r="3.6" fill="#3f8a36"/><circle cx="5" cy="4" r="1.3" fill="rgba(255,255,255,.12)"/></pattern>
+            <pattern id="dRows2" width="10" height="9" patternUnits="userSpaceOnUse"><rect width="10" height="9" fill="#386b26"/><circle cx="5" cy="4.5" r="3.2" fill="#4c8d33"/><circle cx="4" cy="3.6" r="1.1" fill="rgba(255,255,255,.12)"/></pattern>
+            <radialGradient id="dForest" cx="40%" cy="35%"><stop offset="0" stop-color="#3f8f3a"/><stop offset="1" stop-color="#173d18"/></radialGradient>
+            <radialGradient id="dTreeG" cx="35%" cy="30%"><stop offset="0" stop-color="#5cc04d"/><stop offset="1" stop-color="#1f5a20"/></radialGradient>
+            <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
+            <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
+            <radialGradient id="dVig" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
             <rect width="800" height="400" fill="url(#dfl)"/><rect width="800" height="400" fill="url(#dft)"/>
+            ${contours}${fields}${forest}
+            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river-bank"/>
             <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river"/>
+            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river-flow"/>
             <path d="M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360" class="road"/>
+            <path d="M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360" class="road-mid"/>
+            <g class="bridge" transform="translate(560 368) rotate(-8)"><rect x="-12" y="-10" width="24" height="20" rx="2"/></g>
             <line x1="12" y1="0" x2="12" y2="400" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
-            <g class="port" transform="translate(735 360)"><rect x="-26" y="-14" width="52" height="24" rx="4"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
+            <g class="port" transform="translate(735 360)"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
             ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="368">🚚</text><text class="truck t2" x="420" y="362">🚚</text><path d="M560 360 C 400 300, 200 330, 14 300" class="smug-path"/></g>` : ''}
             <g class="cloud-shadows"><ellipse cx="0" cy="120" rx="140" ry="40"/><ellipse cx="-300" cy="290" rx="180" ry="50"/></g>
             ${villages}
             <g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>
-            <text x="785" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''} ${sky ? '' : ''}</text>
+            <rect width="800" height="400" fill="url(#dVig)" pointer-events="none"/>
+            <g class="map-ticks">${ticks}</g>
+            <g class="compass" transform="translate(760 70)"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
+            <g class="scalebar" transform="translate(30 336)"><rect width="100" height="5" fill="#e7f5df"/><rect width="50" height="5" fill="#25562a"/><rect width="100" height="5" fill="none" stroke="#e7f5df"/><text x="0" y="18">0</text><text x="100" y="18" text-anchor="end">10 km</text></g>
+            <text x="740" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''}</text>
         </svg>`;
     }
 
-    // Fabrik: Silo-Wand (1 Silo = 10 t Bedarf) und Produktionslinie
+    // Fabrik: Silo-Halle (1 Silo = 10 t Bedarf), Rohrleitungen und Produktionslinie
     function plantSVG() {
         const H = holdings();
         const tiles = [];
@@ -1092,28 +1143,70 @@ const Player = (() => {
         const w = 64;
         const gap = 10;
         const x0 = 400 - (per * (w + gap) - gap) / 2;
+        const rowH = 150;
         const silos = tiles.slice(0, n).map((k, i) => {
             const x = x0 + (i % per) * (w + gap);
-            const y = 40 + Math.floor(i / per) * 130;
+            const y = 40 + Math.floor(i / per) * rowH;
             const fill = k === 'deal' || k === 'fut' ? 86 : 0;
+            const fillId = k === 'deal' ? 'pFillD' : 'pFillF';
+            const gauge = Array.from({ length: 9 }, (_, j) => `<line x1="-5" x2="${j % 2 ? -2 : -7}" y1="${12 + j * 10}" y2="${12 + j * 10}"/>`).join('');
+            const ladder = Array.from({ length: 9 }, (_, j) => `<line x1="${w + 2}" x2="${w + 8}" y1="${10 + j * 10}" y2="${10 + j * 10}"/>`).join('');
             return `<g class="silo ${k}" transform="translate(${x} ${y})"><title>10 t · ${k === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : k === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : k === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}</title>
-                <rect class="s-body" width="${w}" height="100" rx="10"/>
-                ${fill ? `<rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6"/><path class="s-wave" d="M4 ${96 - fill + 3} q${(w - 8) / 4} -6 ${(w - 8) / 2} 0 t${(w - 8) / 2} 0 v6 h-${w - 8}z"/>` : ''}
-                <rect class="s-shine" x="8" y="10" width="7" height="80" rx="3"/><ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/>
+                <ellipse cx="${w / 2 + 4}" cy="124" rx="${w / 2 + 6}" ry="6" fill="rgba(0,0,0,.4)"/>
+                <path d="M8 100 L4 122 M${w - 8} 100 L${w - 4} 122 M${w / 2} 104 L${w / 2} 122" class="s-legs"/>
+                <path d="M0 96 L${w / 2 - 8} 112 L${w / 2 + 8} 112 L${w} 96 Z" fill="url(#pMetal)" stroke="#5b6576"/>
+                <rect class="s-body" width="${w}" height="100" rx="10" fill="url(#pMetal)"/>
+                ${fill ? `<rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6" fill="url(#${fillId})"/><path class="s-wave" d="M4 ${96 - fill + 3} q${(w - 8) / 4} -6 ${(w - 8) / 2} 0 t${(w - 8) / 2} 0 v6 h-${w - 8}z"/>` : ''}
+                <rect x="4" y="8" width="${w - 8}" height="88" rx="6" fill="url(#pGlass)" pointer-events="none"/>
+                <line x1="0" x2="${w}" y1="34" y2="34" class="s-band"/><line x1="0" x2="${w}" y1="68" y2="68" class="s-band"/>
+                ${[8, 20, 32, 44, 56].map(rx => `<circle cx="${rx}" cy="34" r="1.2" class="s-rivet"/><circle cx="${rx}" cy="68" r="1.2" class="s-rivet"/>`).join('')}
+                <g class="s-gauge">${gauge}</g><g class="s-ladder"><line x1="${w + 2}" x2="${w + 2}" y1="4" y2="98"/><line x1="${w + 8}" x2="${w + 8}" y1="4" y2="98"/>${ladder}</g>
+                <ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/><ellipse cx="${w / 2}" cy="0" rx="10" ry="3" fill="#56627a"/>
+                <rect x="${w / 2 - 15}" y="80" width="30" height="11" rx="2" class="s-plate"/><text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
+                <circle cx="${w - 9}" cy="12" r="3" class="s-led ${k}"/>
                 ${k === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
-                <text x="${w / 2}" y="${118}" text-anchor="middle" class="s-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
+                <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
         }).join('');
-        const ly = 40 + rows * 130 + 10;
+        const ly = 40 + rows * rowH;
         const mm = Math.round((me.marginMult || 1) * 100);
-        return `<svg viewBox="0 0 800 ${ly + 120}" class="d-svg plant-map">
-            <rect width="800" height="${ly + 120}" fill="#141a22"/>
+        const HH = ly + 130;
+        // Sammelleitung unter den Silos zur Maschine
+        const pipeY = ly - 8;
+        const drops = tiles.slice(0, n).map((k, i) => {
+            if (Math.floor(i / per) !== rows - 1) return '';
+            const x = x0 + (i % per) * (w + gap) + w / 2;
+            return `<path d="M${x} ${pipeY - 26} V${pipeY}" class="pipe-v"/>`;
+        }).join('');
+        const lights = [120, 300, 500, 680].map(x => `<g><rect x="${x - 30}" y="0" width="60" height="5" fill="#2a3240"/><ellipse cx="${x}" cy="6" rx="36" ry="4" fill="rgba(255,230,170,.75)"/><path d="M${x - 36} 6 L${x - 110} ${HH} L${x + 110} ${HH} L${x + 36} 6Z" fill="url(#pBeam)"/></g>`).join('');
+        return `<svg viewBox="0 0 800 ${HH}" class="d-svg plant-map">
+            <defs><linearGradient id="pMetal" x1="0" x2="1"><stop offset="0" stop-color="#2a313c"/><stop offset=".25" stop-color="#4b5566"/><stop offset=".45" stop-color="#6b778a"/><stop offset=".7" stop-color="#3a4250"/><stop offset="1" stop-color="#232933"/></linearGradient>
+            <linearGradient id="pGlass" x1="0" x2="1"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset=".2" stop-color="rgba(255,255,255,.16)"/><stop offset=".3" stop-color="rgba(255,255,255,0)"/></linearGradient>
+            <linearGradient id="pFillF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf6b"/><stop offset=".15" stop-color="#d98a2b"/><stop offset="1" stop-color="#6b3a12"/></linearGradient>
+            <linearGradient id="pFillD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cc8ff"/><stop offset=".15" stop-color="#3b82f6"/><stop offset="1" stop-color="#1b3f86"/></linearGradient>
+            <linearGradient id="pWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10151d"/><stop offset=".7" stop-color="#1a212c"/><stop offset="1" stop-color="#0c1016"/></linearGradient>
+            <linearGradient id="pBeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,230,170,.10)"/><stop offset="1" stop-color="rgba(255,230,170,0)"/></linearGradient>
+            <pattern id="pPanel" width="80" height="40" patternUnits="userSpaceOnUse"><rect width="80" height="40" fill="none" stroke="rgba(255,255,255,.035)"/><circle cx="4" cy="4" r="1" fill="rgba(255,255,255,.08)"/><circle cx="76" cy="4" r="1" fill="rgba(255,255,255,.08)"/></pattern>
+            <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
+            <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
+            <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
+            <rect width="800" height="${HH}" fill="url(#pWall)"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
+            ${lights}
+            <rect x="0" y="${ly + 50}" width="800" height="${HH - ly - 50}" fill="url(#pFloor)"/>
+            <rect x="0" y="${ly + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
             ${silos}
+            ${drops}<path d="M${x0 + w / 2} ${pipeY} H${x0 + (Math.min(per, n) - 1) * (w + gap) + w / 2}" class="pipe-h"/>
+            <path d="M400 ${pipeY} V${ly + 4}" class="pipe-h"/><path d="M${x0 + w / 2} ${pipeY} H400 V${ly + 4}" class="pipe-flow"/>
             <g transform="translate(0 ${ly})">
-                <rect x="40" y="56" width="720" height="16" rx="8" class="belt-r"/>
-                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<rect x="${40 + i * 48}" y="40" width="34" height="16" rx="3" class="bar"/>`).join('')}</g>
-                <rect x="330" y="0" width="140" height="56" rx="8" class="machine"/><text x="400" y="34" text-anchor="middle" class="m-t">🍫 Produktion</text>
-                <g class="d-smoke"><circle cx="455" cy="-6" r="6"/><circle cx="462" cy="-16" r="8"/></g>
-                <text x="40" y="100" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
+                <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
+                ${Array.from({ length: 19 }, (_, i) => `<circle cx="${48 + i * 39.5}" cy="73" r="4.5" class="roller"/>`).join('')}
+                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>
+                <g class="machine-g"><rect x="320" y="4" width="160" height="58" rx="8" class="machine"/>
+                    <rect x="334" y="14" width="44" height="22" rx="3" class="m-screen"/><path d="M337 30 l6 -6 l6 3 l6 -9 l6 5 l8 -6" class="m-trace"/>
+                    <circle cx="450" cy="24" r="10" class="m-gauge"/><path d="M450 24 L456 17" class="m-needle"/>
+                    <circle cx="392" cy="20" r="3" class="m-led a"/><circle cx="402" cy="20" r="3" class="m-led b"/><circle cx="412" cy="20" r="3" class="m-led c"/>
+                    <text x="400" y="54" text-anchor="middle" class="m-t">🍫 PRODUKTION</text></g>
+                <g class="d-smoke"><circle cx="470" cy="-6" r="6"/><circle cx="476" cy="-16" r="8"/></g>
+                <text x="40" y="108" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
             </g></svg>`;
     }
 
@@ -1241,11 +1334,17 @@ const Player = (() => {
     }
 
     function buildMap() {
+        // Feines Punkteraster (1.5°), Breiten zwischen den Stützzeilen interpoliert
+        const rowAt = lat => LAND.reduce((best, r) => (Math.abs(r[0] - lat) < Math.abs(best[0] - lat) ? r : best));
+        const isLand = (lon, lat) => rowAt(lat)[1].some(([a, b]) => lon >= a && lon <= b);
         let dots = '';
-        for (const [lat, ranges] of LAND) {
-            if (lat > 72 || lat < -32) continue;
-            for (const [a, b] of ranges) {
-                for (let lon = a; lon <= b; lon += 2.5) if (lon >= -165 && lon <= 150) dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r="1.6"/>`;
+        const st = 1.5;
+        for (let lat = 70; lat >= -32; lat -= st) {
+            for (let lon = -165; lon <= 150; lon += st) {
+                if (!isLand(lon, lat)) continue;
+                const edge = !isLand(lon - st, lat) || !isLand(lon + st, lat) || !isLand(lon, lat + 2.5) || !isLand(lon, lat - 2.5);
+                const wa = lon >= -10 && lon <= 4 && lat >= 3 && lat <= 11;
+                dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r="${edge ? 1.05 : 0.85}"${wa ? ' class="wa"' : edge ? ' class="e"' : ''}/>`;
             }
         }
         const world = Object.keys(INTEL_LOCS).filter(k => !WEST.includes(k))
@@ -1259,14 +1358,23 @@ const Player = (() => {
         const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
             <polygon points="0,0 ${IW},0 ${cpts.split(' ').reverse().join(' ')}" class="t-ins-land" transform="scale(1)"/>
+            <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(34,229,138,.28)" stroke-width="1.5"/></pattern></defs>
+            ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
+            <path d="M${ix(-8.2)} ${iy(9.4)} C ${ix(-6.5)} ${iy(8)}, ${ix(-5.2)} ${iy(7.8)}, ${ix(-4.8)} ${iy(5.25)} C ${ix(-3.8)} ${iy(6.8)}, ${ix(-1.6)} ${iy(7.2)}, ${ix(-0.4)} ${iy(5.7)}" class="t-ins-crop"/>
+            <path d="M${ix(-5.4)} ${iy(9.8)} C ${ix(-5.2)} ${iy(8.4)}, ${ix(-5.6)} ${iy(7)}, ${ix(-5.1)} ${iy(5.2)}" class="t-ins-river"/>
+            <path d="M${ix(-0.4)} ${iy(9.6)} C ${ix(0.2)} ${iy(8.6)}, ${ix(-0.2)} ${iy(7.4)}, ${ix(0.4)} ${iy(6.6)} C ${ix(0.7)} ${iy(6.2)}, ${ix(0.6)} ${iy(6)}, ${ix(0.7)} ${iy(5.85)}" class="t-ins-river"/>
+            <ellipse cx="${ix(-0.1)}" cy="${iy(7.9)}" rx="9" ry="18" transform="rotate(-15 ${ix(-0.1)} ${iy(7.9)})" class="t-ins-lake"/>
             <polyline points="${cpts}" class="t-ins-coast"/>
+            <g class="t-ins-scale" transform="translate(${IW - 70} ${IH - 12})"><line x1="0" x2="50" y1="0" y2="0"/><line x1="0" x2="0" y1="-3" y2="3"/><line x1="50" x2="50" y1="-3" y2="3"/><text x="25" y="-4" text-anchor="middle">200 km</text></g>
+            <text x="${ix(-7.4)}" y="${iy(6.6)}" class="t-ins-belt">KAKAO-GÜRTEL</text>
             <line x1="${ix(-3)}" y1="${iy(10.2)}" x2="${ix(-3)}" y2="${iy(5.1)}" class="t-ins-border"/>
             <text x="${ix(-8.6)}" y="${iy(9.6)}" class="t-ins-c">ELFENBEINKÜSTE</text><text x="${ix(-2.6)}" y="${iy(9.6)}" class="t-ins-c">GHANA</text>
             <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><g class="t-land">${dots}</g>
-            <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/>`).join('')}</g>${box}${world}</svg>
+            <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
+            <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         $('t-map').querySelectorAll('.t-pin').forEach(g => g.addEventListener('click', () => {
             if (tutActive() && tut.wait === 'pin') { tutPin(g.dataset.loc); return; }
@@ -1388,7 +1496,7 @@ const Player = (() => {
 
     function tChart(id = 't-chart') {
         const cv = $(id);
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = HQ();
         const W = cv.clientWidth;
         const H = cv.clientHeight;
         if (!W || !H) return;

@@ -36,7 +36,7 @@ const Host = (() => {
             col: Math.random() < 0.7 ? '255,170,90' : Math.random() < 0.5 ? '255,226,170' : '140,170,255',
         });
         function size() {
-            const d = Math.min(1.5, window.devicePixelRatio || 1);
+            const d = Math.min(2, HQ());
             cv.width = innerWidth * d;
             cv.height = innerHeight * d;
             c.setTransform(d, 0, 0, d, 0, 0);
@@ -667,7 +667,7 @@ const Host = (() => {
         const box = cv.parentElement;
         const w = box.clientWidth - 20;
         const h = box.clientHeight - 20;
-        const k = (window.devicePixelRatio || 1) * stageScale;
+        const k = HQ() * stageScale;
         cv.width = Math.round(w * k);
         cv.height = Math.round(h * k);
         cv.dataset.k = k;
@@ -700,7 +700,7 @@ const Host = (() => {
         const c = target || ctx;
         const el = target ? target.canvas : cv;
         if (!c) return;
-        const dpr = (!target && Number(el.dataset.k)) || window.devicePixelRatio || 1;
+        const dpr = (!target && Number(el.dataset.k)) || HQ();
         const W = el.width / dpr;
         const H = el.height / dpr;
         const total = S.months * S.monthSec;
@@ -1374,7 +1374,7 @@ const Host = (() => {
             <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neues Spiel</button></div>`;
         const ec = $('end-chart');
         const r = ec.parentElement.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = HQ();
         ec.width = (r.width - 36) * dpr;
         ec.height = 240 * dpr;
         ec.style.width = `${r.width - 36}px`;

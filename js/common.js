@@ -69,6 +69,9 @@ const FEATURE_TEXT = {
     buyers: { role: 'producer', icon: '🤝', name: 'Händler-Angebote', text: 'Händler bieten dir feste Preise für einen Teil der Ernte.' },
 };
 
+// Canvas immer mindestens doppelt aufgelöst rendern: scharfe Linien auch auf Beamern mit 1080p
+const HQ = () => Math.max(2, window.devicePixelRatio || 1);
+
 // ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
 function confetti(ms = 3500, colors = ['#ffb547', '#22e58a', '#a78bfa', '#60a5fa', '#f472b6', '#fde047']) {
     const cv = document.createElement('canvas');
