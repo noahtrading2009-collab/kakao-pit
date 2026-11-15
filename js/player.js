@@ -1303,13 +1303,13 @@ const Player = (() => {
 
     // Weltkarte (zugeschnitten auf die relevanten Breiten) + vergrösserter Ausschnitt Westafrika
     const TW = 630;
-    const TH = 210;
+    const TH = 232;
     const tx = lon => ((lon + 165) / 315) * TW;
-    const ty = lat => ((70 - lat) / 100) * TH;
+    const ty = lat => 10 + ((72 - lat) / 104) * (TH - 20);
     const WEST = ['gh', 'ci', 'abj', 'acc'];
-    const IW = 300;
+    const IW = 450;
     const IH = 150;
-    const ix = lon => ((lon + 9) / 12) * IW;
+    const ix = lon => ((lon + 12) / 18) * IW;
     const iy = lat => ((10.2 - lat) / 7.2) * IH;
 
     // Beweis-Waage: Ein eindeutiger Befund einer seriösen Quelle stimmt immer → Gewissheit.
@@ -1339,7 +1339,7 @@ const Player = (() => {
         const isLand = (lon, lat) => rowAt(lat)[1].some(([a, b]) => lon >= a && lon <= b);
         let dots = '';
         const st = 1.5;
-        for (let lat = 70; lat >= -32; lat -= st) {
+        for (let lat = 72; lat >= -32; lat -= st) {
             for (let lon = -165; lon <= 150; lon += st) {
                 if (!isLand(lon, lat)) continue;
                 const edge = !isLand(lon - st, lat) || !isLand(lon + st, lat) || !isLand(lon, lat + 2.5) || !isLand(lon, lat - 2.5);
@@ -1354,10 +1354,10 @@ const Player = (() => {
         const by = ty(11);
         const box = `<g class="t-west"><rect x="${bx}" y="${by}" width="${tx(4) - bx}" height="${ty(3) - by}" rx="3"/><text x="${bx}" y="${by + (ty(3) - by) + 12}">Westafrika ↓</text></g>`;
         // Ausschnitt Westafrika: Küste am Golf von Guinea, Grenze Elfenbeinküste/Ghana
-        const coast = [[-9, 4.6], [-7.5, 4.3], [-6, 4.9], [-4.6, 5.2], [-3, 5.1], [-2, 4.8], [-1, 5.1], [0, 5.6], [1, 6.1], [2, 6.3], [3, 6.4]];
+        const coast = [[-30, 13], [-16, 9.5], [-12.5, 7.4], [-11.4, 6.8], [-10.4, 6.1], [-9, 4.9], [-7.5, 4.3], [-6, 4.9], [-4.6, 5.2], [-3, 5.1], [-2, 4.8], [-1, 5.1], [0, 5.6], [1, 6.1], [2, 6.3], [3, 6.4], [4.4, 6.3], [5.2, 5.6], [5.8, 4.6], [6.5, 4.3], [9, 4.2], [24, 3.6]];
         const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
-            <polygon points="0,0 ${IW},0 ${cpts.split(' ').reverse().join(' ')}" class="t-ins-land" transform="scale(1)"/>
+            <polygon points="-400,-200 ${IW + 400},-200 ${IW + 400},${iy(3.6)} ${cpts.split(' ').reverse().join(' ')} -400,${iy(9)}" class="t-ins-land"/>
             <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(34,229,138,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
             <path d="M${ix(-8.2)} ${iy(9.4)} C ${ix(-6.5)} ${iy(8)}, ${ix(-5.2)} ${iy(7.8)}, ${ix(-4.8)} ${iy(5.25)} C ${ix(-3.8)} ${iy(6.8)}, ${ix(-1.6)} ${iy(7.2)}, ${ix(-0.4)} ${iy(5.7)}" class="t-ins-crop"/>
@@ -1365,9 +1365,10 @@ const Player = (() => {
             <path d="M${ix(-0.4)} ${iy(9.6)} C ${ix(0.2)} ${iy(8.6)}, ${ix(-0.2)} ${iy(7.4)}, ${ix(0.4)} ${iy(6.6)} C ${ix(0.7)} ${iy(6.2)}, ${ix(0.6)} ${iy(6)}, ${ix(0.7)} ${iy(5.85)}" class="t-ins-river"/>
             <ellipse cx="${ix(-0.1)}" cy="${iy(7.9)}" rx="9" ry="18" transform="rotate(-15 ${ix(-0.1)} ${iy(7.9)})" class="t-ins-lake"/>
             <polyline points="${cpts}" class="t-ins-coast"/>
-            <g class="t-ins-scale" transform="translate(${IW - 70} ${IH - 12})"><line x1="0" x2="50" y1="0" y2="0"/><line x1="0" x2="0" y1="-3" y2="3"/><line x1="50" x2="50" y1="-3" y2="3"/><text x="25" y="-4" text-anchor="middle">200 km</text></g>
+            <g class="t-ins-scale" transform="translate(${IW - 70} ${IH - 12})"><line x1="0" x2="45" y1="0" y2="0"/><line x1="0" x2="0" y1="-3" y2="3"/><line x1="45" x2="45" y1="-3" y2="3"/><text x="22" y="-4" text-anchor="middle">200 km</text></g>
             <text x="${ix(-7.4)}" y="${iy(6.6)}" class="t-ins-belt">KAKAO-GÜRTEL</text>
-            <line x1="${ix(-3)}" y1="${iy(10.2)}" x2="${ix(-3)}" y2="${iy(5.1)}" class="t-ins-border"/>
+            <line x1="${ix(-3)}" y1="${iy(10.2)}" x2="${ix(-3)}" y2="${iy(5.1)}" class="t-ins-border"/><line x1="${ix(-7.6)}" y1="${iy(10.2)}" x2="${ix(-7.6)}" y2="${iy(4.4)}" class="t-ins-border"/><line x1="${ix(1.2)}" y1="${iy(10.2)}" x2="${ix(1.2)}" y2="${iy(6.15)}" class="t-ins-border"/><line x1="${ix(2.7)}" y1="${iy(10.2)}" x2="${ix(2.7)}" y2="${iy(6.38)}" class="t-ins-border"/>
+            <text x="${ix(-11.6)}" y="${iy(9.6)}" class="t-ins-c">LIBERIA</text><text x="${ix(1.35)}" y="${iy(9.6)}" class="t-ins-c">TOGO</text><text x="${ix(3.4)}" y="${iy(9.6)}" class="t-ins-c">NIGERIA</text>
             <text x="${ix(-8.6)}" y="${iy(9.6)}" class="t-ins-c">ELFENBEINKÜSTE</text><text x="${ix(-2.6)}" y="${iy(9.6)}" class="t-ins-c">GHANA</text>
             <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
@@ -1459,6 +1460,12 @@ const Player = (() => {
         $('t-loc').classList.toggle('hidden', !tSel);
         if (tSel) {
             const L = INTEL_LOCS[tSel];
+            const pinEl = $('t-map').querySelector(`.t-pin[data-loc="${tSel}"]`);
+            if (pinEl) {
+                const pr = pinEl.getBoundingClientRect();
+                const mr = $('t-map').getBoundingClientRect();
+                $('t-loc').classList.toggle('left', pr.left + pr.width / 2 > mr.left + mr.width / 2);
+            }
             setHTML($('t-loc'), `<div class="tl-h"><b>📍 ${esc(L.name)}</b><button class="t-x" data-tx="close">✕</button></div>
                 ${L.types.map(t => {
                     const c = I.costs[t];

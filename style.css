@@ -1701,3 +1701,14 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 .plant-map .m-led.b { fill: #ffcf6b; animation-delay: -.33s; } .plant-map .m-led.c { fill: #60a5fa; animation-delay: -.66s; }
 .plant-map .m-t { font-size: 13px; letter-spacing: 2px; }
 @media (prefers-reduced-motion: reduce) { .t-routes path, .farm-map .river-flow, .vil.open .vil-ring, .plant-map .pipe-flow, .plant-map .m-needle, .plant-map .m-led, .plant-map .s-led.open { animation: none; } }
+
+/* Intel-Karte: Weltkarte oben in voller Breite, Ausschnitt Westafrika füllt den Rest */
+#t-map { display: flex; flex-direction: column; gap: 8px; }
+#t-map .t-world { flex: none; width: 100%; height: auto; }
+#t-map .t-inset { flex: 1; width: 100%; min-height: 120px; }
+#t-map .t-inset-svg { flex: 1; width: 100%; height: 100%; min-height: 0; }
+.t-inset-h { font-size: 11px; }
+.t-loc { left: auto; right: 12px; width: min(440px, 46%); max-height: calc(100% - 60px); overflow: auto; }
+.t-loc.left { left: 12px; right: auto; }
+#t-map .t-inset { overflow: hidden; }
+#t-map .t-inset-svg { overflow: visible; }
