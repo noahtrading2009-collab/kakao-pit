@@ -430,6 +430,44 @@ const RenderCore = (() => {
         }
 
         mark('fields');
+        // 4b) Bäche: schlängeln sich von oben in den Fluss, nie durch Dörfer, Felder oder über die Strasse
+        const creekPts = [];
+        for (let ci = 0, made = 0; ci < 14 && made < 2; ci++) {
+            const rr = rng(300 + ci);
+            let cx = 70 + rr() * 660;
+            let cy = 4;
+            let ang = Math.PI / 2;
+            const pts = [[cx, cy]];
+            let ok = false;
+            for (let st = 0; st < 260; st++) {
+                // Richtung zum nächsten Flusspunkt, dazu Mäander
+                let tgt = river[0];
+                for (const q of river) if ((q[0] - cx) ** 2 + (q[1] - cy) ** 2 < (tgt[0] - cx) ** 2 + (tgt[1] - cy) ** 2) tgt = q;
+                const want = Math.atan2(tgt[1] - cy, tgt[0] - cx);
+                ang += (want - ang) * 0.12 + (vn(st * 0.18 + ci * 9, ci) - 0.5) * 0.9;
+                cx += Math.cos(ang) * 4;
+                cy += Math.sin(ang) * 4;
+                pts.push([cx, cy]);
+                if (dRiver(cx, cy) < 8) { ok = true; break; }
+                if (cx < 10 || cx > W - 10 || cy > H - 10) break;
+                if (dRoad(cx, cy) < 9 || inField(cx, cy, 4) || villageAt(cx, cy, 1.5)) break;
+            }
+            if (!ok || pts.length < 12) continue;
+            made++;
+            const cp = new Path2D();
+            pts.forEach(([px, py], q) => (q ? cp.lineTo(px, py) : cp.moveTo(px, py)));
+            x.strokeStyle = 'rgba(70,58,34,.55)';
+            x.lineWidth = 4.2;
+            x.stroke(cp);
+            x.strokeStyle = '#2f3b24';
+            x.lineWidth = 2.4;
+            x.stroke(cp);
+            x.strokeStyle = 'rgba(140,175,195,.35)';
+            x.lineWidth = 0.8;
+            x.save(); x.translate(-0.5, -0.5); x.stroke(cp); x.restore();
+            for (const q of pts) creekPts.push(q);
+        }
+        const nearCreek = (px, py, rad) => creekPts.some(([qx, qy]) => (qx - px) * (qx - px) + (qy - py) * (qy - py) < rad * rad);
         // 5) Dorfplätze: unregelmässige Lehmflächen, Trampelpfade zur Strasse
         for (let vi = 0; vi < L.villages.length; vi++) {
             const [vx, vy] = L.villages[vi];
@@ -499,7 +537,8 @@ const RenderCore = (() => {
                 const dr = dRiver(px, py);
                 const riparian = dr > 8.5 && dr < 20;
                 let p = f > 0.47 ? 0.95 : f > 0.42 ? 0.35 : riparian ? 0.62 : 0.025;
-                if (dr < 9 || dRoad(px, py) < 7 || inField(px, py, -2) || villageAt(px, py, 0.95)) p = 0;
+                if (creekPts.length && nearCreek(px, py, 9)) p = Math.max(p, 0.55);
+                if (dr < 9 || dRoad(px, py) < 7 || inField(px, py, -2) || villageAt(px, py, 0.95) || (creekPts.length && nearCreek(px, py, 2.6))) p = 0;
                 else if (inField(px, py, 3)) p *= 0.5;
                 if (r() > p) continue;
                 const big = f > 0.55 ? 1.25 : 1;
@@ -617,8 +656,160 @@ const RenderCore = (() => {
             x.restore();
         }
 
+        // 7b) Dorfleben: Kakaosäcke, Wäscheleine, Feuerstelle mit Rauch, Strohhütte, Moped
+        const sackAt = (sx0, sy0, n, rr) => {
+            for (let q = 0; q < n; q++) {
+                const bx = sx0 + (q % 3) * 2.3 + (rr() - 0.5) * 0.4;
+                const byy = sy0 + Math.floor(q / 3) * 1.6;
+                x.fillStyle = 'rgba(0,0,0,.35)';
+                x.fillRect(bx + 0.5, byy + 0.6, 2.1, 1.4);
+                x.fillStyle = ['#cdb68a', '#bfa677', '#d8c49a'][q % 3];
+                x.beginPath();
+                x.ellipse(bx + 1, byy + 0.7, 1.1, 0.75, 0, 0, 7);
+                x.fill();
+                x.strokeStyle = 'rgba(90,70,40,.6)';
+                x.lineWidth = 0.15;
+                x.beginPath(); x.moveTo(bx + 0.2, byy + 0.7); x.lineTo(bx + 1.8, byy + 0.7); x.stroke();
+            }
+        };
+        for (let vi = 0; vi < L.villages.length; vi++) {
+            const [vx, vy] = L.villages[vi];
+            const rr = rng(2000 + vi);
+            sackAt(vx + 8 + rr() * 6, vy + 10 + rr() * 3, 4 + Math.floor(rr() * 5), rr);
+            // Wäscheleine
+            const lx = vx - 20 + rr() * 10;
+            const ly = vy - 14 + rr() * 6;
+            x.strokeStyle = 'rgba(40,30,20,.6)';
+            x.lineWidth = 0.15;
+            x.beginPath(); x.moveTo(lx, ly); x.lineTo(lx + 9, ly + 1.5); x.stroke();
+            for (let q = 0; q < 5; q++) { x.fillStyle = ['#d9423b', '#f2c94c', '#2f80ed', '#f5f5f5', '#27ae60', '#9b51e0'][(rr() * 6) | 0]; x.fillRect(lx + 0.8 + q * 1.7, ly + 0.15 + q * 0.27, 1.1, 0.8); }
+            // Feuerstelle mit Rauchfahne (Wind nach rechts)
+            const fx2 = vx + 2 + rr() * 8;
+            const fy2 = vy + 2 + rr() * 6;
+            x.fillStyle = '#2a2018';
+            x.beginPath(); x.arc(fx2, fy2, 1.2, 0, 7); x.fill();
+            x.fillStyle = '#ff8a2a';
+            x.beginPath(); x.arc(fx2, fy2, 0.45, 0, 7); x.fill();
+            x.save();
+            x.filter = `blur(${(1.6 * k).toFixed(1)}px)`;
+            for (let q = 0; q < 5; q++) { x.fillStyle = `rgba(215,215,210,${0.32 - q * 0.05})`; x.beginPath(); x.arc(fx2 + 1.5 + q * 2.6, fy2 - 1 - q * 1.1, 1.2 + q * 0.7, 0, 7); x.fill(); }
+            x.restore();
+            // runde Strohhütte (Küche) in jedem zweiten Dorf
+            if (rr() < 0.55) {
+                const hx = vx - 6 + rr() * 12;
+                const hy = vy - 2 + rr() * 6;
+                x.fillStyle = 'rgba(0,0,0,.38)';
+                x.beginPath(); x.arc(hx + 1.6, hy + 1.9, 4.2, 0, 7); x.fill();
+                const g = x.createRadialGradient(hx - 1.4, hy - 1.6, 0.3, hx, hy, 4.2);
+                g.addColorStop(0, '#e2c27a');
+                g.addColorStop(1, '#8a6a34');
+                x.fillStyle = g;
+                x.beginPath(); x.arc(hx, hy, 4.2, 0, 7); x.fill();
+                x.strokeStyle = 'rgba(90,64,26,.55)';
+                x.lineWidth = 0.15;
+                for (let q = 0; q < 24; q++) { const a = (q / 24) * Math.PI * 2; x.beginPath(); x.moveTo(hx, hy); x.lineTo(hx + Math.cos(a) * 4.2, hy + Math.sin(a) * 4.2); x.stroke(); }
+                x.fillStyle = '#6a4a20';
+                x.beginPath(); x.arc(hx, hy, 0.6, 0, 7); x.fill();
+            }
+        }
+        // Fahrzeuge auf der Strasse und an den Dörfern
+        const vehicle = (px, py, ang, kind, col) => {
+            x.save();
+            x.translate(px, py);
+            x.rotate(ang);
+            if (kind === 'pickup') {
+                x.fillStyle = 'rgba(0,0,0,.4)';
+                x.fillRect(-2.6 + 0.8, -1.25 + 0.9, 5.4, 2.5);
+                x.fillStyle = col;
+                x.fillRect(-2.7, -1.25, 5.4, 2.5);
+                x.fillStyle = 'rgba(0,0,0,.25)';
+                x.fillRect(-2.7, 0.2, 5.4, 1.05);
+                x.fillStyle = '#1b2530';
+                x.fillRect(0.6, -1.0, 1.0, 2.0);
+                x.fillStyle = 'rgba(255,255,255,.45)';
+                x.fillRect(-2.5, -1.15, 3, 0.3);
+                x.fillStyle = 'rgba(80,60,40,.8)';
+                x.fillRect(-2.4, -0.9, 2.6, 1.8);
+                x.fillStyle = '#cdb68a';
+                for (let q = 0; q < 3; q++) x.fillRect(-2.2 + q * 0.8, -0.7, 0.7, 1.4);
+            } else {
+                x.fillStyle = 'rgba(0,0,0,.4)';
+                x.fillRect(-0.8 + 0.5, -0.25 + 0.6, 1.7, 0.6);
+                x.fillStyle = '#20242a';
+                x.fillRect(-0.85, -0.25, 1.7, 0.5);
+                x.fillStyle = col;
+                x.beginPath(); x.arc(0, 0, 0.42, 0, 7); x.fill();
+            }
+            x.restore();
+        };
+        for (let q = 0; q < road.length; q += 1) {
+            if (r() > 0.022) continue;
+            const a = road[Math.max(0, q - 1)];
+            const b = road[Math.min(road.length - 1, q + 1)];
+            const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+            const side = r() < 0.5 ? -1.7 : 1.7;
+            const nx = -Math.sin(ang) * side;
+            const ny = Math.cos(ang) * side;
+            vehicle(road[q][0] + nx, road[q][1] + ny, ang + (side < 0 ? Math.PI : 0), r() < 0.45 ? 'pickup' : 'moped', ['#e8e8e8', '#c0392b', '#2c6fb3', '#f2f2f2', '#d4a017'][(r() * 5) | 0]);
+        }
+        for (let vi = 0; vi < L.villages.length; vi++) {
+            const [vx, vy] = L.villages[vi];
+            const rr = rng(3000 + vi);
+            if (rr() < 0.45) vehicle(vx + 18 + rr() * 6, vy - 8 + rr() * 8, rr() * 3, 'pickup', ['#e8e8e8', '#c0392b', '#2c6fb3'][(rr() * 3) | 0]);
+            vehicle(vx - 10 + rr() * 20, vy + 4 + rr() * 6, rr() * 6, 'moped', '#d35400');
+        }
+        // Menschen: in den Dörfern, auf den Pfaden und bei der Ernte in den Plantagen
+        const person = (px, py, shirt, carry) => {
+            x.fillStyle = 'rgba(0,0,0,.4)';
+            x.beginPath(); x.ellipse(px + 0.6, py + 0.7, 0.6, 0.35, 0.6, 0, 7); x.fill();
+            x.fillStyle = shirt;
+            x.beginPath(); x.arc(px, py, 0.55, 0, 7); x.fill();
+            x.fillStyle = '#3b2416';
+            x.beginPath(); x.arc(px - 0.1, py - 0.12, 0.3, 0, 7); x.fill();
+            if (carry) { x.fillStyle = '#cdb68a'; x.beginPath(); x.ellipse(px - 0.05, py - 0.2, 0.55, 0.38, 0, 0, 7); x.fill(); }
+        };
+        const shirts = ['#e74c3c', '#f1c40f', '#3498db', '#ecf0f1', '#9b59b6', '#e67e22', '#1abc9c'];
+        for (let vi = 0; vi < L.villages.length; vi++) {
+            const [vx, vy] = L.villages[vi];
+            const rr = rng(4000 + vi);
+            const n = 4 + Math.floor(rr() * 5);
+            for (let q = 0; q < n; q++) person(vx - 22 + rr() * 44, vy - 10 + rr() * 24, shirts[(rr() * shirts.length) | 0], rr() < 0.25);
+        }
+        for (const [fx, fy, fw, fh, rot] of L.fields) {
+            const ca = Math.cos((rot * Math.PI) / 180);
+            const sa = Math.sin((rot * Math.PI) / 180);
+            const n = 2 + Math.floor(r() * 4);
+            for (let q = 0; q < n; q++) {
+                const lx = (r() - 0.5) * fw * 0.8;
+                const ly = (Math.round(((r() - 0.5) * fh * 0.8) / 5.4) + 0.5) * 5.4;
+                person(fx + fw / 2 + lx * ca - ly * sa, fy + fh / 2 + lx * sa + ly * ca, shirts[(r() * shirts.length) | 0], r() < 0.5);
+            }
+        }
+        for (const [qx, qy] of road) if (r() < 0.03) person(qx + (r() - 0.5) * 12, qy + (r() < 0.5 ? -6 : 6), shirts[(r() * shirts.length) | 0], r() < 0.4);
+
         mark('houses');
-        // 8) Atmosphäre: warmes Sonnenlicht, leichter Dunst, Vignette
+        // 8) Atmosphäre: Sonnenglitzern auf dem Wasser, Wetterstimmung, warmes Licht, leichter Dunst, Vignette
+        x.save();
+        x.globalCompositeOperation = 'lighter';
+        for (const [qx, qy] of river) if (r() < 0.05) {
+            const g = x.createRadialGradient(qx - 2, qy - 2, 0, qx - 2, qy - 2, 3.2);
+            g.addColorStop(0, 'rgba(255,250,230,.35)');
+            g.addColorStop(1, 'rgba(255,250,230,0)');
+            x.fillStyle = g;
+            x.fillRect(qx - 6, qy - 6, 8, 8);
+        }
+        x.restore();
+        if (L.sky === 'rain' || L.sky === 'blackpod') {
+            x.fillStyle = 'rgba(40,60,80,.16)';
+            x.fillRect(0, 0, W, H);
+            x.save();
+            x.filter = `blur(${(10 * k).toFixed(0)}px)`;
+            for (let q = 0; q < 6; q++) { x.fillStyle = 'rgba(210,220,230,.10)'; x.beginPath(); x.ellipse(r() * W, r() * H, 80 + r() * 90, 40 + r() * 40, r() * 3, 0, 7); x.fill(); }
+            x.restore();
+        } else if (L.sky === 'drought') {
+            x.fillStyle = 'rgba(200,150,60,.12)';
+            x.fillRect(0, 0, W, H);
+        }
         const sun = x.createLinearGradient(0, 0, W, H);
         sun.addColorStop(0, 'rgba(255,236,190,.09)');
         sun.addColorStop(1, 'rgba(10,20,40,.12)');
@@ -957,6 +1148,78 @@ const RenderCore = (() => {
         for (let q = 0; q < 6; q++) { x.fillStyle = '#1a1f26'; x.fillRect(430 + q * 6, by + 40, 3, 16); }
         x.fillStyle = 'rgba(255,255,255,.12)';
         x.fillRect(318, by + 2, 164, 2);
+        // Nasser Boden: Spiegelungen der Lampen als weiche Lichtbahnen
+        x.save();
+        x.globalCompositeOperation = 'lighter';
+        for (const lx of [120, 300, 500, 680]) {
+            const g = x.createLinearGradient(0, fy, 0, H);
+            g.addColorStop(0, 'rgba(255,225,160,.14)');
+            g.addColorStop(1, 'rgba(255,225,160,0)');
+            x.fillStyle = g;
+            x.fillRect(lx - 9, fy, 18, H - fy);
+        }
+        x.restore();
+        // Palette mit Jutesäcken
+        const pallet = (px, py, rows) => {
+            x.fillStyle = 'rgba(0,0,0,.45)';
+            x.fillRect(px + 3, py + 2, 44, 4);
+            x.fillStyle = '#7a5a34';
+            x.fillRect(px, py - 3, 44, 3);
+            x.fillStyle = '#5a3f22';
+            for (let q = 0; q < 3; q++) x.fillRect(px + 2 + q * 19, py, 4, 2.5);
+            for (let rw = 0; rw < rows; rw++) {
+                for (let q = 0; q < 4; q++) {
+                    const sx = px + 1 + q * 10.5 + (rw % 2) * 2;
+                    const sy = py - 3 - (rw + 1) * 6.4;
+                    const g = x.createLinearGradient(sx, sy, sx, sy + 6.4);
+                    g.addColorStop(0, '#d9c290');
+                    g.addColorStop(0.6, '#b89a62');
+                    g.addColorStop(1, '#8c7244');
+                    x.fillStyle = g;
+                    x.beginPath();
+                    x.roundRect ? x.roundRect(sx, sy, 10, 6.2, 2.4) : x.rect(sx, sy, 10, 6.2);
+                    x.fill();
+                    x.strokeStyle = 'rgba(80,60,30,.6)';
+                    x.lineWidth = 0.4;
+                    x.beginPath(); x.moveTo(sx + 1, sy + 3.1); x.lineTo(sx + 9, sy + 3.1); x.stroke();
+                    x.fillStyle = 'rgba(120,60,30,.55)';
+                    x.font = '2.2px sans-serif';
+                    x.fillText('CACAO', sx + 1.6, sy + 5.4);
+                }
+            }
+        };
+        pallet(668, H - 22, 3);
+        pallet(718, H - 22, 2);
+        // Gabelstapler (gelb) mit Fahrerschutzdach
+        const fx3 = 600;
+        const fy3 = H - 16;
+        x.fillStyle = 'rgba(0,0,0,.45)';
+        x.fillRect(fx3 - 2, fy3 + 3, 40, 4);
+        x.fillStyle = '#e0a31a';
+        x.fillRect(fx3, fy3 - 16, 26, 16);
+        x.fillStyle = '#b8820f';
+        x.fillRect(fx3, fy3 - 6, 26, 6);
+        x.strokeStyle = '#222';
+        x.lineWidth = 1.6;
+        x.strokeRect(fx3 + 3, fy3 - 30, 14, 14);
+        x.fillStyle = '#1a1a1a';
+        x.fillRect(fx3 + 26, fy3 - 34, 3, 34);
+        x.fillRect(fx3 + 29, fy3 - 2, 12, 2);
+        for (const wx of [fx3 + 5, fx3 + 21]) { x.fillStyle = '#111'; x.beginPath(); x.arc(wx, fy3, 4, 0, 7); x.fill(); x.fillStyle = '#555'; x.beginPath(); x.arc(wx, fy3, 1.6, 0, 7); x.fill(); }
+        x.fillStyle = 'rgba(255,255,255,.25)';
+        x.fillRect(fx3, fy3 - 16, 26, 1.2);
+        // Wandschilder: Feuerlöscher, Notausgang, Warnschild
+        x.fillStyle = '#b3201c';
+        x.fillRect(14, by + 20, 6, 15);
+        x.fillStyle = '#1a1a1a';
+        x.fillRect(15, by + 17, 4, 3);
+        x.fillStyle = 'rgba(255,255,255,.25)';
+        x.fillRect(15, by + 21, 1.2, 12);
+        x.fillStyle = '#f2c230';
+        x.beginPath(); x.moveTo(770, by + 16); x.lineTo(780, by + 34); x.lineTo(760, by + 34); x.closePath(); x.fill();
+        x.fillStyle = '#111';
+        x.font = 'bold 11px sans-serif';
+        x.fillText('!', 768, by + 32);
         return c;
     }
 
