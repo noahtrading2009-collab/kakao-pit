@@ -1053,6 +1053,25 @@ const Player = (() => {
         return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
     }
 
+    // Gerechnetes Bild als Leinwand hinter der Status-Ebene (gleiche Position wie #d-world)
+    function deskBg(bmp) {
+        const host = $('d-world');
+        if (!host) return;
+        let cv = $('d-bg');
+        if (!cv) {
+            cv = document.createElement('canvas');
+            cv.id = 'd-bg';
+            host.parentElement.insertBefore(cv, host);
+        }
+        cv.style.cssText = `position:absolute;left:${host.offsetLeft}px;top:${host.offsetTop}px;width:${host.offsetWidth}px;height:${host.offsetHeight}px;object-fit:contain;pointer-events:none;z-index:0;display:${bmp ? 'block' : 'none'}`;
+        if (bmp && cv._bmp !== bmp) {
+            cv.width = bmp.width;
+            cv.height = bmp.height;
+            cv.getContext('2d').drawImage(bmp, 0, 0);
+            cv._bmp = bmp;
+        }
+    }
+
     // Massstab: Je mehr Tonnen, desto mehr Tonnen pro Dorf/Silo – so passt immer alles aufs Bild.
     const deskUnit = (total, max) => [10, 20, 25, 50, 100, 200, 500].find(u => Math.ceil(total / u) <= max) || 1000;
     // Seitenverhältnis des Kartenfelds (Höhe/Breite), damit die Grafik den Platz ganz ausfüllt
@@ -1100,7 +1119,7 @@ const Player = (() => {
         const H = holdings();
         const { unit, tiles } = tilesFor(H, true, VILLAGES.length);
         deskUnitNow = unit;
-        const VH = Math.round(800 * deskAspect());
+        const VH = Math.round((800 * deskAspect()) / 40) * 40; // in Stufen, damit kleine Grössenänderungen kein neues Bild auslösen
         const k = VH / 400;
         const smuggle = me.decision && me.decision.kind === 'smuggle';
         const partners = [];
@@ -1116,6 +1135,7 @@ const Player = (() => {
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
         const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
         const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS.map(([fx, fy, fw, fh, fr]) => [fx, fy * k, fw, fh * Math.min(k, 1.4), fr]) }, pxW, () => renderDesk()) : null;
+        deskBg(img);
         const villages = tiles.map((kk, i) => {
             const [x, y0] = VILLAGES[i];
             const y = y0 * k;
@@ -1159,7 +1179,7 @@ const Player = (() => {
             <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
             <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
             <radialGradient id="dVig" cx="50%" cy="50%" r="72%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
-            ${img ? `<image href="${img}" x="0" y="0" width="800" height="${VH}" preserveAspectRatio="none"/><path d="${river}" class="river-flow"/>` : `<rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
+            ${img ? `<path d="${river}" class="river-flow"/>` : `<rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
             ${contours}${fields}${forest}
             <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
             <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>`}
@@ -1203,7 +1223,7 @@ const Player = (() => {
         const rowH = 150 * s;
         const top = 50;
         const ly = top + rows * rowH;
-        const HH = Math.max(Math.round(800 * ar), Math.round(ly + 165));
+        const HH = Math.ceil(Math.max(800 * ar, ly + 165) / 40) * 40;
         const by = HH - 130; // Produktionslinie unten
         const pipeY = Math.min(ly + 4, by - 6);
         const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
@@ -1216,6 +1236,7 @@ const Player = (() => {
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: kk, i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         }, pxW, () => renderDesk()) : null;
+        deskBg(img);
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
             const y = top + Math.floor(i / per) * rowH;
@@ -1267,7 +1288,7 @@ const Player = (() => {
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
-            ${img ? `<image href="${img}" x="0" y="0" width="800" height="${HH}" preserveAspectRatio="none"/>` : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
+            ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
             ${img ? `<path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>` : `<rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>

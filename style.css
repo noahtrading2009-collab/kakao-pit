@@ -1868,3 +1868,6 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 /* Dörfer nur einblenden (transform würde die Position überschreiben) */
 .vil { animation: vilIn .5s both; }
 @keyframes vilIn { from { opacity: 0; } }
+
+.d-world { position: relative; }
+#d-world { position: relative; z-index: 1; }
