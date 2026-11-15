@@ -13,6 +13,8 @@ const Player = (() => {
     let rid = 1;
     let ended = false;
     let lastTick = -1;
+    // Vibration nur, wenn der Browser es erlaubt (nach der ersten Berührung)
+    const buzz = pat => { try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(pat); } catch (e) { /* egal */ } };
     let nowFlash = null;
     let drumFor = '';
     let lastJoin = 0;
@@ -158,7 +160,7 @@ const Player = (() => {
                     ? '✅ <b>Deine Wette läuft.</b> Mit dem anderen Knopf schliesst du sie wieder – dann ist Gewinn oder Verlust fix.'
                     : '✅ <b>Gut!</b> Diese Menge ist jetzt geschützt. Du kannst jederzeit mehr absichern – oder mit AUFLÖSEN zurücknehmen.');
                 Sound.play(msg.q > 0 ? 'buy' : 'sell');
-                if (navigator.vibrate) navigator.vibrate(30);
+                buzz(30);
             } else if (msg.ok && msg.msg) toast(msg.msg, 'good');
             return;
         }
@@ -280,7 +282,7 @@ const Player = (() => {
             if (r.left === 3 && drumFor !== r.text) {
                 drumFor = r.text;
                 Sound.play('drum');
-                if (navigator.vibrate) navigator.vibrate([40, 80, 40, 80, 40]);
+                buzz([40, 80, 40, 80, 40]);
             }
             return { k: 'rumor', t: `${r.icon} <b>Gerücht:</b> ${esc(r.text)}. Der Preis ${up ? 'steigt' : 'fällt'} schon. ${q}${end}`, left: Math.max(0, r.left), span: r.left + r.since };
         }
@@ -459,7 +461,7 @@ const Player = (() => {
             decKey = String(D.id);
             el.innerHTML = decisionHTML();
             Sound.play('alarm');
-            if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+            buzz([120, 80, 120]);
             el.parentElement.scrollTop = 0;
             el.querySelectorAll('[data-rp]').forEach(b => b.addEventListener('click', () => {
                 send({ t: 'decide', choice: b.dataset.rp.slice(4) });
@@ -602,7 +604,7 @@ const Player = (() => {
         }
         if (!callShown) {
             Sound.play('alarm');
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            buzz([200, 100, 200]);
             callShown = true;
         }
         ov.classList.remove('hidden');
@@ -702,7 +704,7 @@ const Player = (() => {
         const label = { rumor: 'GERÜCHT', yes: 'BESTÄTIGT', no: 'DEMENTI', flash: 'EILMELDUNG', alert: 'ACHTUNG' }[it.kind];
         const text = `<b>${label}</b> ${it.icon} ${esc(it.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}`;
         Sound.play(it.kind === 'alert' ? 'alarm' : 'news');
-        if (navigator.vibrate) navigator.vibrate(it.kind === 'yes' || it.kind === 'no' ? [60, 60, 120] : 60);
+        buzz(it.kind === 'yes' || it.kind === 'no' ? [60, 60, 120] : 60);
         clearTimeout(newsFlash.t);
         if (termMode() || deskMode()) {
             // Grosse Ansichten: Meldung erscheint in der Info-Zeile oben – nichts schwebt über dem Bildschirm
@@ -856,7 +858,7 @@ const Player = (() => {
             return true;
         }
         Sound.play(dir > 0 ? 'buy' : 'sell');
-        if (navigator.vibrate) navigator.vibrate(30);
+        buzz(30);
         tut.practicePos += dir * q;
         tutNext(st.feedback(t, price));
         return true;
@@ -1043,9 +1045,14 @@ const Player = (() => {
         push(Math.round(H.lost / 10), 'lost');
         const smuggle = me.decision && me.decision.kind === 'smuggle';
         const sky = (Scenes.SKY && Scenes.SKY[me.sky]) || null;
+        // Welcher Vertrag gehört zu welchem Dorf? (für den Infotext beim Darüberfahren)
+        const partners = [];
+        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += 10) partners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
+        const tip = (k, i) => (k === 'deal' ? partners[i] || 'Per Vertrag verkauft' : k === 'fut' ? 'Mit Futures abgesichert – der Preis ist fix' : k === 'lost' ? 'An Schmuggler verloren' : 'Offen – hängt am Preis im Dezember');
         const villages = tiles.slice(0, VILLAGES.length).map((k, i) => {
             const [x, y] = VILLAGES[i];
-            return `<g class="vil ${k}" transform="translate(${x} ${y})" style="animation-delay:${i * 0.04}s">
+            return `<g class="vil ${k}" transform="translate(${x} ${y})" style="animation-delay:${i * 0.04}s"><title>10 t · ${tip(k, i)}</title>
+                ${k !== 'lost' ? `<g class="hut-smoke"><circle cx="2" cy="-16" r="3"/><circle cx="5" cy="-24" r="4"/></g>` : ''}
                 <ellipse class="vil-ground" rx="34" ry="14" cy="16"/>
                 <g class="vil-huts"><path d="M-22 6 L-14 -4 L-6 6Z"/><rect x="-20" y="6" width="12" height="9"/><path d="M-4 2 L6 -10 L16 2Z"/><rect x="-2" y="2" width="16" height="13"/><path d="M14 8 L20 0 L26 8Z"/><rect x="15" y="8" width="10" height="7"/></g>
                 ${k === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
@@ -1060,7 +1067,9 @@ const Player = (() => {
             <line x1="12" y1="0" x2="12" y2="400" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
             <g class="port" transform="translate(735 360)"><rect x="-26" y="-14" width="52" height="24" rx="4"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
             ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="368">🚚</text><text class="truck t2" x="420" y="362">🚚</text><path d="M560 360 C 400 300, 200 330, 14 300" class="smug-path"/></g>` : ''}
+            <g class="cloud-shadows"><ellipse cx="0" cy="120" rx="140" ry="40"/><ellipse cx="-300" cy="290" rx="180" ry="50"/></g>
             ${villages}
+            <g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>
             <text x="785" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''} ${sky ? '' : ''}</text>
         </svg>`;
     }
@@ -1074,6 +1083,8 @@ const Player = (() => {
         push(Math.round(H.futIn / 10), 'fut');
         push(Math.round(H.open / 10), 'open');
         push(Math.round(H.cut / 10), 'cut');
+        const sPartners = [];
+        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += 10) sPartners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
         const n = Math.max(1, Math.min(20, tiles.length));
         const per = Math.min(10, n);
         const rows = Math.ceil(n / per);
@@ -1084,8 +1095,10 @@ const Player = (() => {
             const x = x0 + (i % per) * (w + gap);
             const y = 40 + Math.floor(i / per) * 130;
             const fill = k === 'deal' || k === 'fut' ? 86 : 0;
-            return `<g class="silo ${k}" transform="translate(${x} ${y})"><rect class="s-body" width="${w}" height="100" rx="10"/>
-                <rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6"/><ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/>
+            return `<g class="silo ${k}" transform="translate(${x} ${y})"><title>10 t · ${k === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : k === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : k === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}</title>
+                <rect class="s-body" width="${w}" height="100" rx="10"/>
+                ${fill ? `<rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6"/><path class="s-wave" d="M4 ${96 - fill + 3} q${(w - 8) / 4} -6 ${(w - 8) / 2} 0 t${(w - 8) / 2} 0 v6 h-${w - 8}z"/>` : ''}
+                <rect class="s-shine" x="8" y="10" width="7" height="80" rx="3"/><ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/>
                 ${k === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
                 <text x="${w / 2}" y="${118}" text-anchor="middle" class="s-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
         }).join('');

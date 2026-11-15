@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>
     // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
-    window.KP_V='29';
+    window.KP_V='32';
     fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
         v = (v || '').trim();
         try {
@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=29">
+    <link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -57,6 +57,7 @@
                             <button data-role="" class="active" style="--rc:#ffb547"><i>🎲</i><b>Zufall</b><small>Host verteilt</small></button>
                         </div>
                     </label>
+                    <p class="device-tip">💻 <b>Tipp:</b> Am Laptop bekommst du einen eigenen Vollbild-Leitstand – Kooperativen-Zentrale, Fabrik-Leitstand oder Hedgefonds-Terminal.</p>
                     <button class="btn btn-primary btn-big" id="btn-join">Beitreten</button>
                     <p class="err" id="join-err"></p>
                 </div>
@@ -69,7 +70,7 @@
                     <label>Karriere
                         <div class="seg" id="seg-years"><button data-years="1">1 Jahr</button><button data-years="2">2 Jahre</button><button data-years="3" class="active">3 Jahre</button></div>
                     </label>
-                    <button class="btn btn-ghost btn-big" id="btn-host">Raum erstellen</button>
+                    <button class="btn btn-primary btn-big" id="btn-host">🔔 Raum erstellen</button>
                     <p class="err" id="host-err"></p>
                 </div>
             </div>
@@ -88,6 +89,7 @@
                     <div class="room-code" id="room-code">·····</div>
                     <div id="qr"></div>
                     <div class="net-status" id="net-status">Verbinde mit dem Vermittler …</div>
+                    <div class="join-devices"><span>📱 <b>Handy</b><small>kompaktes Cockpit</small></span><span>💻 <b>Laptop</b><small>Vollbild-Leitstand</small></span></div>
                 </div>
             </div>
             <div class="lobby-right">
@@ -263,13 +265,13 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js?v=29"></script>
-    <script src="js/engine.js?v=29"></script>
-    <script src="js/bots.js?v=29"></script>
-    <script src="js/net.js?v=29"></script>
-    <script src="js/host.js?v=29"></script>
-    <script src="js/scenes.js?v=29"></script>
-    <script src="js/player.js?v=29"></script>
-    <script src="js/app.js?v=29"></script>
+    <script src="js/common.js?v=32"></script>
+    <script src="js/engine.js?v=32"></script>
+    <script src="js/bots.js?v=32"></script>
+    <script src="js/net.js?v=32"></script>
+    <script src="js/host.js?v=32"></script>
+    <script src="js/scenes.js?v=32"></script>
+    <script src="js/player.js?v=32"></script>
+    <script src="js/app.js?v=32"></script>
 </body>
 </html>

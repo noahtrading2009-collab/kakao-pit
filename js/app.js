@@ -6,6 +6,9 @@ const App = (() => {
 
     function show(id) {
         document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === id));
+        // Neue Ansicht beginnt immer oben (sonst ist z. B. der Preis abgeschnitten)
+        const v = document.getElementById(id);
+        if (v) { v.scrollTop = 0; v.querySelectorAll('.p-scroll').forEach(x => { x.scrollTop = 0; }); }
     }
 
     function modal(html) {

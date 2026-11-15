@@ -487,7 +487,7 @@ const Host = (() => {
             const all = S.ranking.filter(r => r.role === B.role).sort(B.sort);
             return { B, list: all.slice(0, 3), more: Math.max(0, all.length - 3) };
         }).filter(g => g.list.length);
-        const key = groups.map(g => `${g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}`).join(',')}+${g.more}`).join('|');
+        const key = groups.map(g => `${g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}${r.rep || ''}`).join(',')}+${g.more}`).join('|');
         if (el.dataset.k === key) {
             for (const { B, list } of groups) {
                 for (const r of list) {
@@ -507,7 +507,7 @@ const Host = (() => {
             const R = ROLES[B.role];
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
                 ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''} ${i === 0 ? 'lead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
-                    <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim">⚠</span>' : ''}</span>
+                    <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim" title="Verbindung weg">📵</span>' : ''}${r.rep ? ` <span class="rk-rep" title="Verträge gebrochen">💔${r.rep}</span>` : ''}</span>
                     <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
         }).join('');
         el.querySelectorAll('[data-k]').forEach(n => {
@@ -1248,7 +1248,7 @@ const Host = (() => {
             if (!list.length) return '';
             const R = ROLES[B.role];
             return `<div class="yo-col" style="--rc:${R.color}"><div class="yo-col-h">${roleIcon(B.role, 30)}<div><b>${R.short}</b><small>${B.title}</small></div></div>
-                ${list.slice(0, 4).map((r, i) => `<div class="yo-row ${i === 0 ? 'win' : ''}" style="animation-delay:${0.25 + i * 0.12}s"><span class="yo-rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="yo-n">${esc(r.name)}${r.bot ? ' 🤖' : ''}</span><span class="yo-v ${B.cls(r)}">${yearRowVal(r)}</span><span class="yo-res ${r.yearResult >= 0 ? 'up' : 'down'}">${signed(r.yearResult)}</span></div>`).join('')}</div>`;
+                ${list.slice(0, 4).map((r, i) => `<div class="yo-row ${i === 0 ? 'win' : ''}" style="animation-delay:${0.25 + i * 0.12}s"><span class="yo-rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span><span class="yo-n">${esc(r.name)}${r.bot ? ' 🤖' : ''}</span><span class="yo-v ${B.cls(r)}">${yearRowVal(r)}</span>${r.role === 'spec' ? '<span class="yo-res"></span>' : `<span class="yo-res ${r.yearResult >= 0 ? 'up' : 'down'}" title="Jahresergebnis in CHF">${signed(r.yearResult)}</span>`}</div>`).join('')}</div>`;
         }).join('');
         const promos = d.rows.filter(r => r.promoted).map(r => `<span class="promo">${RANKS[r.level].icon} <b>${esc(r.name)}</b> steigt auf: <b>${RANKS[r.level].name}</b></span>`).join('');
         const el = $('year-ov');

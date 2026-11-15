@@ -547,8 +547,10 @@ const Engine = (() => {
             }
             if (p.role === 'producer') {
                 const prem = G.price / G.p0 - 1;
-                if (feat('smuggle') && prem >= 0.06 && p.physical >= 20 && G.clock >= p.nextSmuggleAt) {
-                    const loss = Math.min(p.physical, Math.max(10, Math.round((p.physical * clamp(prem * 0.8, 0.08, 0.35)) / 5) * 5));
+                // Höchstens 30 % der Ernte pro Jahr können verschwinden, höchstens 20 % pro Fall
+                const capLeft = Math.round(p.basePhys * 0.3) - p.lostSmuggle;
+                if (feat('smuggle') && prem >= 0.06 && p.physical >= 20 && capLeft >= 10 && G.clock >= p.nextSmuggleAt) {
+                    const loss = Math.min(p.physical, capLeft, Math.max(10, Math.round((p.physical * clamp(prem * 0.5, 0.06, 0.2)) / 5) * 5));
                     const smugP = Math.round((G.price * 0.96) / 10) * 10;
                     const bonus = Math.round((loss * (G.price - G.p0) * 0.45) / 100) * 100;
                     decide(p, { kind: 'smuggle', loss, smugP, bonus, def: 'none' });
@@ -581,6 +583,9 @@ const Engine = (() => {
             const lose = Math.min(D.loss, Math.max(0, p.physical));
             p.physical -= lose;
             p.lostSmuggle += lose;
+            // Diese Bohnen bezahlt die Kooperative nicht – verloren ist nur ihr Gewinn darauf
+            p.startValue -= lose * (p.planP || G.p0);
+            p.planValue -= lose * (p.planP || G.p0);
             feed({ kind: 'bell', icon: '🚚', text: `${lose} t Kakao von ${p.name} wurden über die Grenze geschmuggelt.` });
             const over = -p.pos * CFG.size > p.physical;
             note(p, 'bad', `${pre}🚚 ${lose} t sind über die Grenze verschwunden. Dir bleiben ${p.physical} t.${over ? ' ⚠️ Du hast jetzt mehr abgesichert, als du hast!' : ''}`);
@@ -820,7 +825,7 @@ const Engine = (() => {
             }
             // Kasse sauber abschliessen: Ernte bzw. Grundbedarf zum Planwert ist schon im Startwert enthalten,
             // damit bleibt nach dem Jahr genau «Start + Jahresergebnis» in der Kasse.
-            p.cash -= p.basePhys * (p.planP || G.p0);
+            p.cash -= (p.basePhys - (p.lostSmuggle || 0)) * (p.planP || G.p0);
             p.cash += extra;
             r.extra = Math.round(extra);
             r.yearResult = r.result + r.extra;
@@ -1033,7 +1038,7 @@ const Engine = (() => {
     }
 
     function ranking() {
-        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, level: p.level, total: Math.round(p.total), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected }))
+        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, level: p.level, total: Math.round(p.total), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected, rep: p.rep || 0 }))
             .sort((a, b) => b.score - a.score);
     }
 
@@ -1114,7 +1119,7 @@ const Engine = (() => {
         const rows = G.players.map(p => {
             const R = ROLES[p.role];
             // Effect of price, harvest size and customer orders on the physical business (vs. plan).
-            const physPL = p.physical * G.price + p.revenue - p.basePhys * (p.planP || G.p0);
+            const physPL = p.physical * G.price + p.revenue - (p.basePhys - (p.lostSmuggle || 0)) * (p.planP || G.p0);
             const result = p.cash - p.startValue;
             return {
                 id: p.id, name: p.name, role: p.role, bot: p.bot, result: Math.round(result), physPL: Math.round(physPL),
