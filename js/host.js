@@ -484,23 +484,45 @@ const Host = (() => {
         { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
     ];
 
+    // Wie weit liegt ein Spieler vom Plan weg? (positiv = gut für seine Rolle)
+    function dev(B, r, list) {
+        const p0 = Engine.G.p0;
+        if (B.role === 'spec') {
+            const mx = Math.max(1000, ...list.map(x => Math.abs(x.metric)));
+            return { f: r.metric / mx, t: signed(r.metric) === '±0' ? 'flat' : `${r.metric >= 0 ? '▲' : '▼'} ${pct(r.metric / 120000)}` };
+        }
+        const d = B.role === 'producer' ? r.metric / p0 - 1 : 1 - r.metric / p0;
+        return { f: Math.max(-1, Math.min(1, d / 0.08)), t: `${d >= 0 ? '▲' : '▼'} ${pct(Math.abs(d))} vs Plan` };
+    }
+    function devStyle(o) {
+        return `--dw:${(Math.abs(o.f) * 50).toFixed(1)}%;--dl:${o.f >= 0 ? 50 : 50 - Math.abs(o.f) * 50}%`;
+    }
+
     // Ändert sich die Reihenfolge, gleiten die Zeilen an ihren neuen Platz (FLIP-Animation).
     // Sonst werden nur die Zahlen aktualisiert – nichts flackert.
     function renderRank(S) {
         const el = $('h-rank');
         const groups = BOARDS.map(B => {
             const all = S.ranking.filter(r => r.role === B.role).sort(B.sort);
-            return { B, list: all.slice(0, 3), more: Math.max(0, all.length - 3) };
+            return { B, all, list: all.slice(0, 3), more: Math.max(0, all.length - 3) };
         }).filter(g => g.list.length);
         const key = groups.map(g => `${g.list.map(r => `${r.id}${r.bankrupt ? 'x' : ''}${r.rep || ''}`).join(',')}+${g.more}`).join('|');
         if (el.dataset.k === key) {
-            for (const { B, list } of groups) {
+            for (const { B, list, all } of groups) {
                 for (const r of list) {
-                    const rs = el.querySelector(`[data-k="${r.id}"] .rs`);
+                    const row = el.querySelector(`[data-k="${r.id}"]`);
+                    const rs = row && row.querySelector('.rs');
                     const v = B.val(r);
                     if (rs && rs.innerHTML !== v) {
                         rs.innerHTML = v;
                         rs.className = `rs ${B.cls(r)}`;
+                    }
+                    if (row) {
+                        const o = dev(B, r, all);
+                        row.querySelector('.rd').textContent = o.t;
+                        row.querySelector('.rd').className = `rd ${o.f >= 0 ? 'up' : 'down'}`;
+                        row.querySelector('.rk-dev').setAttribute('style', devStyle(o));
+                        row.querySelector('.rk-dev').className = `rk-dev ${o.f >= 0 ? 'up' : 'down'}`;
                     }
                 }
             }
@@ -508,12 +530,12 @@ const Host = (() => {
         }
         const before = new Map([...el.querySelectorAll('[data-k]')].map(n => [n.dataset.k, n.getBoundingClientRect().top]));
         el.dataset.k = key;
-        el.innerHTML = groups.map(({ B, list, more }) => {
+        el.innerHTML = groups.map(({ B, list, more, all }) => {
             const R = ROLES[B.role];
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
                 ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''} ${i === 0 ? 'lead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
                     <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim" title="Verbindung weg">📵</span>' : ''}${r.rep ? ` <span class="rk-rep" title="Verträge gebrochen">💔${r.rep}</span>` : ''}</span>
-                    <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
+                    <span class="rs ${B.cls(r)}">${B.val(r)}</span>${(o => `<small class="rd ${o.f >= 0 ? 'up' : 'down'}">${o.t}</small><i class="rk-dev ${o.f >= 0 ? 'up' : 'down'}" style="${devStyle(o)}"></i>`)(dev(B, r, all))}</div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
         }).join('');
         el.querySelectorAll('[data-k]').forEach(n => {
             const top = before.get(n.dataset.k);
@@ -1132,6 +1154,65 @@ const Host = (() => {
         flashTimer = setTimeout(nextNews, ms);
     }
 
+    // Gestochen scharfer Kursverlauf als SVG: Fläche, Linie, Hoch/Tief, Planlinie, optionale Monatsgrenzen
+    function priceSVG(pts, o = {}) {
+        const W = o.w || 640;
+        const H = o.h || 150;
+        const L = 50;
+        const R = 14;
+        const T = 14;
+        const B = 20;
+        if (pts.length < 2) return '';
+        const s0 = pts[0].s;
+        const s1 = pts[pts.length - 1].s;
+        const ps = pts.map(p => p.p);
+        const ref = o.ref || ps[0];
+        const lo0 = Math.min(...ps, ref);
+        const hi0 = Math.max(...ps, ref);
+        const pad = Math.max(6, (hi0 - lo0) * 0.15);
+        const lo = lo0 - pad;
+        const hi = hi0 + pad;
+        const X = sv => L + ((sv - s0) / Math.max(1, s1 - s0)) * (W - L - R);
+        const Y = v => T + ((hi - v) / (hi - lo)) * (H - T - B);
+        const up = ps[ps.length - 1] >= ref;
+        const col = up ? '#22e58a' : '#ff4d6a';
+        const id = `ps${Math.random().toString(36).slice(2, 7)}`;
+        const line = pts.map(p => `${X(p.s).toFixed(1)},${Y(p.p).toFixed(1)}`).join(' ');
+        let grid = '';
+        for (let i = 0; i <= 8; i++) {
+            const v = lo + ((hi - lo) * i) / 8;
+            grid += `<line x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" class="${i % 2 ? 'pg-min' : 'pg-maj'}"/>`;
+            if (i % 2 === 0) grid += `<text x="${L - 6}" y="${(Y(v) + 3.5).toFixed(1)}" text-anchor="end" class="pg-ax">${fmt(v)}</text>`;
+        }
+        const bands = (o.bands || []).map(([a, b, lab, cur], i) => `<rect x="${X(a).toFixed(1)}" y="${T}" width="${(X(b) - X(a)).toFixed(1)}" height="${H - T - B}" class="${cur ? 'pg-cur' : i % 2 ? 'pg-b2' : 'pg-b1'}"/><text x="${((X(a) + X(b)) / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" class="pg-ax">${lab}</text>`).join('');
+        let hiI = 0;
+        let loI = 0;
+        ps.forEach((v, i) => { if (v > ps[hiI]) hiI = i; if (v < ps[loI]) loI = i; });
+        const tag = (i, isHi) => {
+            const x = X(pts[i].s);
+            const y = Y(ps[i]);
+            const t = `${isHi ? 'H' : 'T'} ${fmt(ps[i])}`;
+            const tw = t.length * 6.4 + 10;
+            const tx = Math.max(L, Math.min(W - R - tw, x - tw / 2));
+            const ty = isHi ? y - 22 : y + 8;
+            return `<path d="M${x} ${isHi ? y - 3 : y + 3} l-4 ${isHi ? -6 : 6} h8z" fill="${isHi ? '#22e58a' : '#ff4d6a'}"/><rect x="${tx}" y="${ty}" width="${tw}" height="14" rx="7" class="pg-tag"/><text x="${tx + tw / 2}" y="${ty + 10.5}" text-anchor="middle" class="pg-tt ${isHi ? 'up' : 'down'}">${t}</text>`;
+        };
+        const marks = (o.marks || []).map(m => `<circle cx="${X(m.s).toFixed(1)}" cy="${Y(m.p).toFixed(1)}" r="3.5" class="pg-mk"/>`).join('');
+        const last = pts[pts.length - 1];
+        return `<svg viewBox="0 0 ${W} ${H}" class="pg">
+            <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".32"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient>
+            <filter id="${id}g" x="-5%" y="-30%" width="110%" height="160%"><feGaussianBlur stdDeviation="2.4"/></filter></defs>
+            ${bands}${grid}
+            <line x1="${L}" x2="${W - R}" y1="${Y(ref).toFixed(1)}" y2="${Y(ref).toFixed(1)}" class="pg-ref"/><text x="${W - R}" y="${(Y(ref) - 4).toFixed(1)}" text-anchor="end" class="pg-ax">${o.refLabel || 'Start'} ${fmt(ref)}</text>
+            <polygon points="${X(s0)},${H - B} ${line} ${X(s1)},${H - B}" fill="url(#${id})"/>
+            <polyline points="${line}" fill="none" stroke="${col}" stroke-width="5" opacity=".35" filter="url(#${id}g)"/>
+            <polyline points="${line}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            ${marks}
+            ${ps[hiI] !== ps[loI] ? tag(hiI, true) + tag(loI, false) : ''}
+            <circle cx="${X(last.s)}" cy="${Y(last.p)}" r="5" fill="#fff"/><circle cx="${X(last.s)}" cy="${Y(last.p)}" r="3.2" fill="${col}"/>
+            <path d="M${L} ${T + 10} V${T} H${L + 10} M${W - R - 10} ${T} H${W - R} V${T + 10} M${L} ${H - B - 10} V${H - B} H${L + 10} M${W - R - 10} ${H - B} H${W - R} V${H - B - 10}" class="pg-corner"/></svg>`;
+    }
+
     function showSettle(data) {
         const G = Engine.G;
         const calls = G.players.filter(p => p.call);
@@ -1143,6 +1224,17 @@ const Host = (() => {
         const el = $('settle-ov');
         el.innerHTML = `<div class="settle-card card"><div class="dim">MONATSENDE · ABRECHNUNG</div><h2>Monat ${data.month} von ${CFG.months}</h2>
             <div class="settle-price">${fmt(G.price)} <span class="${G.price >= prev ? 'up' : 'down'}">${G.price >= prev ? '▲' : '▼'} ${pct(G.price / prev - 1)}</span></div>
+            ${(() => {
+                const a = (data.month - 1) * G.monthSec;
+                const b = data.month * G.monthSec;
+                const pts = G.history.filter(h => h.s >= a && h.s <= b);
+                if (pts.length < 2) return '';
+                const ps = pts.map(h => h.p);
+                const rum = G.feed.filter(n => n.kind === 'rumor' && n.year === G.year && n.clock > a && n.clock <= b).length;
+                const kv = [['Eröffnung', fmt(ps[0])], ['Hoch', fmt(Math.max(...ps)), 'up'], ['Tief', fmt(Math.min(...ps)), 'down'], ['Schluss', fmt(ps[ps.length - 1])], ['Spanne', `${pct((Math.max(...ps) - Math.min(...ps)) / ps[0])}`], ['Gerüchte', rum]];
+                return `<div class="settle-chart">${priceSVG(pts, { w: 660, h: 170, ref: ps[0], refLabel: 'Eröffnung' })}</div>
+                    <div class="settle-kv">${kv.map(([k, v, c]) => `<div><small>${k}</small><b class="${c || ''}">${v}</b></div>`).join('')}</div>`;
+            })()}
             <div class="settle-duo">
                 <div class="sd win">${best ? `<span class="sd-k">💰 Gewinner des Monats</span>${who(best)}<em>▲ ${signed(best.pl)} CHF</em>` : '<span class="sd-k">💰 Gewinner des Monats</span><small>–</small>'}</div>
                 <div class="sd lose">${worst ? `<span class="sd-k">💸 Verlierer des Monats</span>${who(worst)}<em>▼ ${signed(worst.pl)} CHF</em>` : '<span class="sd-k">💸 Verlierer des Monats</span><small>–</small>'}</div>
@@ -1302,6 +1394,7 @@ const Host = (() => {
         el.innerHTML = `<div class="yo-card">
             <div class="yo-top"><div><div class="yo-kicker">JAHR ${G.year} VON ${G.years} ABGESCHLOSSEN</div><h2>Schlusskurs ${fmt(d.final)} CHF/t <span class="${d.change >= 0 ? 'up' : 'down'}">${pct(d.change)}</span></h2></div>
                 ${d.star ? `<div class="yo-star">⭐ Trader des Jahres<b>${roleIcon(d.star.role, 22)} ${esc(d.star.name)}</b></div>` : ''}</div>
+            <div class="yo-chart">${priceSVG(G.history, { w: 1400, h: 210, ref: G.p0, refLabel: 'Plan', bands: Array.from({ length: CFG.months }, (_, m) => [m * G.monthSec, (m + 1) * G.monthSec, `Monat ${m + 1}`]), marks: G.marks.map((m, i) => ({ s: Math.min((i + 1) * G.monthSec, G.history[G.history.length - 1].s), p: m.price })) })}</div>
             <div class="yo-cols">${cols}</div>
             ${promos ? `<div class="yo-promos">${promos}</div>` : ''}
             ${G.yearLog.length > 1 ? `<div class="yo-prev"><div class="yo-prev-h">🗓️ Bisherige Jahre</div><div class="yc-grid compact">${yearCards(G.yearLog, true)}</div></div>` : ''}
