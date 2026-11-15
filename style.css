@@ -285,10 +285,10 @@ body.joining .start-cards { grid-template-columns: 1fr; max-width: 420px; margin
 .p-toast.bad { border-color: rgba(255, 77, 106, .6); }
 .p-flash { position: fixed; top: 58px; left: 10px; right: 10px; z-index: 7; border-radius: 12px; padding: 12px 14px; font-size: 15px; animation: drop2 .4s; box-shadow: 0 16px 40px rgba(0, 0, 0, .6); }
 .p-flash b { font-family: var(--mono); letter-spacing: 2px; margin-right: 6px; }
-.p-flash.rumor { background: #2a1f07; border: 1px solid var(--amber); }
-.p-flash.yes { background: #062518; border: 1px solid var(--up); }
-.p-flash.no { background: #1b1430; border: 1px solid var(--violet); }
-.p-flash.flash, .p-flash.alert { background: #2e0710; border: 1px solid var(--down); }
+.p-flash.pk-rumor { background: #2a1f07; border: 1px solid var(--amber); }
+.p-flash.pk-yes { background: #062518; border: 1px solid var(--up); }
+.p-flash.pk-no { background: #1b1430; border: 1px solid var(--violet); }
+.p-flash.pk-flash, .p-flash.pk-alert { background: #2e0710; border: 1px solid var(--down); }
 @keyframes drop2 { from { transform: translateY(-20px); opacity: 0; } }
 .call-ov { position: fixed; inset: 0; background: rgba(40, 0, 8, .82); z-index: 9; display: grid; place-items: center; padding: 18px; animation: fade .2s; }
 .call-card { background: #1a0509; border: 2px solid var(--down); border-radius: 18px; padding: 22px; max-width: 420px; text-align: center; display: grid; gap: 12px; box-shadow: 0 0 60px rgba(255, 77, 106, .35); }
@@ -1492,3 +1492,14 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 #v-desk .t-chartp { overflow: hidden; }
 .d-decision { background: linear-gradient(180deg, rgba(5, 8, 6, 0) 30%, rgba(5, 8, 6, .55)); backdrop-filter: none; place-items: end center; padding-bottom: 12px; }
 .vil-t { font-size: 15px; } .vil .vil-huts { transform: scale(1.35); } .s-t { font-size: 13px; } .farm-map .reg-t { font-size: 18px; } .farm-map .border-t { font-size: 14px; }
+
+/* Rückblick-Chart */
+.mr-svg { width: 100%; height: auto; display: block; background: linear-gradient(180deg, rgba(0, 0, 0, .3), rgba(0, 0, 0, .15)); border-radius: 12px; }
+.mr-grid { stroke: rgba(140, 170, 230, .1); }
+.mr-plan { stroke: rgba(255, 255, 255, .35); stroke-dasharray: 4 5; }
+.mr-ax { font-family: var(--mono); font-size: 10px; fill: #6f86a3; }
+.mr-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.mirror .m-diff { font-size: 15px; }
+/* Endkarte am Laptop breiter, damit der Rückblick Platz hat */
+@media (min-width: 1000px) { .p-end { width: min(760px, 94vw); } .p-end .card { max-width: 760px; width: 100%; } }
+.mirror svg.mr-svg { height: auto; aspect-ratio: 600 / 190; }

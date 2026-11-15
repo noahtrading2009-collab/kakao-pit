@@ -13,6 +13,7 @@ const Player = (() => {
     let rid = 1;
     let ended = false;
     let lastTick = -1;
+    let nowFlash = null;
     let drumFor = '';
     let lastJoin = 0;
     let lastNews = 0;
@@ -254,6 +255,7 @@ const Player = (() => {
 
     // ===== «Was jetzt?» – ein Tipp, der die Entscheidung bewusst macht (ohne sie vorzusagen) =====
     function nowText() {
+        if (nowFlash && Date.now() < nowFlash.until) return { k: nowFlash.k, t: nowFlash.t };
         const hedger = me.role !== 'spec';
         const lastMonth = pub.month >= pub.months;
         const end = pub.phase !== 'trading' || pub.secLeft > 10 ? ''
@@ -698,11 +700,21 @@ const Player = (() => {
     function newsFlash(it) {
         const el = $('p-flash');
         const label = { rumor: 'GERÜCHT', yes: 'BESTÄTIGT', no: 'DEMENTI', flash: 'EILMELDUNG', alert: 'ACHTUNG' }[it.kind];
-        el.className = `p-flash ${it.kind}`;
-        el.innerHTML = `<b>${label}</b> ${it.icon} ${esc(it.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}`;
+        const text = `<b>${label}</b> ${it.icon} ${esc(it.text.replace(/^[A-ZÄÖÜ ]+(\([^)]*\))?: /, ''))}`;
         Sound.play(it.kind === 'alert' ? 'alarm' : 'news');
         if (navigator.vibrate) navigator.vibrate(it.kind === 'yes' || it.kind === 'no' ? [60, 60, 120] : 60);
         clearTimeout(newsFlash.t);
+        if (termMode() || deskMode()) {
+            // Grosse Ansichten: Meldung erscheint in der Info-Zeile oben – nichts schwebt über dem Bildschirm
+            el.classList.add('hidden');
+            nowFlash = { k: { yes: 'ok', no: 'paused', rumor: 'rumor' }[it.kind] || 'bad', t: text, until: Date.now() + 5000 };
+            renderAny();
+            newsFlash.t = setTimeout(() => { nowFlash = null; if (me && pub) renderAny(); }, 5000);
+            return;
+        }
+        // «pk-»-Präfix: Die Klasse «flash» gehört dem Beamer-Banner
+        el.className = `p-flash pk-${it.kind}`;
+        el.innerHTML = text;
         newsFlash.t = setTimeout(() => el.classList.add('hidden'), 4500);
     }
 
@@ -1478,22 +1490,70 @@ const Player = (() => {
     // Persönlicher Spiegel: Was hat meine Absicherung gebracht? Wann habe ich gehandelt?
     function mirrorHTML(m) {
         if (!m) return '';
-        const W = 300;
-        const H = 80;
+        // Echte Proportionen (keine verzerrten Kreise): fester Massstab, Breite passt sich an
+        const W = 600;
+        const H = 190;
+        const L = 46;
+        const R = 12;
+        const T = 16;
+        const B = 26;
         const ps = m.hist.map(h => h[1]);
-        const lo = Math.min(...ps, m.p0);
-        const hi = Math.max(...ps, m.p0);
-        const X = sec => 4 + (sec / Math.max(1, m.total)) * (W - 8);
-        const Y = v => H - 8 - ((v - lo) / Math.max(1, hi - lo)) * (H - 16);
-        const line = m.hist.map(([sec, v]) => `${X(sec).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-        const marks = m.moments.map((t, i) => `<g><circle cx="${X(t.s).toFixed(1)}" cy="${Y(t.price).toFixed(1)}" r="6" fill="${t.q > 0 ? '#22e58a' : '#ff4d6a'}" stroke="#fff" stroke-width="1.5"/><text x="${X(t.s).toFixed(1)}" y="${(Y(t.price) - 9).toFixed(1)}" text-anchor="middle" font-size="10" fill="#fff" font-weight="700">${i + 1}</text></g>`).join('');
+        const all = [...ps, m.p0, ...m.moments.map(t => t.price)];
+        const pad = (Math.max(...all) - Math.min(...all)) * 0.18 + 10;
+        const lo = Math.min(...all) - pad;
+        const hi = Math.max(...all) + pad;
+        const X = sec => L + (sec / Math.max(1, m.total)) * (W - L - R);
+        const Y = v => T + ((hi - v) / Math.max(1, hi - lo)) * (H - T - B);
+        const pts = m.hist.map(([sec, v]) => `${X(sec).toFixed(1)},${Y(v).toFixed(1)}`);
+        const last = m.hist[m.hist.length - 1];
+        const up = m.final >= m.p0;
+        const col = up ? '#22e58a' : '#ff4d6a';
+        const gid = `mg${Math.random().toString(36).slice(2, 7)}`;
+        // Monatsraster
+        const months = 4;
+        let grid = '';
+        for (let i = 1; i < months; i++) grid += `<line x1="${X((m.total * i) / months)}" x2="${X((m.total * i) / months)}" y1="${T}" y2="${H - B}" class="mr-grid"/>`;
+        for (let i = 0; i < months; i++) grid += `<text x="${X((m.total * (i + 0.5)) / months)}" y="${H - 8}" text-anchor="middle" class="mr-ax">M${i + 1}</text>`;
+        // Trades: Kauf ▲ unter der Linie, Verkauf ▼ darüber, mit kleinem Preisschild
+        // Schilder so stapeln, dass sie sich nie überdecken
+        const placed = [];
+        const hits = (a, b) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + 22 && b.y < a.y + 22;
+        const marks = m.moments.map(t => {
+            const x = X(t.s);
+            const y = Y(t.price);
+            const buy = t.q > 0;
+            const c = buy ? '#22e58a' : '#ff4d6a';
+            const label = `${buy ? 'Kauf' : 'Verkauf'} ${Math.abs(t.q * CFG.size)} t · ${fmt(t.price)}`;
+            const tw = label.length * 6.2 + 14;
+            const tx = clamp(x - tw / 2, L, W - R - tw);
+            let ty = buy ? y + 24 : y - 24;
+            for (let k = 0; k < 6 && placed.some(p => hits(p, { x: tx, y: ty, w: tw })); k++) ty += buy ? 22 : -22;
+            ty = clamp(ty, T + 10, H - B - 10);
+            placed.push({ x: tx, y: ty, w: tw });
+            return `<g class="mr-mark">
+                <line x1="${x}" x2="${x}" y1="${y}" y2="${buy ? ty - 9 : ty + 9}" stroke="${c}" stroke-width="1" stroke-dasharray="2 2" opacity=".7"/>
+                <path d="${buy ? `M${x} ${y + 3} l-6 9 h12 z` : `M${x} ${y - 3} l-6 -9 h12 z`}" fill="${c}"/>
+                <rect x="${tx}" y="${ty - 10}" width="${tw}" height="20" rx="10" fill="rgba(5,8,15,.92)" stroke="${c}" stroke-width="1"/>
+                <text x="${tx + tw / 2}" y="${ty + 4}" text-anchor="middle" class="mr-tag" fill="${c}">${label}</text></g>`;
+        }).join('');
         const hedger = m.role !== 'spec';
         const diffTxt = hedger
             ? (m.diff >= 0 ? `🛡️ Deine Absicherung hat dir <b class="up">▲ ${signed(m.diff)} CHF</b> gebracht.` : `🛡️ Ohne Absicherung hättest du <b class="down">${fmt(-m.diff)} CHF mehr</b> – dafür warst du geschützt.`)
             : `🦈 Deine Wetten: <b class="${m.diff >= 0 ? 'up' : 'down'}">${m.diff >= 0 ? '▲' : '▼'} ${signed(m.diff)} CHF</b>`;
         return `<div class="mirror"><h4>🪞 Dein Jahr im Rückblick</h4>
-            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" x2="${W}" y1="${Y(m.p0)}" y2="${Y(m.p0)}" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 4"/><polyline points="${line}" fill="none" stroke="#ffb547" stroke-width="2"/>${marks}</svg>
-            ${m.moments.length ? `<div class="m-legend">${m.moments.map((t, i) => `${i + 1}: ${t.q > 0 ? '🟢 gekauft' : '🔴 verkauft'} ${Math.abs(t.q * CFG.size)} t zu ${fmt(t.price)}`).join(' · ')}</div>` : '<div class="m-legend">Kein Trade in diesem Jahr.</div>'}
+            <svg viewBox="0 0 ${W} ${H}" class="mr-svg">
+                <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+                <text x="${L - 6}" y="${Y(hi - pad) + 4}" text-anchor="end" class="mr-ax">${fmt(hi - pad)}</text>
+                <text x="${L - 6}" y="${Y(lo + pad) + 4}" text-anchor="end" class="mr-ax">${fmt(lo + pad)}</text>
+                ${grid}
+                <line x1="${L}" x2="${W - R}" y1="${Y(m.p0)}" y2="${Y(m.p0)}" class="mr-plan"/>
+                <text x="${W - R}" y="${Y(m.p0) - 5}" text-anchor="end" class="mr-ax">Plan ${fmt(m.p0)}</text>
+                <polygon points="${L},${H - B} ${pts.join(' ')} ${X(last[0]).toFixed(1)},${H - B}" fill="url(#${gid})"/>
+                <polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="${X(last[0])}" cy="${Y(last[1])}" r="4" fill="${col}" stroke="#fff" stroke-width="1.5"/>
+                ${marks}
+            </svg>
+            ${m.moments.length ? '' : '<div class="m-legend">Kein Trade in diesem Jahr.</div>'}
             <div class="m-diff">${diffTxt}</div>
             <div class="m-text">💬 ${esc(m.text)}</div></div>`;
     }
@@ -1510,6 +1570,9 @@ const Player = (() => {
     // ===== Ende (Karriere) =====
 
     function showEnd(msg) {
+        if (tut.i >= 0 && !tut.done) tutAbort();
+        coachQueue.length = 0;
+        $('p-coach').classList.add('hidden');
         App.show('v-pend');
         const c = msg.career;
         const R = ROLES[c.role];
