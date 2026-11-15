@@ -1334,19 +1334,27 @@ const Player = (() => {
     }
 
     function buildMap() {
-        // Feines Punkteraster (1.5°), Breiten zwischen den Stützzeilen interpoliert
-        const rowAt = lat => LAND.reduce((best, r) => (Math.abs(r[0] - lat) < Math.abs(best[0] - lat) ? r : best));
-        const isLand = (lon, lat) => rowAt(lat)[1].some(([a, b]) => lon >= a && lon <= b);
+        // Punkteraster 1° aus echten Natural-Earth-Daten, dazu die exakte Küstenlinie
+        const rowOf = lat => LAND_HI[74 - lat];
+        const isLand = (lon, lat) => { const r = rowOf(lat); return !!r && r[1].some(([a, b]) => lon >= a && lon <= b); };
         let dots = '';
-        const st = 1.5;
-        for (let lat = 72; lat >= -32; lat -= st) {
-            for (let lon = -165; lon <= 150; lon += st) {
+        for (let lat = 72; lat >= -32; lat--) {
+            for (let lon = -165; lon <= 150; lon++) {
                 if (!isLand(lon, lat)) continue;
-                const edge = !isLand(lon - st, lat) || !isLand(lon + st, lat) || !isLand(lon, lat + 2.5) || !isLand(lon, lat - 2.5);
-                const wa = lon >= -10 && lon <= 4 && lat >= 3 && lat <= 11;
-                dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r="${edge ? 1.05 : 0.85}"${wa ? ' class="wa"' : edge ? ' class="e"' : ''}/>`;
+                const wa = lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11;
+                dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r=".72"${wa ? ' class="wa"' : ''}/>`;
             }
         }
+        const coastD = COAST_HI.map(c => {
+            let d = '';
+            for (let i = 0; i < c.length; i += 2) {
+                const lo = c[i] / 2;
+                const la = c[i + 1] / 2;
+                if (lo < -165 || lo > 150 || la > 73 || la < -33) { d += ' '; continue; }
+                d += `${d && !d.endsWith(' ') ? 'L' : 'M'}${tx(lo).toFixed(1)} ${ty(la).toFixed(1)}`;
+            }
+            return d.replace(/ +/g, '');
+        }).join('');
         const world = Object.keys(INTEL_LOCS).filter(k => !WEST.includes(k))
             .map(k => pin(k, tx(INTEL_LOCS[k].lon), ty(INTEL_LOCS[k].lat), ['sha', 'id', 'lon'].includes(k) ? 'l' : 'r')).join('');
         // Rahmen um Westafrika auf der Weltkarte
@@ -1357,23 +1365,22 @@ const Player = (() => {
         const coast = [[-30, 13], [-16, 9.5], [-12.5, 7.4], [-11.4, 6.8], [-10.4, 6.1], [-9, 4.9], [-7.5, 4.3], [-6, 4.9], [-4.6, 5.2], [-3, 5.1], [-2, 4.8], [-1, 5.1], [0, 5.6], [1, 6.1], [2, 6.3], [3, 6.4], [4.4, 6.3], [5.2, 5.6], [5.8, 4.6], [6.5, 4.3], [9, 4.2], [24, 3.6]];
         const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
-            <polygon points="-400,-200 ${IW + 400},-200 ${IW + 400},${iy(3.6)} ${cpts.split(' ').reverse().join(' ')} -400,${iy(9)}" class="t-ins-land"/>
+            ${Object.entries(WA_HI).map(([k, rs]) => `<path class="t-cty ${k}" d="${rs.map(r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${ix(r[i] / 100).toFixed(1)} ${iy(r[i + 1] / 100).toFixed(1)}`; return `${d}Z`; }).join('')}"/>`).join('')}
             <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(34,229,138,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
             <path d="M${ix(-8.2)} ${iy(9.4)} C ${ix(-6.5)} ${iy(8)}, ${ix(-5.2)} ${iy(7.8)}, ${ix(-4.8)} ${iy(5.25)} C ${ix(-3.8)} ${iy(6.8)}, ${ix(-1.6)} ${iy(7.2)}, ${ix(-0.4)} ${iy(5.7)}" class="t-ins-crop"/>
             <path d="M${ix(-5.4)} ${iy(9.8)} C ${ix(-5.2)} ${iy(8.4)}, ${ix(-5.6)} ${iy(7)}, ${ix(-5.1)} ${iy(5.2)}" class="t-ins-river"/>
             <path d="M${ix(-0.4)} ${iy(9.6)} C ${ix(0.2)} ${iy(8.6)}, ${ix(-0.2)} ${iy(7.4)}, ${ix(0.4)} ${iy(6.6)} C ${ix(0.7)} ${iy(6.2)}, ${ix(0.6)} ${iy(6)}, ${ix(0.7)} ${iy(5.85)}" class="t-ins-river"/>
             <ellipse cx="${ix(-0.1)}" cy="${iy(7.9)}" rx="9" ry="18" transform="rotate(-15 ${ix(-0.1)} ${iy(7.9)})" class="t-ins-lake"/>
-            <polyline points="${cpts}" class="t-ins-coast"/>
             <g class="t-ins-scale" transform="translate(${IW - 70} ${IH - 12})"><line x1="0" x2="45" y1="0" y2="0"/><line x1="0" x2="0" y1="-3" y2="3"/><line x1="45" x2="45" y1="-3" y2="3"/><text x="22" y="-4" text-anchor="middle">200 km</text></g>
             <text x="${ix(-7.4)}" y="${iy(6.6)}" class="t-ins-belt">KAKAO-GÜRTEL</text>
-            <line x1="${ix(-3)}" y1="${iy(10.2)}" x2="${ix(-3)}" y2="${iy(5.1)}" class="t-ins-border"/><line x1="${ix(-7.6)}" y1="${iy(10.2)}" x2="${ix(-7.6)}" y2="${iy(4.4)}" class="t-ins-border"/><line x1="${ix(1.2)}" y1="${iy(10.2)}" x2="${ix(1.2)}" y2="${iy(6.15)}" class="t-ins-border"/><line x1="${ix(2.7)}" y1="${iy(10.2)}" x2="${ix(2.7)}" y2="${iy(6.38)}" class="t-ins-border"/>
+            
             <text x="${ix(-11.6)}" y="${iy(9.6)}" class="t-ins-c">LIBERIA</text><text x="${ix(1.35)}" y="${iy(9.6)}" class="t-ins-c">TOGO</text><text x="${ix(3.4)}" y="${iy(9.6)}" class="t-ins-c">NIGERIA</text>
             <text x="${ix(-8.6)}" y="${iy(9.6)}" class="t-ins-c">ELFENBEINKÜSTE</text><text x="${ix(-2.6)}" y="${iy(9.6)}" class="t-ins-c">GHANA</text>
             <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
-        $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><g class="t-land">${dots}</g>
+        $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><g class="t-land">${dots}</g><path d="${coastD}" class="t-coast"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;

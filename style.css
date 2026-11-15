@@ -1712,3 +1712,10 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 .t-loc.left { left: 12px; right: auto; }
 #t-map .t-inset { overflow: hidden; }
 #t-map .t-inset-svg { overflow: visible; }
+
+/* Echte Kartengeometrie (Natural Earth) */
+.t-land circle { fill: rgba(79, 209, 255, .26); }
+.t-land circle.wa { fill: rgba(255, 181, 71, .75); }
+.t-coast { fill: none; stroke: rgba(79, 209, 255, .7); stroke-width: .55; stroke-linejoin: round; filter: drop-shadow(0 0 1.5px rgba(79, 209, 255, .6)); }
+.t-cty { fill: rgba(79, 209, 255, .06); stroke: rgba(79, 209, 255, .45); stroke-width: .7; stroke-linejoin: round; }
+.t-cty.ci, .t-cty.gh { fill: rgba(34, 229, 138, .07); stroke: rgba(79, 209, 255, .75); stroke-width: 1; }
