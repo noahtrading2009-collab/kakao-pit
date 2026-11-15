@@ -1429,6 +1429,43 @@ const Host = (() => {
 
     // ===== Preisverleihung (Schluss-Show) =====
 
+    // Jahresergebnisse als gestochen scharfes Balkendiagramm
+    function yearBars(years, o = {}) {
+        const W = o.w || 520;
+        const H = o.h || 150;
+        const n = Math.max(1, years.length);
+        const mx = Math.max(1, ...years.map(y => Math.abs(y.result)));
+        const mid = H / 2;
+        const bw = Math.min(90, ((W - 20) / n) * 0.55);
+        const bars = years.map((y, i) => {
+            const cx = 10 + ((W - 20) / n) * (i + 0.5);
+            const h = (Math.abs(y.result) / mx) * (mid - 26);
+            const up = y.result >= 0;
+            const yy = up ? mid - h : mid;
+            const id = `yb${i}${Math.random().toString(36).slice(2, 6)}`;
+            return `<defs><linearGradient id="${id}" x1="0" y1="${up ? 0 : 1}" x2="0" y2="${up ? 1 : 0}"><stop offset="0" stop-color="${up ? '#5dffb0' : '#ff7a90'}"/><stop offset="1" stop-color="${up ? '#139a5c' : '#a3203a'}"/></linearGradient></defs>
+                <rect x="${cx - bw / 2}" y="${yy}" width="${bw}" height="${Math.max(2, h)}" rx="4" fill="url(#${id})" class="yb-bar" style="animation-delay:${0.9 + i * 0.15}s"/>
+                <rect x="${cx - bw / 2}" y="${yy}" width="${bw * 0.28}" height="${Math.max(2, h)}" rx="3" fill="rgba(255,255,255,.18)"/>
+                <text x="${cx}" y="${up ? yy - 7 : yy + h + 15}" text-anchor="middle" class="yb-v ${up ? 'up' : 'down'}">${signed(y.result)}</text>
+                <text x="${cx}" y="${H - 3}" text-anchor="middle" class="yb-l">Jahr ${y.year}</text>`;
+        }).join('');
+        return `<svg viewBox="0 0 ${W} ${H}" class="yb">${[0.25, 0.5, 0.75].map(f => `<line x1="10" x2="${W - 10}" y1="${mid - f * (mid - 26)}" y2="${mid - f * (mid - 26)}" class="yb-g"/><line x1="10" x2="${W - 10}" y1="${mid + f * (mid - 26)}" y2="${mid + f * (mid - 26)}" class="yb-g"/>`).join('')}<line x1="10" x2="${W - 10}" y1="${mid}" y2="${mid}" class="yb-0"/>${bars}</svg>`;
+    }
+
+    // Kakaopreis über die ganze Karriere (alle Jahre hintereinander)
+    function careerSVG(log) {
+        const pts = [];
+        const bands = [];
+        let s = 0;
+        log.forEach(y => {
+            const hs = y.history && y.history.length > 1 ? y.history : [y.p0, y.final];
+            const a = s;
+            hs.forEach(p => pts.push({ s: s++, p }));
+            bands.push([a, s - 1, `Jahr ${y.year}`]);
+        });
+        return priceSVG(pts, { w: 1400, h: 230, ref: log[0] ? log[0].p0 : pts[0].p, refLabel: 'Start', bands });
+    }
+
     function showEnd(d) {
         App.show('v-end');
         const career = d.career;
@@ -1446,7 +1483,8 @@ const Host = (() => {
                     <div class="sh-reveal"><div class="sh-emb">${roleIcon(B.role, 120)}</div><div class="sh-name">${esc(w.name)}</div>
                     <div class="sh-rank">${RANKS[w.level].icon} ${RANKS[w.level].name}</div>
                     <div class="sh-val ${w.final >= 0 ? 'up' : 'down'}">${signed(w.final)} CHF</div>
-                    <div class="sh-sub">${w.years.map(y => `Jahr ${y.year}: <b class="${y.result >= 0 ? 'up' : 'down'}">${signed(y.result)}</b>`).join(' · ')}</div></div></div>`;
+                    <div class="sh-bars">${yearBars(w.years, { w: 560, h: 160 })}</div>
+                    ${list.length > 1 ? `<div class="sh-runners">${list.slice(1, 3).map((r, k) => `<span>${['🥈', '🥉'][k]} <b>${esc(r.name)}</b> <em class="${r.final >= 0 ? 'up' : 'down'}">${signed(r.final)}</em></span>`).join('')}</div>` : ''}</div></div>`;
             });
         }
         if (d.careerStar) {
@@ -1480,14 +1518,18 @@ const Host = (() => {
         const career = d.career;
         const order = BOARDS.flatMap(B => career.filter(r => r.role === B.role).map((r, i) => ({ r, i })));
         const ys = Array.from({ length: d.years }, (_, k) => k + 1);
-        const table = order.map(({ r, i }) => `<tr><td>${['🥇', '🥈', '🥉'][i] || i + 1}</td><td><span class="tb-n">${roleIcon(r.role, 18)} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</span></td>
+        const maxFinal = Math.max(1, ...career.map(x => Math.abs(x.final)));
+        const maxYear = Math.max(1, ...career.flatMap(x => x.years.map(y => Math.abs(y.result))));
+        const mini = r => `<svg viewBox="0 0 ${ys.length * 16} 28" class="tb-mini">${ys.map((y, k) => { const yy = r.years.find(x => x.year === y); const v = yy ? yy.result : 0; const h = (Math.abs(v) / maxYear) * 12; return `<rect x="${k * 16 + 3}" y="${v >= 0 ? 14 - h : 14}" width="10" height="${Math.max(1, h)}" rx="2" class="${v >= 0 ? 'up' : 'down'}"/>`; }).join('')}<line x1="0" x2="${ys.length * 16}" y1="14" y2="14"/></svg>`;
+        const table = order.map(({ r, i }) => `<tr class="${i === 0 ? 'tb-lead' : ''}" style="--rc:${ROLES[r.role].color}"><td>${['🥇', '🥈', '🥉'][i] || i + 1}</td><td><span class="tb-n">${roleIcon(r.role, 18)} ${esc(r.name)}${r.bot ? ' 🤖' : ''}</span></td>
             <td><span class="rank-badge l${r.level}">${RANKS[r.level].icon} ${RANKS[r.level].name}</span></td>
             ${ys.map(y => { const yy = r.years.find(x => x.year === y); return `<td class="num ${yy && yy.result >= 0 ? 'up' : 'down'}">${yy ? signed(yy.result) : '–'}</td>`; }).join('')}
             <td class="num">${r.upgrades.map(u => (UPGRADES[r.role].find(x => x.id === u) || {}).icon || '').join(' ') || '–'}${r.upSpent ? `<small class="dim"> −${fmt(r.upSpent)}</small>` : ''}</td>
-            <td class="num ${r.final >= 0 ? 'up' : 'down'}"><b>${signed(r.final)}</b></td>
+            <td class="num">${mini(r)}</td>
+            <td class="num ${r.final >= 0 ? 'up' : 'down'}"><div class="tb-fin"><b>${signed(r.final)}</b><i class="${r.final >= 0 ? 'up' : 'down'}" style="width:${((Math.abs(r.final) / maxFinal) * 100).toFixed(1)}%"></i></div></td>
             <td class="num ${r.points >= 0 ? 'up' : 'down'}">${signed(r.points)}</td></tr>`).join('');
         const winners = BOARDS.map(B => ({ B, r: career.filter(x => x.role === B.role)[0] })).filter(x => x.r);
-        const podium = winners.map(({ B, r }, k) => `<div class="pod p${k === 1 ? 1 : k === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-emb">${roleIcon(r.role, 56)}</div><div class="pod-role">Beste${B.role === 'spec' ? 'r' : ''} ${ROLES[B.role].short}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${r.final >= 0 ? 'up' : 'down'}">${signed(r.final)}</div></div>`).join('');
+        const podium = winners.map(({ B, r }, k) => `<div class="pod p${k === 1 ? 1 : k === 0 ? 2 : 3}" style="--rc:${ROLES[r.role].color}"><div class="pod-medal">🏆</div><div class="pod-emb">${roleIcon(r.role, 56)}</div><div class="pod-role">Beste${B.role === 'spec' ? 'r' : ''} ${ROLES[B.role].short}</div><div class="pod-name">${esc(r.name)}</div><div class="pod-score ${r.final >= 0 ? 'up' : 'down'}">${signed(r.final)}</div><div class="pod-step"><b>${k === 1 ? 1 : k === 0 ? 2 : 3}</b></div></div>`).join('');
         $('end-wrap').innerHTML = `
             <div class="end-head"><div class="logo small"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div><h1>Karriere-Bilanz · ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h1></div>
             ${d.careerStar ? `<div class="star card" style="--rc:${ROLES[d.careerStar.role].color}"><div class="star-ico">⭐</div><div><div class="star-t">Trader des Tages</div><div class="star-n">${roleIcon(d.careerStar.role, 36)} ${esc(d.careerStar.name)}</div>
@@ -1495,8 +1537,9 @@ const Host = (() => {
             <div class="podium">${podium}</div>
             <div class="end-grid">
                 <div class="card wide"><h3>📊 Alle Firmen über ${d.years} ${d.years === 1 ? 'Jahr' : 'Jahre'}</h3>
-                    <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Endergebnis (Geld)</th><th title="Punkte für den Trader des Tages">⭐ Punkte</th></tr></thead><tbody>${table}</tbody></table>
+                    <table class="end-table"><thead><tr><th>#</th><th>Firma</th><th>Rang</th>${ys.map(y => `<th>Jahr ${y}</th>`).join('')}<th>Ausbau</th><th>Verlauf</th><th>Endergebnis (Geld)</th><th title="Punkte für den Trader des Tages">⭐ Punkte</th></tr></thead><tbody>${table}</tbody></table>
                     <p class="dim small"><b>Endergebnis</b> = Geld: Summe der Jahresergebnisse − Ausbau − Zinsen für Notkredite. <b>⭐ Punkte</b> = Jahr für Jahr: Wie viel besser als der Durchschnitt der eigenen Rolle (Kooperative: Preis pro Tonne, Fabrik: Einkaufspreis pro Tonne, Fonds: Gewinn). Darum kann eine Firma viel Geld verdienen (z. B. dank mehr Land), aber wenig Punkte haben – und umgekehrt.</p></div>
+                ${d.yearLog.length ? `<div class="card wide"><h3>📈 Kakaopreis über die ganze Karriere</h3><div class="yo-chart">${careerSVG(d.yearLog)}</div></div>` : ''}
                 <div class="card wide"><h3>🗓️ Alle Jahre im Überblick</h3><div class="yc-grid">${yearCards(d.yearLog)}</div></div>
                 <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>

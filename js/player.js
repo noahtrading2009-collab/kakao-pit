@@ -839,7 +839,7 @@ const Player = (() => {
         else render();
     }
     // Im Leitstand heissen die Bereiche anders als auf dem Handy
-    const DESK_SEL = { '#p-goal': '#d-goal', '.p-dock': '#d-ticket', '.p-price': '#d-chartp', '#p-now': '#d-now', '#p-rolepanel': '#d-deals', '#p-help': null };
+    const DESK_SEL = { '#p-goal': '#d-goal', '.p-dock': '#d-ticket', '.p-price': '.d-top .t-kv', '#p-now': '#d-now', '#p-rolepanel': '#d-deals', '#p-help': null };
     const tutSel = sel => (deskMode() && sel in DESK_SEL ? DESK_SEL[sel] : sel);
 
     function tutLabel() {
@@ -1530,6 +1530,7 @@ const Player = (() => {
     // Profi-Chart für Terminal und Leitstand: 5-Sekunden-Kerzen, glatte Linie, Raster, Preisschild
     function tChart(id = 't-chart') {
         const cv = $(id);
+        if (!cv) return; // Kein Chart auf Terminal/Leitstand: alle schauen auf den grossen Screen
         const dpr = HQ();
         const W = cv.clientWidth;
         const H = cv.clientHeight;

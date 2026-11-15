@@ -1758,3 +1758,51 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 /* ===== Jahresabschluss ===== */
 .yo-chart { padding: 10px 12px; border-radius: 14px; background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
 .yo-chart .pg-ax { font-size: 11px; }
+
+/* ===== Preisverleihung & Schlussbilanz ===== */
+.sh-bars { width: min(560px, 80vw); padding: 10px 14px; border-radius: 16px; background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.yb { width: 100%; height: auto; display: block; }
+.yb .yb-g { stroke: rgba(255, 255, 255, .05); }
+.yb .yb-0 { stroke: rgba(255, 255, 255, .35); stroke-width: 1.2; }
+.yb .yb-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ybGrow .8s cubic-bezier(.2, 1.2, .4, 1) both; }
+@keyframes ybGrow { from { transform: scaleY(0); } }
+.yb .yb-v { font: 800 14px "JetBrains Mono", monospace; } .yb .yb-v.up { fill: #7dffc0; } .yb .yb-v.down { fill: #ff9aac; }
+.yb .yb-l { font: 600 12px "Space Grotesk", sans-serif; fill: #9fb0c8; }
+.sh-runners { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 18px; color: #cfd9ea; }
+.sh-runners span { padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.sh-runners em { font-style: normal; font-family: var(--mono); font-weight: 800; margin-left: 4px; }
+.pod { padding-bottom: 0 !important; display: flex; flex-direction: column; align-items: center; }
+.pod-step { align-self: stretch; margin: 14px -16px 0; display: grid; place-items: center; height: 46px; background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 35%, #1a2030), #0e131d); border-top: 2px solid color-mix(in srgb, var(--rc) 70%, transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15); }
+.pod.p1 .pod-step { height: 86px; }
+.pod.p2 .pod-step { height: 62px; }
+.pod-step b { font-family: var(--mono); font-size: 34px; font-weight: 800; color: rgba(255, 255, 255, .85); text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.pod.p1 .pod-step b { font-size: 46px; color: #ffd36b; }
+.end-table tbody tr { transition: background .2s; }
+.end-table tbody tr:hover { background: rgba(255, 255, 255, .04); }
+.end-table tr.tb-lead { background: linear-gradient(90deg, color-mix(in srgb, var(--rc) 16%, transparent), transparent 70%); }
+.end-table tr.tb-lead td:first-child { box-shadow: inset 3px 0 0 var(--rc); }
+.tb-mini { width: auto; height: 28px; display: inline-block; vertical-align: middle; }
+.tb-mini rect.up { fill: #22e58a; } .tb-mini rect.down { fill: #ff4d6a; }
+.tb-mini line { stroke: rgba(255, 255, 255, .3); }
+.tb-fin { display: grid; justify-items: end; gap: 3px; min-width: 110px; }
+.tb-fin i { height: 3px; border-radius: 2px; justify-self: end; }
+.tb-fin i.up { background: linear-gradient(90deg, rgba(34, 229, 138, .3), #22e58a); box-shadow: 0 0 6px rgba(34, 229, 138, .5); }
+.tb-fin i.down { background: linear-gradient(90deg, rgba(255, 77, 106, .3), #ff4d6a); box-shadow: 0 0 6px rgba(255, 77, 106, .5); }
+
+/* Terminal & Leitstand ohne eigenen Chart – der Kurs läuft gross auf dem Beamer */
+#v-term, #v-desk { grid-template-rows: 54px auto minmax(0, 1fr); }
+
+/* ===== Schieberegler (Scrollbars): schmal, dunkel, in der Rollenfarbe ===== */
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent; }
+#v-term *, #v-desk * { scrollbar-color: color-mix(in srgb, var(--tc) 38%, transparent) transparent; }
+#v-player * { scrollbar-color: color-mix(in srgb, var(--rc, #ffb547) 35%, transparent) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .16); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, .3); }
+/* Keine waagrechten Balken in den Panels */
+.t-panel, .t-grow, #d-side, #d-deals, #t-feed, #t-rumors, .p-scroll { overflow-x: hidden; }
+/* Scrollbars erst beim Darüberfahren zeigen */
+#v-term *, #v-desk *, #v-host * { scrollbar-color: transparent transparent; }
+#v-term *:hover, #v-desk *:hover, #v-host *:hover { scrollbar-color: color-mix(in srgb, var(--tc, #ffb547) 45%, transparent) transparent; }
