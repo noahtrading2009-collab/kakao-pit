@@ -1533,3 +1533,100 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 @keyframes sWave { to { transform: translateX(-6px); } }
 .s-shine { fill: rgba(255, 255, 255, .1); }
 .silo:hover .s-body { stroke: #fff; }
+
+/* =====================================================================
+   DETAIL-GESTALTUNG: Rahmen, Ecken, Überschriften, Mikro-Details
+   ===================================================================== */
+/* Eckwinkel wie bei Handels-Terminals (ein Pseudo-Element, 8 kleine Linien) */
+#v-host .h-chart::after, #v-host .h-rank::after, #v-host .h-bottom .card::after,
+#v-term .t-panel::after, #v-desk .t-panel::after, #v-player .p-goal::after {
+    content: ""; position: absolute; inset: -3px; pointer-events: none; z-index: 2;
+    --fl: var(--fc2, rgba(255, 181, 71, .7));
+    background:
+        linear-gradient(var(--fl), var(--fl)) 0 0 / 18px 2px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 0 0 / 2px 18px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 0 / 18px 2px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 0 / 2px 18px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 0 100% / 18px 2px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 0 100% / 2px 18px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 100% / 18px 2px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 100% / 2px 18px no-repeat;
+}
+#v-host .h-rank, #v-host .h-bottom .card { position: relative; }
+#v-term .t-panel { --fc2: rgba(79, 209, 255, .65); }
+#v-desk .t-panel { --fc2: color-mix(in srgb, var(--tc) 70%, transparent); }
+#v-player .p-goal { position: relative; --fc2: color-mix(in srgb, var(--rc) 75%, transparent); }
+/* Lichtkante oben an jedem Panel */
+#v-host .card, #v-term .t-panel, #v-desk .t-panel { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 18px 50px rgba(0, 0, 0, .45); }
+
+/* Überschriften mit Leitlinie */
+#v-host .card > h3 { padding-bottom: 7px; margin-bottom: 8px; background: linear-gradient(90deg, rgba(255, 181, 71, .55), rgba(255, 181, 71, .08) 55%, transparent) bottom / 100% 1px no-repeat; letter-spacing: 1.5px; text-transform: uppercase; font-size: 13px; }
+#v-term, #v-desk { counter-reset: pnl; }
+#v-term .t-panel h3, #v-desk .t-panel h3 { justify-content: flex-start; padding-bottom: 7px; background: linear-gradient(90deg, var(--tc), color-mix(in srgb, var(--tc) 10%, transparent) 60%, transparent) bottom / 100% 1px no-repeat; }
+#v-term .t-panel h3 span, #v-desk .t-panel h3 span { margin-left: auto; }
+#v-term .t-panel h3::before, #v-desk .t-panel h3::before { counter-increment: pnl; content: counter(pnl, decimal-leading-zero); font-family: var(--mono); font-size: 10px; color: #05080e; background: var(--tc); border-radius: 3px; padding: 1px 5px; margin-right: 8px; letter-spacing: 0; }
+
+/* ===== Beamer ===== */
+.h-live { font-family: var(--mono); font-weight: 800; font-size: 13px; letter-spacing: 2px; padding: 6px 12px; border-radius: 999px; margin-left: auto; color: #ff8fa0; background: rgba(255, 77, 106, .14); box-shadow: 0 0 0 1px rgba(255, 77, 106, .45) inset; animation: livePulse 2s ease-in-out infinite; }
+.h-live.pre { color: var(--amber); background: rgba(255, 181, 71, .14); box-shadow: 0 0 0 1px rgba(255, 181, 71, .45) inset; }
+.h-live.settle { color: #9fd0ff; background: rgba(96, 165, 250, .14); box-shadow: 0 0 0 1px rgba(96, 165, 250, .45) inset; animation: none; }
+.h-live.pause { color: #c9b8ff; background: rgba(167, 139, 250, .16); box-shadow: 0 0 0 1px rgba(167, 139, 250, .5) inset; animation: none; }
+.h-live.crisis { color: #fff; background: rgba(255, 77, 106, .45); }
+@keyframes livePulse { 50% { box-shadow: 0 0 0 1px rgba(255, 77, 106, .45) inset, 0 0 18px rgba(255, 77, 106, .45); } }
+#v-host .h-timer { margin-left: 0; position: relative; padding-bottom: 6px; }
+#v-host .h-timer::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: 0; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--amber) calc(var(--mp, 0) * 100%), rgba(255, 255, 255, .1) 0); }
+#v-host .h-timer.urgent::after { background: linear-gradient(90deg, var(--down) calc(var(--mp, 0) * 100%), rgba(255, 255, 255, .1) 0); }
+#v-host .h-top { gap: 22px; }
+#v-host .h-price b { text-shadow: 0 0 30px currentColor; }
+/* Newsfeed: Farbleiste je Art, Zeitangabe */
+#v-host .news { display: flex; align-items: flex-start; gap: 10px; border-left: 3px solid var(--nk, rgba(255, 255, 255, .15)); border-radius: 4px 10px 10px 4px; padding: 7px 10px; }
+#v-host .news .nt { flex: 1; min-width: 0; }
+#v-host .news .n-ago { font-style: normal; font-family: var(--mono); font-size: 11px; color: #6f86a3; white-space: nowrap; margin-top: 3px; }
+.news.n-rumor { --nk: var(--amber); }
+.news.n-yes { --nk: var(--up); }
+.news.n-no { --nk: var(--violet); }
+.news.n-flash, .news.n-alert { --nk: var(--down); }
+.news.n-deal { --nk: #60a5fa; }
+.news.n-bell, .news.n-settle { --nk: rgba(255, 255, 255, .18); }
+/* Absicherungs-Balken mit Skala */
+#v-host .hbar { position: relative; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+#v-host .hbar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(255, 255, 255, .12) calc(25% - 1px) 25%); }
+#v-host .hbar i { border-radius: 5px; background: linear-gradient(90deg, #b9741c, #ffb547); box-shadow: 0 0 10px rgba(255, 181, 71, .45); }
+#v-host .hbar i.ok { background: linear-gradient(90deg, #138a52, #22e58a); box-shadow: 0 0 10px rgba(34, 229, 138, .45); }
+/* Ranglisten-Zeilen: feine Trennlinien, Zahlen rechtsbündig in Monospace */
+#v-host .rk-group .rank-row { border-bottom: 1px solid rgba(255, 255, 255, .04); }
+#v-host .rk-head b { letter-spacing: .5px; }
+/* Chart-Rahmen glüht leicht in der Trendfarbe */
+#v-host .h-chart { --fc2: rgba(255, 181, 71, .8); }
+/* Vignette über der ganzen Bühne */
+#v-host.active::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(120% 90% at 50% 40%, transparent 60%, rgba(0, 0, 0, .45)); }
+#v-host > * { position: relative; z-index: 1; }
+#v-host > .flash, #v-host > .settle-ov, #v-host > .year-ov, #v-host > .pause-ov, #v-host > .pre-ov { position: absolute; }
+
+/* ===== Handy ===== */
+.g-bar.seg { display: flex; height: 14px; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .05) 0 6px, rgba(255, 255, 255, .02) 6px 12px); }
+.g-bar.seg i { border-radius: 0; transition: width .6s cubic-bezier(.2, 1, .3, 1); }
+.g-bar.seg i:first-child { border-radius: 7px 0 0 7px; }
+.g-bar.seg .sg-deal { background: linear-gradient(180deg, #7fb6ff, #3b82f6); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35); }
+.g-bar.seg .sg-fut { background: linear-gradient(180deg, #ffd27a, #f5a623); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4); }
+.g-bar.seg.over .sg-fut { background: repeating-linear-gradient(135deg, #ff4d6a 0 6px, #b3263f 6px 12px); }
+.g-legend { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; }
+.g-legend span { padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .06); }
+.g-legend .sg-deal { color: #bcd8ff; background: rgba(59, 130, 246, .16); }
+.g-legend .sg-fut { color: #ffe2a3; background: rgba(245, 166, 35, .16); }
+.g-legend .sg-open { color: #d6dee8; }
+#v-player .tbtn { background-image: linear-gradient(180deg, rgba(255, 255, 255, .14), transparent 45%); }
+#v-player .tbtn b { font-family: var(--mono); letter-spacing: .5px; }
+#v-player .p-now { box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .05); }
+#v-player .g-score > div { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+
+/* ===== Terminal & Leitstand ===== */
+#v-term::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 30; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .018) 0 1px, transparent 1px 3px); }
+.t-top, .d-top { position: relative; }
+.t-top::after, .d-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, transparent, var(--tc), transparent); opacity: .7; }
+#v-term .t-kv b, #v-desk .t-kv b { text-shadow: 0 0 18px color-mix(in srgb, currentColor 50%, transparent); }
+#v-desk .d-goal .g-bar.seg, #v-term .g-bar.seg { height: 16px; }
+.d-legend .lg { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+/* Handy: Karten nie zusammendrücken (Preiskarte war auf 18 px gestaucht) */
+#v-player .p-scroll { display: flex; flex-direction: column; }
+#v-player .p-scroll > * { flex: none; }

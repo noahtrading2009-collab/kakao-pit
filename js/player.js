@@ -328,7 +328,8 @@ const Player = (() => {
             const over = hedged > need;
             const good = prod ? me.metric >= pub.p0 : me.metric <= pub.p0;
             html = `<div class="g-head">🎯 ${R.goal}</div>
-                <div class="g-bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, q * 100)}%"></i></div>
+                <div class="g-bar seg ${over ? 'over' : ''}"><i class="sg-deal" style="width:${need ? Math.min(100, (dt / need) * 100) : 0}%"></i><i class="sg-fut" style="width:${need ? Math.max(0, Math.min(100, ((hedged - dt) / need) * 100)) : 0}%"></i></div>
+                <div class="g-legend"><span class="sg-deal">📜 ${dt} t Vertrag</span><span class="sg-fut">🔒 ${Math.max(0, hedged - dt)} t Futures</span><span class="sg-open">offen ${Math.max(0, need - hedged)} t</span></div>
                 <div class="g-row"><span>Abgesichert <b>${hedged} t</b> von ${need} t${dt ? ` <small class="dim">(${dt} t per Vertrag)</small>` : ''}</span><b>${Math.round(q * 100)} %</b></div>
                 <div class="g-score">
                     <div><small>${prod ? 'Dein Preis' : 'Dein Einkauf'} jetzt</small><b class="${good ? 'up' : 'down'}">${fmt(me.metric)}</b></div>

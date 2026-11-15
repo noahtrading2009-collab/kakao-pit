@@ -377,6 +377,11 @@ const Host = (() => {
         $('h-timer').textContent = S.phase === 'settle' ? 'ABRECHNUNG' : mmss(S.secLeft);
         renderPre(S);
         $('h-timer').classList.toggle('urgent', S.phase === 'trading' && S.secLeft <= 10);
+        // Status-Pille und Monats-Fortschritt
+        const live = S.paused ? ['PAUSE', 'pause'] : S.phase === 'pre' ? ['PRE-MARKET', 'pre'] : S.phase === 'settle' ? ['ABRECHNUNG', 'settle'] : S.crisis ? ['● LIVE · KRISE', 'crisis'] : ['● LIVE', 'live'];
+        $('h-live').textContent = live[0];
+        $('h-live').className = `h-live ${live[1]}`;
+        $('h-timer').style.setProperty('--mp', S.phase === 'trading' ? 1 - S.secLeft / S.monthSec : S.phase === 'settle' ? 1 : 0);
         const pe = $('h-price');
         pe.className = S.price > lastPrice ? 'up flashup' : S.price < lastPrice ? 'down flashdown' : '';
         lastPrice = S.price;
@@ -552,7 +557,8 @@ const Host = (() => {
     }
 
     function renderNews(S) {
-        $('h-news').innerHTML = S.feed.slice(0, 6).map(n => `<div class="news ${newsClass(n.kind)} ${Engine.G.sec - n.sec < 1 ? 'fresh' : ''}"><span class="ni">${n.icon}</span><span>${esc(n.text)}</span></div>`).join('');
+        const ago = s => (s < 5 ? 'jetzt' : s < 60 ? `vor ${s} s` : `vor ${Math.floor(s / 60)} min`);
+        $('h-news').innerHTML = S.feed.slice(0, 6).map(n => `<div class="news ${newsClass(n.kind)} ${Engine.G.sec - n.sec < 1 ? 'fresh' : ''}"><span class="ni">${n.icon}</span><span class="nt">${esc(n.text)}</span><em class="n-ago">${ago(Engine.G.sec - n.sec)}</em></div>`).join('');
     }
 
     // ===== Weltkarte (Punkte-Karte) mit Regionen und Ereignissen =====
@@ -812,6 +818,9 @@ const Host = (() => {
                 ng.addColorStop(1, 'rgba(255,255,255,0)');
                 c.fillStyle = ng;
                 c.fillRect(xNow - 0.5, T, 1, H - T - B);
+                c.font = 'bold 10px "JetBrains Mono", monospace';
+                c.fillStyle = 'rgba(255,255,255,.55)';
+                c.fillText('JETZT', xNow + 5, T + 12);
             }
             // Weiche Linie (Kurven durch die Mittelpunkte)
             const path = () => {
