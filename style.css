@@ -1871,3 +1871,10 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 
 .d-world { position: relative; }
 #d-world { position: relative; z-index: 1; }
+
+/* Schokoladenfabrik: Stationen und fliessender Schokoladenvorhang */
+.plant-map .p-st { font: 800 9.5px "JetBrains Mono", monospace; letter-spacing: 2px; fill: rgba(255, 207, 138, .85); paint-order: stroke; stroke: rgba(10, 8, 6, .85); stroke-width: 3px; }
+.plant-map .p-st.small { font-size: 8px; fill: rgba(220, 200, 170, .75); }
+.plant-map .enrobe-flow { fill: none; stroke: rgba(255, 220, 180, .28); stroke-width: 26; stroke-dasharray: 3 7; animation: chocFlow .8s linear infinite; }
+@keyframes chocFlow { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .plant-map .enrobe-flow { animation: none; } }

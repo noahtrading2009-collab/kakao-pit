@@ -976,16 +976,18 @@ const RenderCore = (() => {
         };
         for (const sl of L.drops) pipe(sl[0], sl[1], sl[0], L.pipeY, 6);
         if (L.xb > L.xa) pipe(L.xa, L.pipeY, L.xb, L.pipeY, 7);
-        pipe(400, L.pipeY, 400, L.by + 4, 7);
+        if (L.xa > 235) pipe(235, L.pipeY, L.xa, L.pipeY, 7);
+        pipe(235, L.pipeY, 235, L.by - 30, 7);
         // Ventil mit rotem Handrad
+        const vy = (L.pipeY + L.by - 30) / 2;
         x.fillStyle = '#8f1d1d';
         x.beginPath();
-        x.arc(400, (L.pipeY + L.by) / 2, 6, 0, 7);
+        x.arc(235, vy, 6, 0, 7);
         x.fill();
         x.strokeStyle = '#d24a3a';
         x.lineWidth = 1.4;
         x.beginPath();
-        x.arc(400, (L.pipeY + L.by) / 2, 6, 0, 7);
+        x.arc(235, vy, 6, 0, 7);
         x.stroke();
         // 4) Silos
         for (const S of L.silos) {
@@ -1122,6 +1124,146 @@ const RenderCore = (() => {
             x.strokeRect(w / 2 - 15, 80, 30, 11);
             x.restore();
         }
+        // 4b) Schokoladen-Produktionslinie: Röster → Conche → Überzieher → Kühltunnel
+        {
+            const by0 = L.by;
+            const steel = (x0, y0, w0, h0, base) => cylinderShade(x, x0, y0, w0, h0, base || [150, 158, 170]);
+            // --- Röster: liegende Trommel mit Brenner, Trichter mit Bohnen, Kamin ---
+            const rx = 95;
+            const ry = by0 + 8;
+            x.fillStyle = 'rgba(0,0,0,.4)';
+            x.beginPath(); x.ellipse(rx + 8, by0 + 52, 60, 6, 0, 0, 7); x.fill();
+            x.fillStyle = '#2a3038';
+            for (const lx of [52, 132]) x.fillRect(lx, ry + 20, 6, by0 + 50 - ry - 20);
+            // Brennerglut unter der Trommel
+            x.save();
+            x.globalCompositeOperation = 'lighter';
+            const fl = x.createRadialGradient(rx, ry + 32, 2, rx, ry + 32, 34);
+            fl.addColorStop(0, 'rgba(255,160,60,.75)');
+            fl.addColorStop(0.5, 'rgba(255,90,20,.25)');
+            fl.addColorStop(1, 'rgba(255,60,0,0)');
+            x.fillStyle = fl;
+            x.fillRect(rx - 40, ry + 4, 80, 50);
+            x.restore();
+            for (let q = 0; q < 7; q++) { x.fillStyle = q % 2 ? '#3b8cff' : '#ffb340'; x.beginPath(); x.ellipse(rx - 24 + q * 8, ry + 30, 2, 4, 0, 0, 7); x.fill(); }
+            // Trommel (liegender Zylinder): horizontale Schattierung zeilenweise
+            for (let i = 0; i < 44; i += 0.5) {
+                const t = (i / 44) * 2 - 1;
+                const nz = Math.sqrt(Math.max(0, 1 - t * t));
+                const l = 0.2 + Math.max(0, -t * 0.55 + nz * 0.83) * 0.75 + Math.pow(Math.max(0, -t * 0.4 + nz * 0.9), 40) * 0.5;
+                x.fillStyle = `rgb(${110 * l | 0},${116 * l | 0},${124 * l | 0})`;
+                x.fillRect(rx - 52, ry - 22 + i, 104, 0.6);
+            }
+            x.strokeStyle = 'rgba(0,0,0,.5)';
+            x.lineWidth = 1.2;
+            for (const bx of [rx - 30, rx, rx + 30]) { x.beginPath(); x.moveTo(bx, ry - 22); x.lineTo(bx, ry + 22); x.stroke(); }
+            // Stirnseite mit Sichtfenster (geröstete Bohnen)
+            x.fillStyle = '#4a525e';
+            x.beginPath(); x.ellipse(rx + 52, ry, 7, 22, 0, 0, 7); x.fill();
+            x.fillStyle = '#20140a';
+            x.beginPath(); x.ellipse(rx + 53, ry, 4, 10, 0, 0, 7); x.fill();
+            for (let q = 0; q < 14; q++) { x.fillStyle = q % 2 ? '#6b3a18' : '#8a4e24'; x.beginPath(); x.ellipse(rx + 52 + (r() - 0.5) * 5, ry + (r() - 0.5) * 16, 1, 0.6, r() * 3, 0, 7); x.fill(); }
+            // Trichter mit Rohkakao
+            x.fillStyle = '#5b6573';
+            x.beginPath(); x.moveTo(rx - 22, ry - 52); x.lineTo(rx + 2, ry - 52); x.lineTo(rx - 6, ry - 22); x.lineTo(rx - 14, ry - 22); x.closePath(); x.fill();
+            x.fillStyle = '#6b3a18';
+            x.beginPath(); x.ellipse(rx - 10, ry - 52, 12, 3, 0, 0, 7); x.fill();
+            for (let q = 0; q < 20; q++) { x.fillStyle = q % 2 ? '#8a4e24' : '#5a2f12'; x.fillRect(rx - 20 + r() * 20, ry - 54 + r() * 3, 1.4, 0.8); }
+            // Kamin
+            steel(rx + 28, ry - 80, 9, 58, [120, 126, 134]);
+            x.fillStyle = '#3a414b';
+            x.fillRect(rx + 26, ry - 82, 13, 4);
+
+            // --- Conche: offener Rührtank mit flüssiger Schokolade ---
+            const cx0 = 235;
+            const ctop = by0 - 30;
+            x.fillStyle = 'rgba(0,0,0,.4)';
+            x.beginPath(); x.ellipse(cx0 + 8, by0 + 52, 66, 6, 0, 0, 7); x.fill();
+            steel(cx0 - 58, ctop, 116, by0 + 50 - ctop, [176, 184, 194]);
+            x.fillStyle = 'rgba(0,0,0,.4)';
+            x.fillRect(cx0 - 58, ctop + 30, 116, 1.4);
+            x.fillStyle = 'rgba(255,255,255,.2)';
+            x.fillRect(cx0 - 58, ctop + 31.4, 116, 0.7);
+            // Rand
+            x.fillStyle = '#c9d0d8';
+            x.beginPath(); x.ellipse(cx0, ctop, 58, 12, 0, 0, 7); x.fill();
+            // Schokoladenoberfläche mit Wirbel und Glanz
+            const cs = x.createRadialGradient(cx0 - 18, ctop - 4, 2, cx0, ctop, 56);
+            cs.addColorStop(0, '#8a5228');
+            cs.addColorStop(0.5, '#5a2f12');
+            cs.addColorStop(1, '#2e1607');
+            x.fillStyle = cs;
+            x.beginPath(); x.ellipse(cx0, ctop + 1, 53, 10, 0, 0, 7); x.fill();
+            x.save();
+            x.beginPath(); x.ellipse(cx0, ctop + 1, 53, 10, 0, 0, 7); x.clip();
+            x.strokeStyle = 'rgba(190,130,80,.45)';
+            x.lineWidth = 1;
+            for (let q = 0; q < 6; q++) { x.beginPath(); x.ellipse(cx0 + 4, ctop + 1, 8 + q * 8, 1.5 + q * 1.4, 0.08, Math.PI * (0.1 + q * 0.13), Math.PI * (1.3 + q * 0.1)); x.stroke(); }
+            x.fillStyle = 'rgba(255,230,200,.35)';
+            x.beginPath(); x.ellipse(cx0 - 22, ctop - 2, 14, 2, -0.1, 0, 7); x.fill();
+            x.restore();
+            // Rührwerk: Motor auf Brücke
+            x.fillStyle = '#3a414b';
+            x.fillRect(cx0 - 60, ctop - 18, 120, 5);
+            steel(cx0 - 10, ctop - 34, 20, 18, [90, 96, 104]);
+            x.fillStyle = '#1e2329';
+            x.fillRect(cx0 - 1.5, ctop - 14, 3, 14);
+            // Schokoladenleitung zur Temperiermaschine
+            for (let i = 0; i < 6; i += 0.5) {
+                const t = (i / 6) * 2 - 1;
+                const l = 0.3 + Math.max(0, -t * 0.6 + Math.sqrt(1 - t * t) * 0.8) * 0.7;
+                x.fillStyle = `rgb(${120 * l | 0},${70 * l | 0},${36 * l | 0})`;
+                x.fillRect(cx0 + 58, by0 + 14 + i, 262 - 58 - 4, 0.6);
+            }
+
+            // --- Überzieher (Enrober): Gehäuse mit Schokoladentank über dem Band ---
+            const ex = 490;
+            x.fillStyle = 'rgba(0,0,0,.35)';
+            x.fillRect(ex + 6, by0 - 6, 58, 30);
+            steel(ex, by0 - 12, 56, 34, [170, 178, 188]);
+            x.fillStyle = '#2a3038';
+            x.fillRect(ex - 2, by0 - 14, 60, 4);
+            x.fillStyle = '#ff9f1c';
+            x.fillRect(ex, by0 + 12, 56, 2);
+            x.fillStyle = '#1b1f25';
+            x.fillRect(ex + 8, by0 - 4, 14, 9);
+            x.fillStyle = '#22e58a';
+            x.fillRect(ex + 10, by0 - 2, 3, 2);
+            // --- Kühltunnel: Edelstahlkasten mit Sichtfenstern, kühles Licht ---
+            const tx0 = 570;
+            const ty0 = by0 + 30;
+            x.fillStyle = 'rgba(0,0,0,.4)';
+            x.fillRect(tx0 + 6, ty0 + 6, 175, 56);
+            for (let i = 0; i < 54; i += 0.5) {
+                const t = (i / 54) * 2 - 1;
+                const l = 0.35 + Math.max(0, -t * 0.7 + Math.sqrt(Math.max(0, 1 - t * t)) * 0.6) * 0.65;
+                x.fillStyle = `rgb(${190 * l | 0},${198 * l | 0},${208 * l | 0})`;
+                x.fillRect(tx0, ty0 + i, 175, 0.6);
+            }
+            for (let q = 0; q < 4; q++) {
+                const wx = tx0 + 14 + q * 41;
+                const g = x.createLinearGradient(0, ty0 + 30, 0, ty0 + 46);
+                g.addColorStop(0, '#9fd8ff');
+                g.addColorStop(1, '#3a6f9a');
+                x.fillStyle = '#20262e';
+                x.fillRect(wx - 1, ty0 + 29, 30, 18);
+                x.fillStyle = g;
+                x.fillRect(wx, ty0 + 30, 28, 16);
+                // Tafeln im Inneren, leicht bereift
+                for (let b = 0; b < 2; b++) { x.fillStyle = '#4a2610'; x.fillRect(wx + 2 + b * 13, ty0 + 38, 11, 6); x.fillStyle = 'rgba(220,240,255,.35)'; x.fillRect(wx + 2 + b * 13, ty0 + 38, 11, 1.2); }
+                x.fillStyle = 'rgba(255,255,255,.35)';
+                x.fillRect(wx + 1, ty0 + 31, 26, 1);
+            }
+            x.fillStyle = '#2a3038';
+            x.fillRect(tx0, ty0 - 3, 175, 4);
+            x.fillStyle = 'rgba(120,200,255,.18)';
+            x.fillRect(tx0 - 6, ty0 + 36, 6, 14);
+            x.fillRect(tx0 + 175, ty0 + 36, 6, 14);
+            // Kälte-Aggregat oben auf dem Tunnel
+            x.fillStyle = '#3a414b';
+            x.fillRect(tx0 + 120, ty0 - 16, 44, 14);
+            for (let q = 0; q < 6; q++) { x.fillStyle = '#1b1f25'; x.fillRect(tx0 + 124 + q * 7, ty0 - 13, 4, 8); }
+        }
         // 5) Förderband-Gestell und Maschine (statische Teile)
         const by = L.by;
         x.fillStyle = '#1b2027';
@@ -1188,8 +1330,37 @@ const RenderCore = (() => {
                 }
             }
         };
-        pallet(668, H - 22, 3);
-        pallet(718, H - 22, 2);
+        pallet(160, H - 22, 3);
+        pallet(210, H - 22, 2);
+        // Paletten mit Schokoladen-Kartons (Versand)
+        const cartons = (px, py, rows) => {
+            x.fillStyle = 'rgba(0,0,0,.45)';
+            x.fillRect(px + 3, py + 2, 44, 4);
+            x.fillStyle = '#7a5a34';
+            x.fillRect(px, py - 3, 44, 3);
+            for (let rw2 = 0; rw2 < rows; rw2++) {
+                for (let q = 0; q < 3; q++) {
+                    const sx = px + 1 + q * 14;
+                    const sy = py - 3 - (rw2 + 1) * 9;
+                    const g = x.createLinearGradient(sx, sy, sx + 14, sy);
+                    g.addColorStop(0, '#c49a64');
+                    g.addColorStop(1, '#9a7444');
+                    x.fillStyle = g;
+                    x.fillRect(sx, sy, 13.4, 8.6);
+                    x.fillStyle = '#5a2a10';
+                    x.fillRect(sx + 2, sy + 2.5, 9.4, 3.6);
+                    x.fillStyle = '#d4a017';
+                    x.fillRect(sx + 2, sy + 2.5, 2, 3.6);
+                    x.fillStyle = 'rgba(255,255,255,.15)';
+                    x.fillRect(sx, sy, 13.4, 1);
+                    x.strokeStyle = 'rgba(80,50,20,.5)';
+                    x.lineWidth = 0.4;
+                    x.strokeRect(sx, sy, 13.4, 8.6);
+                }
+            }
+        };
+        cartons(668, H - 22, 3);
+        cartons(718, H - 22, 2);
         // Gabelstapler (gelb) mit Fahrerschutzdach
         const fx3 = 600;
         const fy3 = H - 16;

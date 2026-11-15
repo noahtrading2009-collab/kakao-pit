@@ -1267,7 +1267,7 @@ const Player = (() => {
         for (let per = 3; per <= Math.min(12, Math.max(3, n)); per++) {
             const rows = Math.ceil(n / per);
             const s = Math.min(1.7, 720 / (per * (w + gap)));
-            const hNeed = 50 + rows * 150 * s + 175;
+            const hNeed = 50 + rows * 150 * s + 250;
             const sFit = Math.min(s, s * ((800 * ar) / hNeed));
             if (!best || sFit > best.s) best = { per, rows, s: sFit };
         }
@@ -1276,7 +1276,7 @@ const Player = (() => {
         const rowH = 150 * s;
         const top = 50;
         const ly = top + rows * rowH;
-        const HH = Math.ceil(Math.max(800 * ar, ly + 165) / 40) * 40;
+        const HH = Math.ceil(Math.max(800 * ar, ly + 240) / 40) * 40;
         const by = HH - 130; // Produktionslinie unten
         const pipeY = Math.min(ly + 4, by - 6);
         const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
@@ -1340,26 +1340,32 @@ const Player = (() => {
             <pattern id="pPanel" width="80" height="40" patternUnits="userSpaceOnUse"><rect width="80" height="40" fill="none" stroke="rgba(255,255,255,.035)"/><circle cx="4" cy="4" r="1" fill="rgba(255,255,255,.08)"/><circle cx="76" cy="4" r="1" fill="rgba(255,255,255,.08)"/></pattern>
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
-            <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
+            <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern>
+            <linearGradient id="chocFall" x1="0" x2="1"><stop offset="0" stop-color="#3a1c0a"/><stop offset=".3" stop-color="#7a4422"/><stop offset=".45" stop-color="#b47a4c"/><stop offset=".6" stop-color="#6a3a1c"/><stop offset="1" stop-color="#2e1607"/></linearGradient></defs>
             ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
-            ${img ? `<path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>` : `<rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
+            ${img ? `<path d="M${xa.toFixed(1)} ${pipeY} H235 V${by - 30}" class="pipe-flow"/><text x="400" y="${by - 84}" text-anchor="middle" class="p-wall-t">SCHOKOLADEN-PRODUKTION</text>` : `<rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
             <rect x="0" y="${by + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
             ${drops}<path d="M${xa.toFixed(1)} ${pipeY} H${xb.toFixed(1)}" class="pipe-h"/>
             <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>`}
             ${silos}
             <g transform="translate(0 ${by})">
+                ${img ? '<defs><clipPath id="beltClip"><rect x="0" y="-20" width="570" height="120"/><rect x="745" y="-20" width="60" height="120"/></clipPath></defs>' : ''}
+                <g ${img ? 'clip-path="url(#beltClip)"' : ''}>
                 <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
                 ${Array.from({ length: 19 }, (_, i) => `<circle cx="${48 + i * 39.5}" cy="73" r="4.5" class="roller"/>`).join('')}
                 <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>
+                </g>
+                ${img ? `<g class="enrobe"><rect x="503" y="22" width="26" height="44" fill="url(#chocFall)"/><rect x="503" y="22" width="26" height="44" class="enrobe-flow"/><ellipse cx="516" cy="66" rx="16" ry="3" fill="#3a1d0c"/></g>
+                <text x="95" y="-58" text-anchor="middle" class="p-st">RÖSTER</text><text x="235" y="-46" text-anchor="middle" class="p-st">CONCHE</text><text x="516" y="-20" text-anchor="middle" class="p-st">ÜBERZIEHER</text><text x="657" y="22" text-anchor="middle" class="p-st">KÜHLTUNNEL</text><text x="705" y="98" text-anchor="middle" class="p-st small">VERSAND</text><text x="190" y="98" text-anchor="middle" class="p-st small">ROHKAKAO</text>` : ''}
                 <g class="machine-g"><rect x="320" y="4" width="160" height="58" rx="8" class="machine"/>
                     <rect x="334" y="14" width="44" height="22" rx="3" class="m-screen"/><path d="M337 30 l6 -6 l6 3 l6 -9 l6 5 l8 -6" class="m-trace"/>
                     <circle cx="450" cy="24" r="10" class="m-gauge"/><path d="M450 24 L456 17" class="m-needle"/>
                     <circle cx="392" cy="20" r="3" class="m-led a"/><circle cx="402" cy="20" r="3" class="m-led b"/><circle cx="412" cy="20" r="3" class="m-led c"/>
-                    <text x="400" y="54" text-anchor="middle" class="m-t">🍫 PRODUKTION</text></g>
-                <g class="d-smoke"><circle cx="470" cy="-6" r="6"/><circle cx="476" cy="-16" r="8"/></g>
-                <text x="40" y="108" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
+                    <text x="400" y="54" text-anchor="middle" class="m-t">🍫 TEMPERIERUNG</text></g>
+                <g class="d-smoke"><circle cx="${img ? 128 : 470}" cy="${img ? -78 : -6}" r="6"/><circle cx="${img ? 134 : 476}" cy="${img ? -88 : -16}" r="8"/></g>
+                <text x="40" y="${img ? 127 : 108}" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
             </g></svg>`;
     }
 
