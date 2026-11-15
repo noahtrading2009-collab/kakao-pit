@@ -979,7 +979,7 @@ const Host = (() => {
         // News markers on the timeline
         // Nur Meldungen aus dem laufenden Jahr – die Uhr beginnt jedes Jahr wieder bei 0.
         const feedItems = (S.feed || []).filter(n => ['rumor', 'yes', 'no', 'flash', 'alert'].includes(n.kind) && n.clock > 0 && n.year === S.year && h.some(q => q.s === n.clock));
-        c.font = '16px sans-serif';
+        c.font = '16px "Noto Color Emoji", sans-serif';
         feedItems.forEach(n => {
             const pt = h.find(q => q.s === n.clock) || h[h.length - 1];
             c.fillText(n.icon, x(n.clock) - 8, y(pt.p) - 12);

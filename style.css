@@ -10,8 +10,8 @@
     --amber: #ffb547;
     --cocoa: #c47a4a;
     --violet: #a78bfa;
-    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
-    --sans: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace, "Noto Color Emoji";
+    --sans: "Space Grotesk", "Segoe UI", system-ui, sans-serif, "Noto Color Emoji";
     --r: 14px;
 }
 
@@ -1844,3 +1844,9 @@ body.typing .start-bg * { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) { .start-bg *, #v-start.active * { animation: none !important; } }
 @media (max-width: 720px) { .sb-beans { display: none; } .sb-map { top: 30px; opacity: .5; } .sb-lab { display: none; } }
 .plant-map .s-t { paint-order: stroke; stroke: #11161f; stroke-width: 4px; }
+
+/* ===== Realismus: Filmkorn, Materialien ===== */
+body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 2147483000; background-image: var(--grain); background-size: 160px 160px; mix-blend-mode: overlay; opacity: .9; }
+.farm-map .river { stroke: url(#texWater); opacity: .95; }
+.farm-map .river-bank { stroke: rgba(70, 52, 28, .75); }
+.farm-map .road { stroke: #7a6242; }

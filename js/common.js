@@ -603,3 +603,152 @@ const LAND = [
 ];
 const COCOA_REGIONS = Object.keys(REGIONS).filter(k => REGIONS[k].crop === 'cocoa');
 
+
+// ===== Realistische Texturen: einmal im Browser berechnet (Rauschen), danach als Bild wiederverwendet =====
+const Tex = (() => {
+    const cache = {};
+    // Kachelbares Wertrauschen mit mehreren Oktaven (0..1)
+    function noise(size, cells, octaves, seed) {
+        const out = new Float32Array(size * size);
+        let amp = 1;
+        let tot = 0;
+        let s = seed;
+        const rand = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+        for (let o = 0; o < octaves; o++) {
+            const n = cells << o;
+            const g = Array.from({ length: n * n }, rand);
+            for (let y = 0; y < size; y++) {
+                const fy = (y / size) * n;
+                const y0 = Math.floor(fy);
+                const ty = fy - y0;
+                const sy = ty * ty * (3 - 2 * ty);
+                for (let x = 0; x < size; x++) {
+                    const fx = (x / size) * n;
+                    const x0 = Math.floor(fx);
+                    const tx = fx - x0;
+                    const sx = tx * tx * (3 - 2 * tx);
+                    const a = g[(y0 % n) * n + (x0 % n)];
+                    const b = g[(y0 % n) * n + ((x0 + 1) % n)];
+                    const c = g[((y0 + 1) % n) * n + (x0 % n)];
+                    const d = g[((y0 + 1) % n) * n + ((x0 + 1) % n)];
+                    out[y * size + x] += amp * (a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy);
+                }
+            }
+            tot += amp;
+            amp *= 0.5;
+        }
+        for (let i = 0; i < out.length; i++) out[i] /= tot;
+        return out;
+    }
+    function paint(size, fn, jpeg) {
+        const cv = document.createElement('canvas');
+        cv.width = size;
+        cv.height = size;
+        const c = cv.getContext('2d');
+        const img = c.createImageData(size, size);
+        for (let i = 0; i < size * size; i++) {
+            const [r, g, b, a] = fn(i % size, Math.floor(i / size), i);
+            img.data[i * 4] = r;
+            img.data[i * 4 + 1] = g;
+            img.data[i * 4 + 2] = b;
+            img.data[i * 4 + 3] = a === undefined ? 255 : a;
+        }
+        c.putImageData(img, 0, 0);
+        return jpeg ? cv.toDataURL('image/jpeg', 0.9) : cv.toDataURL('image/png');
+    }
+    const mix = (a, b, t) => a + (b - a) * t;
+    const get = (k, make) => cache[k] || (cache[k] = make());
+    return {
+        // Feines Filmkorn (transparent), für die ganze Oberfläche
+        grain: () => get('grain', () => paint(160, () => { const v = Math.random() * 255; return [v, v, v, 22]; })),
+        // Gelände von oben: Grüntöne mit Lichtungen, Erde und Hangschatten
+        terrain: () => get('terrain', () => {
+            const S = 512;
+            const h = noise(S, 4, 6, 7);
+            const m = noise(S, 8, 4, 91);
+            return paint(S, (x, y, i) => {
+                const hx = h[y * S + ((x + 1) % S)] - h[i];
+                const hy = h[((y + 1) % S) * S + x] - h[i];
+                const shade = Math.max(-1, Math.min(1, (hx + hy) * 70)); // Licht von links oben
+                const t = Math.max(0, Math.min(1, (m[i] - 0.28) / 0.44));
+                let r = mix(34, 62, t);
+                let g = mix(70, 112, t);
+                let b = mix(30, 44, t);
+                if (t > 0.7) { const k = Math.min(1, (t - 0.7) * 3); r = mix(r, 120, k); g = mix(g, 104, k); b = mix(b, 62, k); } // trockene Lichtungen
+                if (h[i] < 0.42) { const k = Math.min(1, (0.42 - h[i]) * 4); r = mix(r, 22, k); g = mix(g, 52, k); b = mix(b, 26, k); } // dichter Wald in Senken
+                const l = 1 - shade * 0.5;
+                const sp = (Math.random() - 0.5) * 22;
+                return [r * l + sp, g * l + sp, b * l + sp];
+            }, true);
+        }),
+        // Gebürstetes Metall: senkrechte Schlieren
+        metal: () => get('metal', () => {
+            const S = 256;
+            const line = noise(S, 32, 3, 13);
+            const grain = noise(S, 64, 2, 29);
+            return paint(S, (x, y) => {
+                const v = 150 + (line[x] - 0.5) * 120 + (grain[y * S + x] - 0.5) * 40 + (Math.random() - 0.5) * 18;
+                return [v, v + 4, v + 10];
+            }, true);
+        }),
+        // Rost und Gebrauchsspuren (transparent, nur die Flecken)
+        rust: () => get('rust', () => {
+            const S = 256;
+            const n = noise(S, 6, 5, 57);
+            return paint(S, (x, y, i) => {
+                const t = Math.max(0, n[i] - 0.58) * 4;
+                return [130, 70, 30, Math.min(150, t * 255)];
+            });
+        }),
+        // Beton: grau mit Poren und Flecken
+        concrete: () => get('concrete', () => {
+            const S = 256;
+            const n = noise(S, 8, 5, 33);
+            return paint(S, (x, y, i) => {
+                const pore = Math.random() < 0.012 ? -40 : 0;
+                const v = 38 + n[i] * 26 + (Math.random() - 0.5) * 10 + pore;
+                return [v, v + 2, v + 6];
+            }, true);
+        }),
+        // Wasser: Wellenmuster
+        water: () => get('water', () => {
+            const S = 256;
+            const n = noise(S, 8, 4, 71);
+            return paint(S, (x, y, i) => {
+                const w = Math.sin((x * 0.09) + n[i] * 9) * 0.5 + 0.5;
+                return [mix(40, 120, w * 0.6 + n[i] * 0.4), mix(110, 190, w * 0.5 + n[i] * 0.5), mix(170, 235, n[i])];
+            }, true);
+        }),
+        // Feld: Erdboden mit Pflanzreihen
+        soil: () => get('soil', () => {
+            const S = 128;
+            const n = noise(S, 8, 3, 101);
+            return paint(S, (x, y, i) => {
+                const v = n[i];
+                return [mix(92, 128, v) + (Math.random() - 0.5) * 16, mix(66, 92, v) + (Math.random() - 0.5) * 12, mix(40, 58, v)];
+            }, true);
+        }),
+    };
+})();
+
+// Filmkorn über der ganzen Oberfläche – nimmt allem den «flachen» Look
+window.addEventListener('DOMContentLoaded', () => {
+    try {
+        document.documentElement.style.setProperty('--grain', `url(${Tex.grain()})`);
+        document.documentElement.style.setProperty('--tex-metal', `url(${Tex.metal()})`);
+        document.documentElement.style.setProperty('--tex-concrete', `url(${Tex.concrete()})`);
+        // Gemeinsame SVG-Muster (einmal im Dokument) – alle Grafiken verweisen per url(#…) darauf
+        const box = document.createElement('div');
+        box.innerHTML = `<svg id="tex-defs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+            <pattern id="texTerrain" width="512" height="512" patternUnits="userSpaceOnUse"><image href="${Tex.terrain()}" width="512" height="512"/></pattern>
+            <pattern id="texSoil" width="96" height="96" patternUnits="userSpaceOnUse"><image href="${Tex.soil()}" width="96" height="96"/></pattern>
+            <pattern id="texMetal" width="96" height="96" patternUnits="userSpaceOnUse"><image href="${Tex.metal()}" width="96" height="96"/></pattern>
+            <pattern id="texRust" width="160" height="160" patternUnits="userSpaceOnUse"><image href="${Tex.rust()}" width="160" height="160"/></pattern>
+            <pattern id="texConcrete" width="200" height="200" patternUnits="userSpaceOnUse"><image href="${Tex.concrete()}" width="200" height="200"/></pattern>
+            <pattern id="texWater" width="180" height="180" patternUnits="userSpaceOnUse"><image href="${Tex.water()}" width="180" height="180"/></pattern>
+            <pattern id="texTin" width="2.2" height="4" patternUnits="userSpaceOnUse"><rect width="2.2" height="4" fill="#9aa3ad"/><rect width=".9" height="4" fill="#c9d0d8"/><rect x="1.6" width=".6" height="4" fill="#6b737d"/></pattern>
+            <pattern id="texTinRust" width="2.2" height="4" patternUnits="userSpaceOnUse"><rect width="2.2" height="4" fill="#8a5a3a"/><rect width=".9" height="4" fill="#b07a4e"/><rect x="1.6" width=".6" height="4" fill="#5a3520"/></pattern>
+        </defs></svg>`;
+        document.body.appendChild(box.firstElementChild);
+    } catch (e) { /* ohne Texturen geht es auch */ }
+});

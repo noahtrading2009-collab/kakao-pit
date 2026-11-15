@@ -68,10 +68,10 @@ const Scenes = (() => {
             <path d="M0 108 L40 80 L70 96 L120 62 L160 92 L210 70 L250 94 L300 66 L360 98 L360 140 L0 140Z" fill="${sky.hill2}" opacity=".45"/>
             <path d="M112 66 L120 62 L128 67 L122 70Z M292 70 L300 66 L307 71 L300 73Z" fill="rgba(255,255,255,.5)"/>
             <rect y="60" width="360" height="80" fill="url(#haze)"/>
-            <path d="M0 120 Q 90 86 190 114 T 360 104 L360 200 L0 200Z" fill="${sky.hill2}"/><path d="M0 120 Q 90 86 190 114 T 360 104 L360 200 L0 200Z" fill="url(#hillG)"/>
+            <path d="M0 120 Q 90 86 190 114 T 360 104 L360 200 L0 200Z" fill="${sky.hill2}"/><path d="M0 120 Q 90 86 190 114 T 360 104 L360 200 L0 200Z" fill="url(#hillG)"/><path d="M0 120 Q 90 86 190 114 T 360 104 L360 200 L0 200Z" fill="url(#texTerrain)" opacity=".35" style="mix-blend-mode:overlay"/>
             <g transform="translate(316 108)"><rect x="-10" y="-8" width="20" height="12" fill="#e2c999"/><rect x="-10" y="-8" width="6" height="12" fill="rgba(0,0,0,.12)"/><path d="M-13 -7 L0 -17 L13 -7Z" fill="#8a5a32"/><path d="M0 -17 L13 -7 L0 -7Z" fill="#6a4122"/><rect x="-2" y="-3" width="4" height="7" fill="#3b2412"/>
                 <rect x="-36" y="-2" width="20" height="5" fill="url(#beanP)"/><path d="M-36 3 V8 M-16 3 V8" stroke="#5b3a1f" stroke-width="1.2"/></g>
-            <path d="M0 150 Q 120 122 230 146 T 360 140 L360 200 L0 200Z" fill="${sky.hill}"/><path d="M0 150 Q 120 122 230 146 T 360 140 L360 200 L0 200Z" fill="url(#hillG)"/>
+            <path d="M0 150 Q 120 122 230 146 T 360 140 L360 200 L0 200Z" fill="${sky.hill}"/><path d="M0 150 Q 120 122 230 146 T 360 140 L360 200 L0 200Z" fill="url(#hillG)"/><path d="M0 150 Q 120 122 230 146 T 360 140 L360 200 L0 200Z" fill="url(#texTerrain)" opacity=".4" style="mix-blend-mode:overlay"/>
             ${tufts(150, 14, sky.hill2)}
             ${trees}
             ${tufts(186, 18, 'rgba(0,0,0,.25)')}</svg>`;
@@ -120,7 +120,7 @@ const Scenes = (() => {
             ${[0, 1, 2, 3, 4].map(i => `<rect x="${122 + i * 38}" y="112" width="24" height="18" rx="2" fill="#ffcf6b" class="win" style="animation-delay:${i * 0.4}s"/><path d="M${134 + i * 38} 112 V130 M${122 + i * 38} 121 H${146 + i * 38}" stroke="#2d3748" stroke-width="1.5"/><rect x="${121 + i * 38}" y="129" width="26" height="2.5" fill="#8a96a8"/>`).join('')}
             <rect x="194" y="138" width="32" height="28" fill="#2a313c"/><rect x="196" y="140" width="28" height="26" fill="#1a202c"/>${[0, 1, 2, 3, 4].map(i => `<line x1="196" x2="224" y1="${144 + i * 5}" y2="${144 + i * 5}" stroke="#2d3748"/>`).join('')}
             <path d="M80 70 H118 V100" fill="none" stroke="#8a96a8" stroke-width="5"/><path d="M80 70 H118 V100" fill="none" stroke="#c3ccd8" stroke-width="1.2" stroke-dasharray="3 5"/><circle cx="118" cy="70" r="4" fill="#5b6576"/>
-            <rect x="24" y="${44}" width="56" height="${siloH}" rx="8" fill="url(#silo)"/>
+            <rect x="24" y="${44}" width="56" height="${siloH}" rx="8" fill="url(#silo)"/><rect x="24" y="44" width="56" height="${siloH}" rx="8" fill="url(#texMetal)" opacity=".3" style="mix-blend-mode:overlay"/><rect x="24" y="44" width="56" height="${siloH}" rx="8" fill="url(#texRust)" opacity=".35"/>
             <rect x="28" y="${44 + siloH - fillH}" width="48" height="${fillH}" rx="5" fill="url(#choc)" class="silo-fill"/>
             <ellipse cx="52" cy="44" rx="28" ry="8" fill="#c3ccd8"/><ellipse cx="52" cy="42" rx="8" ry="2.5" fill="#8a96a8"/>
             ${[0, 1, 2, 3].map(i => `<line x1="24" x2="80" y1="${70 + i * 26}" y2="${70 + i * 26}" stroke="rgba(0,0,0,.25)"/>`).join('')}

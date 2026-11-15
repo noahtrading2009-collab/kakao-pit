@@ -1080,7 +1080,7 @@ const Player = (() => {
         return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="2" cy="9.5" rx="11" ry="3" fill="rgba(0,0,0,.3)"/>
             <rect x="-8" y="-1" width="16" height="10" fill="${wall}"/><rect x="-8" y="-1" width="5" height="10" fill="rgba(0,0,0,.12)"/>
             <rect x="-1.6" y="3" width="3.6" height="6" fill="#4a2c16"/><rect x="3.5" y="1.5" width="3" height="2.6" fill="#3b2a1a"/>
-            <path d="M-11 0 L0 -10 L11 0 Z" fill="#9a6538"/><path d="M0 -10 L11 0 L0 0 Z" fill="#6f4423"/>
+            <path d="M-11 0 L0 -10 L11 0 Z" fill="url(#${i % 3 === 1 ? 'texTinRust' : 'texTin'})"/><path d="M0 -10 L11 0 L0 0 Z" fill="rgba(0,0,0,.32)"/><path d="M-11 0 L0 -10 L11 0 Z" fill="none" stroke="rgba(0,0,0,.35)" stroke-width=".5"/>
             <path d="M-11 0 L0 -10 L11 0" fill="none" stroke="rgba(255,230,180,.35)" stroke-width=".8"/></g>`;
     }
     function tilesFor(H, prod, max) {
@@ -1131,12 +1131,13 @@ const Player = (() => {
         const occupied = tiles.map((_, i) => [VILLAGES[i][0], VILLAGES[i][1] * k]);
         // Felder (Kakao-Reihen) und Waldstücke als Hintergrund
         const fields = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14]]
-            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${(y + h / 2) * k})"><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="6" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(20,40,15,.5)" stroke-width="1.5"/></g>`).join('');
+            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${(y + h / 2) * k})"><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#texSoil)"/><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="4" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(30,22,10,.55)" stroke-width="1.2"/></g>`).join('');
         const forest = Array.from({ length: Math.round(60 * k) }, (_, i) => {
             const x = rnd(i * 3.1) * 800;
             const y = rnd(i * 5.7 + 2) * VH;
             if (occupied.some(([vx, vy]) => Math.hypot(vx - x, (vy - y) * 1.6) < 70)) return '';
-            return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(6 + rnd(i) * 9).toFixed(1)}" fill="url(#dForest)"/>`;
+            const r = 6 + rnd(i) * 9;
+            return `<circle cx="${(x + r * 0.35).toFixed(0)}" cy="${(y + r * 0.35).toFixed(0)}" r="${r.toFixed(1)}" fill="rgba(0,0,0,.35)"/><circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="url(#dForest)"/><circle cx="${(x - r * 0.3).toFixed(0)}" cy="${(y - r * 0.3).toFixed(0)}" r="${(r * 0.45).toFixed(1)}" fill="rgba(170,230,120,.18)"/>`;
         }).join('');
         const contours = Array.from({ length: Math.round(4 * k) + 2 }, (_, i) => `<path d="${sy(`M-20 ${60 + i * 18} C 180 ${20 + i * 22}, 380 ${110 + i * 12}, 560 ${50 + i * 20} S 760 ${10 + i * 24}, 820 ${40 + i * 18}`, k)}" class="contour"/>`).join('');
         const nT = Math.floor(VH / 50);
@@ -1147,14 +1148,14 @@ const Player = (() => {
         return `<svg viewBox="0 0 800 ${VH}" class="d-svg farm-map" preserveAspectRatio="xMidYMid meet">
             <defs><radialGradient id="dfl" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#3a7a32"/><stop offset=".6" stop-color="#25562a"/><stop offset="1" stop-color="#132c16"/></radialGradient>
             <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="2.2" fill="rgba(110,190,90,.22)"/><circle cx="16" cy="15" r="3" fill="rgba(40,100,40,.3)"/><circle cx="17" cy="4" r="1" fill="rgba(200,230,150,.18)"/></pattern>
-            <pattern id="dRows" width="12" height="10" patternUnits="userSpaceOnUse"><rect width="12" height="10" fill="#2f6a2a"/><circle cx="6" cy="5" r="3.6" fill="#3f8a36"/><circle cx="5" cy="4" r="1.3" fill="rgba(255,255,255,.12)"/></pattern>
-            <pattern id="dRows2" width="10" height="9" patternUnits="userSpaceOnUse"><rect width="10" height="9" fill="#386b26"/><circle cx="5" cy="4.5" r="3.2" fill="#4c8d33"/><circle cx="4" cy="3.6" r="1.1" fill="rgba(255,255,255,.12)"/></pattern>
+            <pattern id="dRows" width="12" height="10" patternUnits="userSpaceOnUse"><circle cx="7" cy="6" r="3.6" fill="rgba(20,14,6,.45)"/><circle cx="6" cy="5" r="3.5" fill="#3f8a36"/><circle cx="7.4" cy="5.6" r="1.6" fill="#2e6e28"/><circle cx="4.8" cy="3.8" r="1.4" fill="rgba(200,240,150,.25)"/></pattern>
+            <pattern id="dRows2" width="10" height="9" patternUnits="userSpaceOnUse"><circle cx="5.9" cy="5.4" r="3.2" fill="rgba(20,14,6,.45)"/><circle cx="5" cy="4.5" r="3.1" fill="#4c8d33"/><circle cx="6.2" cy="5.1" r="1.4" fill="#3a7428"/><circle cx="4" cy="3.5" r="1.2" fill="rgba(200,240,150,.25)"/></pattern>
             <radialGradient id="dForest" cx="40%" cy="35%"><stop offset="0" stop-color="#3f8f3a"/><stop offset="1" stop-color="#173d18"/></radialGradient>
             <radialGradient id="dTreeG" cx="35%" cy="30%"><stop offset="0" stop-color="#5cc04d"/><stop offset="1" stop-color="#1f5a20"/></radialGradient>
             <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
             <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
             <radialGradient id="dVig" cx="50%" cy="50%" r="72%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
-            <rect width="800" height="${VH}" fill="url(#dfl)"/><rect width="800" height="${VH}" fill="url(#dft)"/>
+            <rect width="800" height="${VH}" fill="url(#texTerrain)"/><rect width="800" height="${VH}" fill="url(#dfl)" opacity=".22"/>
             ${contours}${fields}${forest}
             <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
             <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>
@@ -1211,6 +1212,9 @@ const Player = (() => {
                 <path d="M8 100 L4 122 M${w - 8} 100 L${w - 4} 122 M${w / 2} 104 L${w / 2} 122" class="s-legs"/>
                 <path d="M0 96 L${w / 2 - 8} 112 L${w / 2 + 8} 112 L${w} 96 Z" fill="url(#pMetal)" stroke="#5b6576"/>
                 <rect class="s-body" width="${w}" height="100" rx="10" fill="url(#pMetal)"/>
+                <rect width="${w}" height="100" rx="10" fill="url(#texMetal)" opacity=".3" style="mix-blend-mode:overlay" pointer-events="none"/>
+                <g transform="translate(${-((i * 53) % 160)} ${-((i * 37) % 160)})"><rect x="${(i * 53) % 160}" y="${(i * 37) % 160}" width="${w}" height="100" rx="10" fill="url(#texRust)" opacity="${kk === 'open' ? 0.55 : 0.28}" pointer-events="none"/></g>
+                <rect x="${w * 0.36}" y="6" width="1.6" height="88" fill="rgba(255,255,255,.4)" pointer-events="none"/>
                 ${fill ? `<rect class="s-fill" x="4" y="${96 - fill}" width="${w - 8}" height="${fill}" rx="6" fill="url(#${fillId})"/><path class="s-wave" d="M4 ${96 - fill + 3} q${(w - 8) / 4} -6 ${(w - 8) / 2} 0 t${(w - 8) / 2} 0 v6 h-${w - 8}z"/>` : ''}
                 <rect x="4" y="8" width="${w - 8}" height="88" rx="6" fill="url(#pGlass)" pointer-events="none"/>
                 <line x1="0" x2="${w}" y1="34" y2="34" class="s-band"/><line x1="0" x2="${w}" y1="68" y2="68" class="s-band"/>
@@ -1244,10 +1248,10 @@ const Player = (() => {
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
-            <rect width="800" height="${HH}" fill="url(#pWall)"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
+            <rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
-            <rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)"/>
+            <rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
             <rect x="0" y="${by + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
             ${drops}<path d="M${xa.toFixed(1)} ${pipeY} H${xb.toFixed(1)}" class="pipe-h"/>
             <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>
