@@ -1804,10 +1804,10 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 .plant-map .p-wall-t { font: 800 13px "JetBrains Mono", monospace; letter-spacing: 6px; fill: rgba(255, 179, 71, .55); }
 
 /* ===== Startseite: animierte Kulisse ===== */
-#v-start { position: relative; isolation: isolate; }
+#v-start { isolation: isolate; }
 #v-start > *:not(.start-bg) { position: relative; z-index: 1; }
 #v-start > .ticker { position: sticky; z-index: 3; }
-.start-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.start-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
 .sb-map { position: absolute; left: 50%; top: 150px; width: max(1400px, 115%); height: auto; transform: translateX(-50%); opacity: .6; }
 .sb-dots circle { fill: rgba(140, 170, 220, .28); }
 .sb-route { fill: none; stroke: rgba(255, 181, 71, .45); stroke-width: 1.4; stroke-dasharray: 3 7; animation: dashMove 1.4s linear infinite; }
