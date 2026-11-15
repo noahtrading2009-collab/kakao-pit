@@ -1719,3 +1719,9 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 .t-coast { fill: none; stroke: rgba(79, 209, 255, .7); stroke-width: .55; stroke-linejoin: round; filter: drop-shadow(0 0 1.5px rgba(79, 209, 255, .6)); }
 .t-cty { fill: rgba(79, 209, 255, .06); stroke: rgba(79, 209, 255, .45); stroke-width: .7; stroke-linejoin: round; }
 .t-cty.ci, .t-cty.gh { fill: rgba(34, 229, 138, .07); stroke: rgba(79, 209, 255, .75); stroke-width: 1; }
+#v-desk { --tcr: 139, 220, 106; }
+#v-desk.plant { --tcr: 255, 179, 71; }
+.worldmap .land circle { fill: rgba(140, 170, 220, .34); }
+.worldmap .coast { fill: none; stroke: rgba(170, 200, 245, .6); stroke-width: .32; stroke-linejoin: round; }
+.worldmap .grat line { stroke: rgba(140, 170, 220, .07); stroke-width: .3; }
+.worldmap .trop-l { font: 600 3.2px "JetBrains Mono", monospace; fill: rgba(255, 181, 71, .5); letter-spacing: .3px; }

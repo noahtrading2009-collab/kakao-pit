@@ -577,17 +577,22 @@ const Host = (() => {
         return best[1].some(([a, b]) => lon >= a && lon <= b);
     }
 
+    // Punkteraster 1° und exakte Küstenlinie aus Natural-Earth-Daten (js/geo.js)
     let mapDots = null;
     function dots() {
         if (mapDots) return mapDots;
         let out = '';
-        for (let lat = 77.5; lat >= -57.5; lat -= 2.5) {
-            for (let lon = -178.75; lon <= 178.75; lon += 2.5) {
-                if (landAt(lat, lon)) out += `<circle cx="${mx(lon).toFixed(1)}" cy="${my(lat).toFixed(1)}" r="0.85"/>`;
-            }
+        for (const [lat, ranges] of LAND_HI) {
+            if (lat > 77 || lat < -56) continue;
+            for (const [a, b] of ranges) for (let lon = a; lon <= b; lon++) out += `<circle cx="${mx(lon)}" cy="${my(lat)}" r=".42"/>`;
         }
-        mapDots = out;
-        return out;
+        const coast = COAST_HI.map(c => {
+            let d = '';
+            for (let i = 0; i < c.length; i += 2) d += `${i && Math.abs(c[i] - c[i - 2]) < 180 ? 'L' : 'M'}${mx(c[i] / 2)} ${my(c[i + 1] / 2)}`;
+            return d;
+        }).join('');
+        mapDots = `${out}</g><path d="${coast}" class="coast"/><g>`;
+        return mapDots;
     }
 
     function addMapPin(item) {
@@ -621,6 +626,8 @@ const Host = (() => {
                 <defs><radialGradient id="mapglow"><stop offset="0" stop-color="rgba(255,181,71,.25)"/><stop offset="1" stop-color="rgba(255,181,71,0)"/></radialGradient></defs>
                 <rect x="0" y="${my(23.5)}" width="${MAP_W}" height="${my(-23.5) - my(23.5)}" class="tropics"/>
                 <line x1="0" x2="${MAP_W}" y1="${my(0)}" y2="${my(0)}" class="equator"/>
+                <g class="grat">${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].map(l => `<line x1="${mx(l)}" x2="${mx(l)}" y1="0" y2="${MAP_H}"/>`).join('')}${[-40, -20, 20, 40, 60].map(l => `<line x1="0" x2="${MAP_W}" y1="${my(l)}" y2="${my(l)}"/>`).join('')}</g>
+                <text x="2" y="${my(23.5) - 1.5}" class="trop-l">Wendekreis des Krebses</text><text x="2" y="${my(-23.5) + 4.5}" class="trop-l">Wendekreis des Steinbocks</text><text x="2" y="${my(0) - 1.5}" class="trop-l">Äquator · Kakao-Gürtel</text>
                 <g class="land">${dots()}</g>
                 <g class="regs">${regs}</g><g id="map-pins"></g></svg>`;
         }
@@ -758,6 +765,37 @@ const Host = (() => {
                 c.fillStyle = v.net >= 0 ? 'rgba(34,229,138,.28)' : 'rgba(255,77,106,.28)';
                 c.fillRect(x(s) - bw / 2, H - B - bh, bw, bh);
             }
+        }
+        // Nebenlinien (fein) zwischen den Hauptlinien, dazu Achsenstriche links und rechts
+        c.lineWidth = 1;
+        for (let i = 0; i <= 20; i++) {
+            if (i % 4 === 0) continue;
+            const yy = Math.round(y(lo + ((hi - lo) * i) / 20)) + 0.5;
+            c.strokeStyle = 'rgba(120,150,200,.04)';
+            c.beginPath();
+            c.moveTo(L, yy);
+            c.lineTo(W - R, yy);
+            c.stroke();
+            c.strokeStyle = 'rgba(120,150,200,.3)';
+            c.beginPath();
+            c.moveTo(L - 3, yy);
+            c.lineTo(L, yy);
+            c.moveTo(W - R, yy);
+            c.lineTo(W - R + 3, yy);
+            c.stroke();
+        }
+        for (let s = 0; s <= total; s += 10) {
+            const xx = Math.round(x(s)) + 0.5;
+            c.strokeStyle = s % 30 === 0 ? 'rgba(120,150,200,.06)' : 'rgba(120,150,200,.025)';
+            c.beginPath();
+            c.moveTo(xx, T);
+            c.lineTo(xx, H - B);
+            c.stroke();
+            c.strokeStyle = 'rgba(120,150,200,.3)';
+            c.beginPath();
+            c.moveTo(xx, H - B);
+            c.lineTo(xx, H - B + (s % 30 === 0 ? 5 : 3));
+            c.stroke();
         }
         c.font = '12px "JetBrains Mono", monospace';
         c.fillStyle = '#5b6b85';

@@ -680,6 +680,13 @@ const Player = (() => {
         const hi = Math.max(...data);
         const span = hi - lo || 1;
         const up = data[data.length - 1] >= data[0];
+        // feines Raster
+        c.beginPath();
+        c.strokeStyle = 'rgba(255,255,255,.05)';
+        c.lineWidth = 1;
+        for (let i = 1; i < 4; i++) { c.moveTo(0, Math.round((H * i) / 4) + 0.5); c.lineTo(W, Math.round((H * i) / 4) + 0.5); }
+        for (let i = 1; i < 6; i++) { c.moveTo(Math.round((W * i) / 6) + 0.5, 0); c.lineTo(Math.round((W * i) / 6) + 0.5, H); }
+        c.stroke();
         c.beginPath();
         data.forEach((v, i) => {
             const x = (i / (data.length - 1)) * (W - 4) + 2;
@@ -689,14 +696,26 @@ const Player = (() => {
         const col = up ? '34,229,138' : '255,77,106';
         c.strokeStyle = `rgb(${col})`;
         c.lineWidth = 2;
+        c.shadowColor = `rgb(${col})`;
+        c.shadowBlur = 8;
         c.stroke();
+        c.shadowBlur = 0;
         c.lineTo(W - 2, H);
         c.lineTo(2, H);
         c.closePath();
         const gr = c.createLinearGradient(0, 0, 0, H);
-        gr.addColorStop(0, `rgba(${col},.28)`);
+        gr.addColorStop(0, `rgba(${col},.3)`);
         gr.addColorStop(1, `rgba(${col},0)`);
         c.fillStyle = gr;
+        c.fill();
+        const ly = H - 4 - ((data[data.length - 1] - lo) / span) * (H - 8);
+        c.beginPath();
+        c.arc(W - 2, ly, 3.2, 0, Math.PI * 2);
+        c.fillStyle = '#fff';
+        c.fill();
+        c.beginPath();
+        c.arc(W - 2, ly, 2, 0, Math.PI * 2);
+        c.fillStyle = `rgb(${col})`;
         c.fill();
     }
 
@@ -1335,7 +1354,7 @@ const Player = (() => {
 
     function buildMap() {
         // Punkteraster 1° aus echten Natural-Earth-Daten, dazu die exakte Küstenlinie
-        const rowOf = lat => LAND_HI[74 - lat];
+        const rowOf = lat => LAND_HI[78 - lat];
         const isLand = (lon, lat) => { const r = rowOf(lat); return !!r && r[1].some(([a, b]) => lon >= a && lon <= b); };
         let dots = '';
         for (let lat = 72; lat >= -32; lat--) {
@@ -1351,7 +1370,7 @@ const Player = (() => {
                 const lo = c[i] / 2;
                 const la = c[i + 1] / 2;
                 if (lo < -165 || lo > 150 || la > 73 || la < -33) { d += ' '; continue; }
-                d += `${d && !d.endsWith(' ') ? 'L' : 'M'}${tx(lo).toFixed(1)} ${ty(la).toFixed(1)}`;
+                d += `${d && !d.endsWith(' ') && Math.abs(c[i] - c[i - 2]) < 180 ? 'L' : 'M'}${tx(lo).toFixed(1)} ${ty(la).toFixed(1)}`;
             }
             return d.replace(/ +/g, '');
         }).join('');
@@ -1508,6 +1527,7 @@ const Player = (() => {
         if (rum.length) coach('term-scen', '⚖️ <b>Risiko-Cockpit:</b> Links unten siehst du, was deine Position bei «bestätigt» und bei «dementiert» wert wäre. Wer zu früh oder zu gross wettet, riskiert viel.');
     }
 
+    // Profi-Chart für Terminal und Leitstand: 5-Sekunden-Kerzen, glatte Linie, Raster, Preisschild
     function tChart(id = 't-chart') {
         const cv = $(id);
         const dpr = HQ();
@@ -1522,48 +1542,206 @@ const Player = (() => {
         c.setTransform(dpr, 0, 0, dpr, 0, 0);
         c.clearRect(0, 0, W, H);
         const d = pub.history || [];
-        if (d.length < 2) return;
-        const lo = Math.min(...d, pub.p0) - 10;
-        const hi = Math.max(...d, pub.p0) + 10;
-        const X = i => 54 + (i / (d.length - 1)) * (W - 70);
-        const Y = v => 10 + ((hi - v) / (hi - lo)) * (H - 26);
-        c.font = '11px "JetBrains Mono", monospace';
-        c.fillStyle = '#5b6b85';
-        c.strokeStyle = 'rgba(120,150,200,.12)';
-        for (let i = 0; i <= 3; i++) {
-            const v = lo + ((hi - lo) * i) / 3;
-            c.beginPath();
-            c.moveTo(54, Y(v));
-            c.lineTo(W - 16, Y(v));
-            c.stroke();
-            c.fillText(fmt(v), 4, Y(v) + 4);
+        if (d.length < 2) {
+            c.font = '12px "JetBrains Mono", monospace';
+            c.fillStyle = 'rgba(140,160,200,.5)';
+            c.fillText(pub.phase === 'pre' ? 'Börse geschlossen – der Chart startet mit der Eröffnung.' : 'Warte auf Kursdaten …', 16, H / 2);
+            return;
         }
+        const term = id === 't-chart';
+        const acc = term ? '79,209,255' : getComputedStyle(cv).getPropertyValue('--tcr').trim() || '255,181,71';
+        const L = 62;
+        const R = 86;
+        const T = 12;
+        const B = 22;
+        const span = Math.max(...d, pub.p0) - Math.min(...d, pub.p0);
+        const pad = Math.max(8, span * 0.12);
+        const lo = Math.min(...d, pub.p0) - pad;
+        const hi = Math.max(...d, pub.p0) + pad;
+        const n = d.length;
+        const X = i => L + (i / (n - 1)) * (W - L - R);
+        const Y = v => T + ((hi - v) / (hi - lo)) * (H - T - B);
+        // Hintergrund: feines Raster (Haupt- und Nebenlinien)
+        const steps = 8;
+        for (let i = 0; i <= steps; i++) {
+            const v = lo + ((hi - lo) * i) / steps;
+            const major = i % 2 === 0;
+            c.strokeStyle = major ? 'rgba(120,150,200,.13)' : 'rgba(120,150,200,.05)';
+            c.lineWidth = 1;
+            c.beginPath();
+            c.moveTo(L, Math.round(Y(v)) + 0.5);
+            c.lineTo(W - R, Math.round(Y(v)) + 0.5);
+            c.stroke();
+            if (major) {
+                c.font = '10.5px "JetBrains Mono", monospace';
+                c.fillStyle = '#5b6b85';
+                c.textAlign = 'right';
+                c.fillText(fmt(v), L - 8, Y(v) + 4);
+                c.textAlign = 'left';
+                c.fillStyle = 'rgba(120,150,200,.35)';
+                c.fillRect(L - 4, Math.round(Y(v)), 4, 1);
+            }
+        }
+        // Zeitachse: alle 10 s eine Linie, beschriftet relativ zu jetzt
+        c.font = '10px "JetBrains Mono", monospace';
+        for (let s = 0; s < n; s += 5) {
+            const i = n - 1 - s;
+            const major = s % 10 === 0;
+            c.strokeStyle = major ? 'rgba(120,150,200,.09)' : 'rgba(120,150,200,.04)';
+            c.beginPath();
+            c.moveTo(Math.round(X(i)) + 0.5, T);
+            c.lineTo(Math.round(X(i)) + 0.5, H - B);
+            c.stroke();
+            if (major && s && X(i) > L + 20) {
+                c.fillStyle = '#4d5d78';
+                c.textAlign = 'center';
+                c.fillText(`−${s}s`, X(i), H - 6);
+                c.textAlign = 'left';
+            }
+        }
+        c.fillStyle = 'rgba(255,255,255,.45)';
+        c.textAlign = 'center';
+        c.fillText('jetzt', X(n - 1), H - 6);
+        c.textAlign = 'left';
+        // Planpreis
+        const yPlan = Y(pub.p0);
         c.setLineDash([3, 4]);
-        c.strokeStyle = 'rgba(255,255,255,.3)';
+        c.strokeStyle = 'rgba(255,255,255,.32)';
         c.beginPath();
-        c.moveTo(54, Y(pub.p0));
-        c.lineTo(W - 16, Y(pub.p0));
+        c.moveTo(L, yPlan);
+        c.lineTo(W - R, yPlan);
         c.stroke();
         c.setLineDash([]);
-        const up = d[d.length - 1] >= pub.p0;
-        const col = up ? '#22e58a' : '#ff4d6a';
-        c.beginPath();
-        d.forEach((v, i) => (i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v))));
+        c.font = 'bold 10px "JetBrains Mono", monospace';
+        c.fillStyle = 'rgba(255,255,255,.5)';
+        c.fillText(`PLAN ${fmt(pub.p0)}`, L + 6, yPlan - 5);
+        // 5-Sekunden-Kerzen (Eröffnung, Hoch, Tief, Schluss)
+        const cw = Math.max(3, ((W - L - R) / (n - 1)) * 5 * 0.62);
+        for (let a = 0; a < n - 1; a += 5) {
+            const seg = d.slice(a, Math.min(n, a + 6));
+            if (seg.length < 2) continue;
+            const o = seg[0];
+            const cl = seg[seg.length - 1];
+            const h1 = Math.max(...seg);
+            const l1 = Math.min(...seg);
+            const xm = X(a + (seg.length - 1) / 2);
+            const upC = cl >= o;
+            c.strokeStyle = upC ? 'rgba(34,229,138,.45)' : 'rgba(255,77,106,.45)';
+            c.fillStyle = upC ? 'rgba(34,229,138,.16)' : 'rgba(255,77,106,.16)';
+            c.beginPath();
+            c.moveTo(Math.round(xm) + 0.5, Y(h1));
+            c.lineTo(Math.round(xm) + 0.5, Y(l1));
+            c.stroke();
+            const y0 = Math.min(Y(o), Y(cl));
+            const bh = Math.max(1.5, Math.abs(Y(o) - Y(cl)));
+            c.fillRect(xm - cw / 2, y0, cw, bh);
+            c.strokeRect(Math.round(xm - cw / 2) + 0.5, Math.round(y0) + 0.5, Math.round(cw), Math.round(bh));
+        }
+        // Glatte Kurslinie, über dem Plan grün, darunter rot
+        const path = () => {
+            c.beginPath();
+            c.moveTo(X(0), Y(d[0]));
+            for (let i = 1; i < n - 1; i++) c.quadraticCurveTo(X(i), Y(d[i]), (X(i) + X(i + 1)) / 2, (Y(d[i]) + Y(d[i + 1])) / 2);
+            c.lineTo(X(n - 1), Y(d[n - 1]));
+        };
+        for (const [y0, y1, rgb, top] of [[0, yPlan, '34,229,138', true], [yPlan, H, '255,77,106', false]]) {
+            c.save();
+            c.beginPath();
+            c.rect(0, y0, W, y1 - y0);
+            c.clip();
+            path();
+            c.lineTo(X(n - 1), yPlan);
+            c.lineTo(X(0), yPlan);
+            c.closePath();
+            const g = c.createLinearGradient(0, top ? T : H - B, 0, yPlan);
+            g.addColorStop(0, `rgba(${rgb},.26)`);
+            g.addColorStop(1, `rgba(${rgb},0)`);
+            c.fillStyle = g;
+            c.fill();
+            path();
+            c.strokeStyle = `rgba(${rgb},.2)`;
+            c.lineWidth = 7;
+            c.stroke();
+            path();
+            c.strokeStyle = `rgb(${rgb})`;
+            c.lineWidth = 2;
+            c.shadowColor = `rgb(${rgb})`;
+            c.shadowBlur = 10;
+            c.stroke();
+            c.shadowBlur = 0;
+            c.restore();
+        }
+        // Hoch und Tief im Fenster
+        let hiI = 0;
+        let loI = 0;
+        d.forEach((v, i) => { if (v > d[hiI]) hiI = i; if (v < d[loI]) loI = i; });
+        c.font = 'bold 10px "JetBrains Mono", monospace';
+        for (const [i, isHi] of [[hiI, true], [loI, false]]) {
+            if (i > n - 4 || d[hiI] === d[loI]) continue;
+            const px = X(i);
+            const py = Y(d[i]);
+            const lab = `${isHi ? 'H' : 'T'} ${fmt(d[i])}`;
+            const tw = c.measureText(lab).width + 8;
+            c.fillStyle = 'rgba(5,8,15,.8)';
+            c.fillRect(px - tw / 2, isHi ? py - 20 : py + 6, tw, 14);
+            c.fillStyle = isHi ? '#7dffc0' : '#ff9aac';
+            c.fillText(lab, px - tw / 2 + 4, isHi ? py - 9.5 : py + 16.5);
+        }
+        // Geld-/Briefkurs als Band und Preisschild am rechten Rand
+        const last = d[n - 1];
+        const col = last >= pub.p0 ? '#22e58a' : '#ff4d6a';
+        const ly = Y(last);
+        const ask = Math.round(last * (1 + CFG.spread));
+        const bid = Math.round(last * (1 - CFG.spread));
+        c.fillStyle = `rgba(${acc},.06)`;
+        c.fillRect(L, Y(ask), W - R - L, Math.max(1, Y(bid) - Y(ask)));
+        c.setLineDash([2, 4]);
         c.strokeStyle = col;
-        c.lineWidth = 2;
+        c.globalAlpha = 0.6;
+        c.beginPath();
+        c.moveTo(X(n - 1), ly);
+        c.lineTo(W - R + 4, ly);
         c.stroke();
-        c.lineTo(X(d.length - 1), H - 16);
-        c.lineTo(X(0), H - 16);
+        c.setLineDash([]);
+        c.globalAlpha = 1;
+        const tag = fmt(last);
+        c.font = 'bold 12px "JetBrains Mono", monospace';
+        const tw = c.measureText(tag).width + 16;
+        c.fillStyle = col;
+        c.beginPath();
+        c.moveTo(W - R + 4, ly);
+        c.lineTo(W - R + 11, ly - 10);
+        c.lineTo(W - R + 11 + tw, ly - 10);
+        c.lineTo(W - R + 11 + tw, ly + 10);
+        c.lineTo(W - R + 11, ly + 10);
         c.closePath();
-        const g = c.createLinearGradient(0, 0, 0, H);
-        g.addColorStop(0, up ? 'rgba(34,229,138,.22)' : 'rgba(255,77,106,.22)');
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        c.fillStyle = g;
         c.fill();
-        c.fillStyle = '#5b6b85';
-        c.fillText('letzte 90 s', W - 90, H - 3);
+        c.fillStyle = '#05080f';
+        c.fillText(tag, W - R + 18, ly + 4);
+        c.font = '9.5px "JetBrains Mono", monospace';
+        c.fillStyle = 'rgba(255,107,129,.8)';
+        c.fillText(`B ${fmt(ask)}`, W - R + 14, Math.max(T + 8, ly - 16));
+        c.fillStyle = 'rgba(34,229,138,.8)';
+        c.fillText(`G ${fmt(bid)}`, W - R + 14, Math.min(H - B, ly + 23));
+        c.beginPath();
+        c.arc(X(n - 1), ly, 4.5, 0, Math.PI * 2);
+        c.fillStyle = '#fff';
+        c.fill();
+        c.beginPath();
+        c.arc(X(n - 1), ly, 2.8, 0, Math.PI * 2);
+        c.fillStyle = col;
+        c.fill();
+        // Rahmen-Ecken
+        c.strokeStyle = `rgba(${acc},.5)`;
+        c.lineWidth = 1.5;
+        for (const [x0, y0, sx, sy] of [[L, T, 1, 1], [W - R, T, -1, 1], [L, H - B, 1, -1], [W - R, H - B, -1, -1]]) {
+            c.beginPath();
+            c.moveTo(x0 + sx * 10, y0);
+            c.lineTo(x0, y0);
+            c.lineTo(x0, y0 + sy * 10);
+            c.stroke();
+        }
     }
-
     function bindTerm() {
         $('v-term').addEventListener('click', ev => {
             const b = ev.target.closest('button');
