@@ -114,3 +114,60 @@ const App = (() => {
     window.addEventListener('DOMContentLoaded', init);
     return { show, modal };
 })();
+
+// ===== Startseite: animierte Kulisse (Weltkarte, Schiffsrouten, Live-Kurs, schwebende Bohnen) =====
+(() => {
+    const view = document.getElementById('v-start');
+    if (!view || typeof LAND_HI === 'undefined') return;
+    const W = 1200;
+    const H = 520;
+    const X = lon => ((lon + 170) / 340) * W;
+    const Y = lat => ((75 - lat) / 130) * H;
+    const step = window.innerWidth < 720 ? 3 : 2;
+    let dots = '';
+    for (const [lat, ranges] of LAND_HI) {
+        if (lat % step || lat > 74 || lat < -55) continue;
+        for (const [a, b] of ranges) {
+            for (let lon = Math.ceil(a / step) * step; lon <= b; lon += step) {
+                if (lon < -170 || lon > 170) continue;
+                dots += `<circle cx="${X(lon).toFixed(1)}" cy="${Y(lat).toFixed(1)}" r="1.25"/>`;
+            }
+        }
+    }
+    const spots = [['Elfenbeinküste', -5.5, 6.8], ['Ghana', -1.2, 6.9], ['Ecuador', -79, -1.5], ['Indonesien', 120, -2], ['Kamerun', 12, 4.5], ['Brasilien', -39.5, -14]];
+    const hubs = [['London', -0.1, 51.5], ['New York', -74, 40.7], ['Amsterdam', 4.9, 52.4]];
+    const route = (a, b, bend) => {
+        const x1 = X(a[1]);
+        const y1 = Y(a[2]);
+        const x2 = X(b[1]);
+        const y2 = Y(b[2]);
+        return `M${x1.toFixed(0)} ${y1.toFixed(0)} Q ${((x1 + x2) / 2).toFixed(0)} ${((y1 + y2) / 2 - bend).toFixed(0)} ${x2.toFixed(0)} ${y2.toFixed(0)}`;
+    };
+    const routes = [[spots[0], hubs[2], 90], [spots[1], hubs[0], 70], [spots[0], hubs[1], 120], [spots[2], hubs[1], 60], [spots[3], hubs[2], 160]]
+        .map(([a, b, k], i) => `<path d="${route(a, b, k)}" class="sb-route" style="animation-delay:${-i * 1.3}s"/><circle r="3" class="sb-ship"><animateMotion dur="${7 + i * 1.5}s" repeatCount="indefinite" begin="${-i * 2}s" path="${route(a, b, k)}"/></circle>`).join('');
+    const pins = spots.map(([n, lon, lat], i) => `<g transform="translate(${X(lon).toFixed(0)} ${Y(lat).toFixed(0)})"><circle r="4" class="sb-pin"/><circle r="4" class="sb-ring" style="animation-delay:${i * 0.6}s"/>${['Ghana', 'Kamerun'].includes(n) ? '' : `<text x="8" y="-6" class="sb-lab">${n}</text>`}</g>`).join('')
+        + hubs.map(([n, lon, lat]) => `<g transform="translate(${X(lon).toFixed(0)} ${Y(lat).toFixed(0)})"><rect x="-3" y="-3" width="6" height="6" class="sb-hub"/>${n === 'Amsterdam' ? '' : `<text x="7" y="4" class="sb-lab hub">${n}</text>`}</g>`).join('');
+    // Endlos laufender Kurs: zwei identische Hälften, damit die Schleife nahtlos ist
+    let p = 260;
+    const pts = [];
+    for (let i = 0; i <= 60; i++) {
+        p += Math.sin(i * 0.7) * 14 + Math.cos(i * 1.9) * 9 + (i < 30 ? -1.2 : 1.2);
+        pts.push(p);
+    }
+    pts[60] = pts[0];
+    const seg = off => pts.map((v, i) => `${(off + i * 20).toFixed(0)},${v.toFixed(1)}`).join(' ');
+    const candles = pts.slice(0, 60).map((v, i) => {
+        const n = pts[i + 1];
+        return `<rect x="${i * 20 + 6}" y="${Math.min(v, n).toFixed(1)}" width="8" height="${Math.max(2, Math.abs(n - v)).toFixed(1)}" class="${n < v ? 'up' : 'down'}"/>`;
+    }).join('');
+    const bg = document.createElement('div');
+    bg.className = 'start-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" class="sb-map"><defs><radialGradient id="sbFade" cx="50%" cy="42%" r="60%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><mask id="sbMask"><rect width="${W}" height="${H}" fill="url(#sbFade)"/></mask></defs>
+            <g mask="url(#sbMask)"><g class="sb-dots">${dots}</g>${routes}${pins}</g></svg>
+        <div class="sb-chart"><svg viewBox="0 0 2400 400" preserveAspectRatio="none"><defs><linearGradient id="sbArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb547" stop-opacity=".22"/><stop offset="1" stop-color="#ffb547" stop-opacity="0"/></linearGradient></defs>
+            <g class="sb-roll"><g class="sb-candles">${candles}</g><g class="sb-candles" transform="translate(1200 0)">${candles}</g>
+            <polygon points="0,400 ${seg(0)} ${seg(1200)} 2400,400" fill="url(#sbArea)"/><polyline points="${seg(0)} ${seg(1200)}" class="sb-line"/></g></svg></div>
+        <div class="sb-beans">${Array.from({ length: 12 }, (_, i) => `<i style="left:${(i * 83) % 100}%;animation-delay:${-i * 2.3}s;animation-duration:${16 + (i % 5) * 4}s;--s:${0.6 + (i % 4) * 0.25};--r:${(i * 47) % 360}deg"></i>`).join('')}</div>`;
+    view.prepend(bg);
+})();

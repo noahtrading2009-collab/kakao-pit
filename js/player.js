@@ -1053,8 +1053,21 @@ const Player = (() => {
         return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
     }
 
-    // Kooperative: Region mit den Dörfern der Mitglieder (1 Dorf = 10 t) – detaillierte Landkarte
-    const VILLAGES = [[150, 120], [260, 90], [380, 130], [500, 95], [610, 140], [200, 210], [320, 235], [450, 205], [570, 240], [680, 215], [130, 300], [250, 320], [390, 315], [520, 330], [640, 310], [730, 120]];
+    // Massstab: Je mehr Tonnen, desto mehr Tonnen pro Dorf/Silo – so passt immer alles aufs Bild.
+    const deskUnit = (total, max) => [10, 20, 25, 50, 100, 200, 500].find(u => Math.ceil(total / u) <= max) || 1000;
+    // Seitenverhältnis des Kartenfelds (Höhe/Breite), damit die Grafik den Platz ganz ausfüllt
+    function deskAspect() {
+        const el = $('d-world');
+        const r = el && el.getBoundingClientRect();
+        if (!r || !r.width || !r.height) return 0.5;
+        return clamp(r.height / r.width, 0.42, 1.25);
+    }
+    // Alle y-Koordinaten eines Pfads (absolute Koordinatenpaare) strecken
+    const sy = (d, k) => { let i = 0; return d.replace(/-?\d+(\.\d+)?/g, m => (i++ % 2 ? (Number(m) * k).toFixed(1) : m)); };
+
+    // Kooperative: Region mit den Dörfern der Mitglieder – detaillierte Landkarte
+    // Dorf-Plätze (x 0..800, y 0..400) – werden auf die Kartenhöhe gestreckt
+    const VILLAGES = [[150, 110], [270, 85], [390, 125], [510, 92], [625, 135], [200, 205], [325, 230], [455, 200], [575, 238], [690, 210], [130, 300], [255, 322], [395, 312], [525, 330], [650, 305], [740, 115], [80, 200], [740, 300], [460, 40], [180, 40], [600, 30], [330, 370], [90, 375], [560, 380]];
     // Feste Pseudo-Zufallszahlen, damit die Karte bei jedem Neuzeichnen gleich aussieht
     const rnd = s => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
     function cocoaTree(x, y, s, k) {
@@ -1070,50 +1083,68 @@ const Player = (() => {
             <path d="M-11 0 L0 -10 L11 0 Z" fill="#9a6538"/><path d="M0 -10 L11 0 L0 0 Z" fill="#6f4423"/>
             <path d="M-11 0 L0 -10 L11 0" fill="none" stroke="rgba(255,230,180,.35)" stroke-width=".8"/></g>`;
     }
+    function tilesFor(H, prod, max) {
+        const total = H.contract + H.futIn + H.open + (prod ? H.lost : H.cut);
+        const unit = deskUnit(total, max);
+        const tiles = [];
+        const push = (t, k) => { for (let i = 0; i < Math.round(t / unit); i++) tiles.push(k); };
+        push(H.contract, 'deal');
+        push(H.futIn, 'fut');
+        push(H.open, 'open');
+        push(prod ? H.lost : H.cut, prod ? 'lost' : 'cut');
+        return { unit, tiles: tiles.slice(0, max) };
+    }
+    let deskUnitNow = 10;
+
     function farmSVG() {
         const H = holdings();
-        const tiles = [];
-        const push = (n, k) => { for (let i = 0; i < n; i++) tiles.push(k); };
-        push(Math.round(H.contract / 10), 'deal');
-        push(Math.round(H.futIn / 10), 'fut');
-        push(Math.round(H.open / 10), 'open');
-        push(Math.round(H.lost / 10), 'lost');
+        const { unit, tiles } = tilesFor(H, true, VILLAGES.length);
+        deskUnitNow = unit;
+        const VH = Math.round(800 * deskAspect());
+        const k = VH / 400;
         const smuggle = me.decision && me.decision.kind === 'smuggle';
         const partners = [];
-        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += 10) partners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
-        const tip = (k, i) => (k === 'deal' ? partners[i] || 'Per Vertrag verkauft' : k === 'fut' ? 'Mit Futures abgesichert – der Preis ist fix' : k === 'lost' ? 'An Schmuggler verloren' : 'Offen – hängt am Preis im Dezember');
+        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += unit) partners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
+        const tip = (kk, i) => (kk === 'deal' ? partners[i] || 'Per Vertrag verkauft' : kk === 'fut' ? 'Mit Futures abgesichert – der Preis ist fix' : kk === 'lost' ? 'An Schmuggler verloren' : 'Offen – hängt am Preis im Dezember');
         const badge = { deal: ['📜', 'Vertrag'], fut: ['🔒', 'Future'], lost: ['🚚', 'weg'], open: ['○', 'offen'] };
-        const villages = tiles.slice(0, VILLAGES.length).map((k, i) => {
-            const [x, y] = VILLAGES[i];
+        // Bei vielen Dörfern werden sie etwas kleiner
+        const vs = tiles.length > 16 ? 0.82 : 1;
+        const villages = tiles.map((kk, i) => {
+            const [x, y0] = VILLAGES[i];
+            const y = y0 * k;
             const trees = Array.from({ length: 7 }, (_, j) => {
                 const a = rnd(i * 13 + j) * Math.PI * 2;
                 const r = 34 + rnd(i * 7 + j * 3) * 14;
                 return cocoaTree(Math.cos(a) * r, Math.sin(a) * r * 0.55 + 8, 0.75 + rnd(i + j * 5) * 0.4, i + j);
             }).join('');
-            const [ico, lbl] = badge[k];
-            return `<g class="vil ${k}" transform="translate(${x} ${y})" style="animation-delay:${i * 0.04}s"><title>10 t · ${tip(k, i)}</title>
+            const [ico, lbl] = badge[kk];
+            return `<g class="vil ${kk}" transform="translate(${x} ${y.toFixed(1)}) scale(${vs})" style="animation-delay:${i * 0.04}s"><title>${unit} t · ${tip(kk, i)}</title>
                 <ellipse class="vil-ground" rx="40" ry="17" cy="10"/><ellipse class="vil-ring" rx="40" ry="17" cy="10"/>
                 <ellipse rx="27" ry="10" cy="9" fill="#a8865a" opacity=".55"/>
                 <g class="dry-mat"><rect x="-26" y="10" width="14" height="6" rx="1" fill="#6b3d1e"/><rect x="-25" y="11" width="12" height="4" fill="url(#dBeans)"/></g>
                 ${trees}
                 ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}
-                ${k !== 'lost' ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
-                ${k === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
-                <g class="vil-tag" transform="translate(0 40)"><rect x="-34" y="-10" width="68" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl}</text></g></g>`;
+                ${kk !== 'lost' ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
+                ${kk === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
+                <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g></g>`;
         }).join('');
+        const occupied = tiles.map((_, i) => [VILLAGES[i][0], VILLAGES[i][1] * k]);
         // Felder (Kakao-Reihen) und Waldstücke als Hintergrund
-        const fields = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10]]
-            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${y + h / 2})"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(20,40,15,.5)" stroke-width="1.5"/></g>`).join('');
-        const forest = Array.from({ length: 60 }, (_, i) => {
+        const fields = [[90, 40, 150, 70, -12], [330, 30, 170, 60, 8], [560, 50, 160, 70, -6], [60, 170, 120, 90, 15], [420, 150, 140, 70, -18], [690, 160, 100, 90, 10], [160, 360, 200, 40, 4], [470, 270, 130, 50, -10], [250, 120, 90, 50, 22], [600, 330, 120, 50, -14]]
+            .map(([x, y, w, h, r], i) => `<g transform="rotate(${r} ${x + w / 2} ${(y + h / 2) * k})"><rect x="${x}" y="${(y * k).toFixed(1)}" width="${w}" height="${(h * Math.min(k, 1.4)).toFixed(1)}" rx="6" fill="url(#${i % 2 ? 'dRows' : 'dRows2'})" stroke="rgba(20,40,15,.5)" stroke-width="1.5"/></g>`).join('');
+        const forest = Array.from({ length: Math.round(60 * k) }, (_, i) => {
             const x = rnd(i * 3.1) * 800;
-            const y = rnd(i * 5.7 + 2) * 400;
-            if (VILLAGES.some(([vx, vy]) => Math.hypot(vx - x, (vy - y) * 1.6) < 70)) return '';
+            const y = rnd(i * 5.7 + 2) * VH;
+            if (occupied.some(([vx, vy]) => Math.hypot(vx - x, (vy - y) * 1.6) < 70)) return '';
             return `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(6 + rnd(i) * 9).toFixed(1)}" fill="url(#dForest)"/>`;
         }).join('');
-        const contours = [0, 1, 2, 3].map(i => `<path d="M${-20} ${60 + i * 18} C 180 ${20 + i * 22}, 380 ${110 + i * 12}, 560 ${50 + i * 20} S 760 ${10 + i * 24}, 820 ${40 + i * 18}" class="contour"/>`).join('');
-        const ticks = Array.from({ length: 17 }, (_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${i % 2 ? 4 : 8}"/><line x1="${i * 50}" y1="400" x2="${i * 50}" y2="${i % 2 ? 396 : 392}"/>`).join('')
-            + Array.from({ length: 9 }, (_, i) => `<line x1="0" y1="${i * 50}" x2="${i % 2 ? 4 : 8}" y2="${i * 50}"/><line x1="800" y1="${i * 50}" x2="${i % 2 ? 796 : 792}" y2="${i * 50}"/>`).join('');
-        return `<svg viewBox="0 0 800 400" class="d-svg farm-map">
+        const contours = Array.from({ length: Math.round(4 * k) + 2 }, (_, i) => `<path d="${sy(`M-20 ${60 + i * 18} C 180 ${20 + i * 22}, 380 ${110 + i * 12}, 560 ${50 + i * 20} S 760 ${10 + i * 24}, 820 ${40 + i * 18}`, k)}" class="contour"/>`).join('');
+        const nT = Math.floor(VH / 50);
+        const ticks = Array.from({ length: 17 }, (_, i) => `<line x1="${i * 50}" y1="0" x2="${i * 50}" y2="${i % 2 ? 4 : 8}"/><line x1="${i * 50}" y1="${VH}" x2="${i * 50}" y2="${VH - (i % 2 ? 4 : 8)}"/>`).join('')
+            + Array.from({ length: nT + 1 }, (_, i) => `<line x1="0" y1="${i * 50}" x2="${i % 2 ? 4 : 8}" y2="${i * 50}"/><line x1="800" y1="${i * 50}" x2="${i % 2 ? 796 : 792}" y2="${i * 50}"/>`).join('');
+        const river = sy('M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300', k);
+        const road = sy('M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360', k);
+        return `<svg viewBox="0 0 800 ${VH}" class="d-svg farm-map" preserveAspectRatio="xMidYMid meet">
             <defs><radialGradient id="dfl" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#3a7a32"/><stop offset=".6" stop-color="#25562a"/><stop offset="1" stop-color="#132c16"/></radialGradient>
             <pattern id="dft" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="5" cy="6" r="2.2" fill="rgba(110,190,90,.22)"/><circle cx="16" cy="15" r="3" fill="rgba(40,100,40,.3)"/><circle cx="17" cy="4" r="1" fill="rgba(200,230,150,.18)"/></pattern>
             <pattern id="dRows" width="12" height="10" patternUnits="userSpaceOnUse"><rect width="12" height="10" fill="#2f6a2a"/><circle cx="6" cy="5" r="3.6" fill="#3f8a36"/><circle cx="5" cy="4" r="1.3" fill="rgba(255,255,255,.12)"/></pattern>
@@ -1122,55 +1153,60 @@ const Player = (() => {
             <radialGradient id="dTreeG" cx="35%" cy="30%"><stop offset="0" stop-color="#5cc04d"/><stop offset="1" stop-color="#1f5a20"/></radialGradient>
             <pattern id="dBeans" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#8a4b22"/><circle cx="1.5" cy="1.5" r="1" fill="#b46a32"/></pattern>
             <linearGradient id="dRiver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc4ff"/><stop offset="1" stop-color="#2f6fb8"/></linearGradient>
-            <radialGradient id="dVig" cx="50%" cy="50%" r="70%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
-            <rect width="800" height="400" fill="url(#dfl)"/><rect width="800" height="400" fill="url(#dft)"/>
+            <radialGradient id="dVig" cx="50%" cy="50%" r="72%"><stop offset=".6" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.45)"/></radialGradient></defs>
+            <rect width="800" height="${VH}" fill="url(#dfl)"/><rect width="800" height="${VH}" fill="url(#dft)"/>
             ${contours}${fields}${forest}
-            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river-bank"/>
-            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river"/>
-            <path d="M0 260 C 120 230, 200 300, 320 270 S 520 200, 640 260 S 760 330, 800 300" class="river-flow"/>
-            <path d="M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360" class="road"/>
-            <path d="M40 380 C 200 350, 420 360, 560 370 S 740 390, 790 360" class="road-mid"/>
-            <g class="bridge" transform="translate(560 368) rotate(-8)"><rect x="-12" y="-10" width="24" height="20" rx="2"/></g>
-            <line x1="12" y1="0" x2="12" y2="400" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
-            <g class="port" transform="translate(735 360)"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
-            ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="368">🚚</text><text class="truck t2" x="420" y="362">🚚</text><path d="M560 360 C 400 300, 200 330, 14 300" class="smug-path"/></g>` : ''}
-            <g class="cloud-shadows"><ellipse cx="0" cy="120" rx="140" ry="40"/><ellipse cx="-300" cy="290" rx="180" ry="50"/></g>
+            <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
+            <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>
+            <g class="bridge" transform="translate(560 ${(368 * k).toFixed(1)}) rotate(-8)"><rect x="-12" y="-10" width="24" height="20" rx="2"/></g>
+            <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
+            <g class="port" transform="translate(735 ${(360 * k).toFixed(1)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
+            ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="${368 * k}">🚚</text><text class="truck t2" x="420" y="${362 * k}">🚚</text><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
+            <g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>
             ${villages}
             <g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>
-            <rect width="800" height="400" fill="url(#dVig)" pointer-events="none"/>
+            <rect width="800" height="${VH}" fill="url(#dVig)" pointer-events="none"/>
             <g class="map-ticks">${ticks}</g>
             <g class="compass" transform="translate(760 70)"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
-            <g class="scalebar" transform="translate(30 336)"><rect width="100" height="5" fill="#e7f5df"/><rect width="50" height="5" fill="#25562a"/><rect width="100" height="5" fill="none" stroke="#e7f5df"/><text x="0" y="18">0</text><text x="100" y="18" text-anchor="end">10 km</text></g>
+            <g class="scalebar" transform="translate(30 ${VH - 30})"><rect width="100" height="5" fill="#e7f5df"/><rect width="50" height="5" fill="#25562a"/><rect width="100" height="5" fill="none" stroke="#e7f5df"/><text x="0" y="18">0</text><text x="100" y="18" text-anchor="end">10 km</text></g>
             <text x="740" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''}</text>
         </svg>`;
     }
 
-    // Fabrik: Silo-Halle (1 Silo = 10 t Bedarf), Rohrleitungen und Produktionslinie
+    // Fabrik: Silo-Halle, Rohrleitungen und Produktionslinie – passt sich dem Platz an
     function plantSVG() {
         const H = holdings();
-        const tiles = [];
-        const push = (n, k) => { for (let i = 0; i < n; i++) tiles.push(k); };
-        push(Math.round(H.contract / 10), 'deal');
-        push(Math.round(H.futIn / 10), 'fut');
-        push(Math.round(H.open / 10), 'open');
-        push(Math.round(H.cut / 10), 'cut');
+        const { unit, tiles } = tilesFor(H, false, 30);
+        deskUnitNow = unit;
         const sPartners = [];
-        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += 10) sPartners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
-        const n = Math.max(1, Math.min(20, tiles.length));
-        const per = Math.min(10, n);
-        const rows = Math.ceil(n / per);
+        ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += unit) sPartners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
+        const n = Math.max(1, tiles.length);
+        const ar = deskAspect();
         const w = 64;
         const gap = 10;
-        const x0 = 400 - (per * (w + gap) - gap) / 2;
-        const rowH = 150;
-        const silos = tiles.slice(0, n).map((k, i) => {
-            const x = x0 + (i % per) * (w + gap);
-            const y = 40 + Math.floor(i / per) * rowH;
-            const fill = k === 'deal' || k === 'fut' ? 86 : 0;
-            const fillId = k === 'deal' ? 'pFillD' : 'pFillF';
+        // Beste Anordnung suchen: so gross wie möglich, Halle füllt das Feld
+        let best = null;
+        for (let per = 3; per <= Math.min(12, Math.max(3, n)); per++) {
+            const rows = Math.ceil(n / per);
+            const s = Math.min(1.7, 720 / (per * (w + gap)));
+            const hNeed = 50 + rows * 150 * s + 175;
+            const sFit = Math.min(s, s * ((800 * ar) / hNeed));
+            if (!best || sFit > best.s) best = { per, rows, s: sFit };
+        }
+        const { per, rows, s } = best;
+        const x0 = 400 - (Math.min(per, n) * (w + gap) - gap) * s / 2;
+        const rowH = 150 * s;
+        const top = 50;
+        const ly = top + rows * rowH;
+        const HH = Math.max(Math.round(800 * ar), Math.round(ly + 165));
+        const silos = tiles.map((kk, i) => {
+            const x = x0 + (i % per) * (w + gap) * s;
+            const y = top + Math.floor(i / per) * rowH;
+            const fill = kk === 'deal' || kk === 'fut' ? 86 : 0;
+            const fillId = kk === 'deal' ? 'pFillD' : 'pFillF';
             const gauge = Array.from({ length: 9 }, (_, j) => `<line x1="-5" x2="${j % 2 ? -2 : -7}" y1="${12 + j * 10}" y2="${12 + j * 10}"/>`).join('');
             const ladder = Array.from({ length: 9 }, (_, j) => `<line x1="${w + 2}" x2="${w + 8}" y1="${10 + j * 10}" y2="${10 + j * 10}"/>`).join('');
-            return `<g class="silo ${k}" transform="translate(${x} ${y})"><title>10 t · ${k === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : k === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : k === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}</title>
+            return `<g class="silo ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})" style="animation-delay:${i * 0.03}s"><title>${unit} t · ${kk === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : kk === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : kk === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}</title>
                 <ellipse cx="${w / 2 + 4}" cy="124" rx="${w / 2 + 6}" ry="6" fill="rgba(0,0,0,.4)"/>
                 <path d="M8 100 L4 122 M${w - 8} 100 L${w - 4} 122 M${w / 2} 104 L${w / 2} 122" class="s-legs"/>
                 <path d="M0 96 L${w / 2 - 8} 112 L${w / 2 + 8} 112 L${w} 96 Z" fill="url(#pMetal)" stroke="#5b6576"/>
@@ -1182,22 +1218,22 @@ const Player = (() => {
                 <g class="s-gauge">${gauge}</g><g class="s-ladder"><line x1="${w + 2}" x2="${w + 2}" y1="4" y2="98"/><line x1="${w + 8}" x2="${w + 8}" y1="4" y2="98"/>${ladder}</g>
                 <ellipse class="s-top" cx="${w / 2}" cy="2" rx="${w / 2}" ry="8"/><ellipse cx="${w / 2}" cy="0" rx="10" ry="3" fill="#56627a"/>
                 <rect x="${w / 2 - 15}" y="80" width="30" height="11" rx="2" class="s-plate"/><text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
-                <circle cx="${w - 9}" cy="12" r="3" class="s-led ${k}"/>
-                ${k === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
-                <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${k === 'deal' ? '📜 Vertrag' : k === 'fut' ? '🔒 Future' : k === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
+                <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
+                ${kk === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
+                <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${kk === 'deal' ? '📜 Vertrag' : kk === 'fut' ? '🔒 Future' : kk === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
         }).join('');
-        const ly = 40 + rows * rowH;
         const mm = Math.round((me.marginMult || 1) * 100);
-        const HH = ly + 130;
-        // Sammelleitung unter den Silos zur Maschine
-        const pipeY = ly - 8;
-        const drops = tiles.slice(0, n).map((k, i) => {
-            if (Math.floor(i / per) !== rows - 1) return '';
-            const x = x0 + (i % per) * (w + gap) + w / 2;
-            return `<path d="M${x} ${pipeY - 26} V${pipeY}" class="pipe-v"/>`;
-        }).join('');
+        const by = HH - 130; // Produktionslinie unten
+        const pipeY = Math.min(ly + 4, by - 6);
+        const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
+        const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
+        const drops = lastRow.map(i => `<path d="M${cx(i).toFixed(1)} ${(top + (rows - 1) * rowH + 122 * s).toFixed(1)} V${pipeY}" class="pipe-v"/>`).join('');
+        const xa = cx(lastRow[0] || 0);
+        const xb = cx(lastRow[lastRow.length - 1] || 0);
         const lights = [120, 300, 500, 680].map(x => `<g><rect x="${x - 30}" y="0" width="60" height="5" fill="#2a3240"/><ellipse cx="${x}" cy="6" rx="36" ry="4" fill="rgba(255,230,170,.75)"/><path d="M${x - 36} 6 L${x - 110} ${HH} L${x + 110} ${HH} L${x + 36} 6Z" fill="url(#pBeam)"/></g>`).join('');
-        return `<svg viewBox="0 0 800 ${HH}" class="d-svg plant-map">
+        // Wandbeschriftung und Lüftungsgitter für mehr Tiefe
+        const vents = [60, 740].map(x => `<g transform="translate(${x - 26} ${Math.max(20, top - 36)})"><rect width="52" height="22" rx="3" fill="#0d1117" stroke="#2a3240"/>${[0, 1, 2, 3].map(j => `<rect x="5" y="${4 + j * 4.2}" width="42" height="2" fill="#2a3240"/>`).join('')}</g>`).join('');
+        return `<svg viewBox="0 0 800 ${HH}" class="d-svg plant-map" preserveAspectRatio="xMidYMid meet">
             <defs><linearGradient id="pMetal" x1="0" x2="1"><stop offset="0" stop-color="#2a313c"/><stop offset=".25" stop-color="#4b5566"/><stop offset=".45" stop-color="#6b778a"/><stop offset=".7" stop-color="#3a4250"/><stop offset="1" stop-color="#232933"/></linearGradient>
             <linearGradient id="pGlass" x1="0" x2="1"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset=".2" stop-color="rgba(255,255,255,.16)"/><stop offset=".3" stop-color="rgba(255,255,255,0)"/></linearGradient>
             <linearGradient id="pFillF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf6b"/><stop offset=".15" stop-color="#d98a2b"/><stop offset="1" stop-color="#6b3a12"/></linearGradient>
@@ -1209,13 +1245,14 @@ const Player = (() => {
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern></defs>
             <rect width="800" height="${HH}" fill="url(#pWall)"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
-            ${lights}
-            <rect x="0" y="${ly + 50}" width="800" height="${HH - ly - 50}" fill="url(#pFloor)"/>
-            <rect x="0" y="${ly + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
+            ${lights}${vents}
+            <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
+            <rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)"/>
+            <rect x="0" y="${by + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
+            ${drops}<path d="M${xa.toFixed(1)} ${pipeY} H${xb.toFixed(1)}" class="pipe-h"/>
+            <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>
             ${silos}
-            ${drops}<path d="M${x0 + w / 2} ${pipeY} H${x0 + (Math.min(per, n) - 1) * (w + gap) + w / 2}" class="pipe-h"/>
-            <path d="M400 ${pipeY} V${ly + 4}" class="pipe-h"/><path d="M${x0 + w / 2} ${pipeY} H400 V${ly + 4}" class="pipe-flow"/>
-            <g transform="translate(0 ${ly})">
+            <g transform="translate(0 ${by})">
                 <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
                 ${Array.from({ length: 19 }, (_, i) => `<circle cx="${48 + i * 39.5}" cy="73" r="4.5" class="roller"/>`).join('')}
                 <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>
@@ -1274,8 +1311,8 @@ const Player = (() => {
 
         // Mitte: Dörfer bzw. Silos
         const H = holdings();
-        $('d-world-h').innerHTML = prod ? `Deine Mitglieder <span>1 Dorf = 10 t Ernte</span>` : `Kakao-Bedarf <span>1 Silo = 10 t</span>`;
         setHTML($('d-world'), prod ? farmSVG() : plantSVG());
+        $('d-world-h').innerHTML = prod ? `Deine Mitglieder <span>1 Dorf = ${deskUnitNow} t Ernte</span>` : `Kakao-Bedarf <span>1 Silo = ${deskUnitNow} t</span>`;
         setHTML($('d-legend'), `<span class="lg deal">📜 Vertrag ${H.contract} t</span><span class="lg fut">🔒 Futures ${H.futIn} t</span><span class="lg open">⚠️ offen ${H.open} t</span>${H.lost ? `<span class="lg lost">🚚 verloren ${H.lost} t</span>` : ''}${H.cut ? `<span class="lg cut">✂️ gestrichen ${H.cut} t</span>` : ''}${H.over ? `<span class="lg lost">🎲 ${H.over} t zu viel abgesichert!</span>` : ''}`);
 
         // Entscheidung als grosses Fenster in der Mitte
