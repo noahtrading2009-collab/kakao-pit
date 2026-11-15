@@ -484,20 +484,6 @@ const Host = (() => {
         { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
     ];
 
-    // Wie weit liegt ein Spieler vom Plan weg? (positiv = gut für seine Rolle)
-    function dev(B, r, list) {
-        const p0 = Engine.G.p0;
-        if (B.role === 'spec') {
-            const mx = Math.max(1000, ...list.map(x => Math.abs(x.metric)));
-            return { f: r.metric / mx, t: signed(r.metric) === '±0' ? 'flat' : `${r.metric >= 0 ? '▲' : '▼'} ${pct(r.metric / 120000)}` };
-        }
-        const d = B.role === 'producer' ? r.metric / p0 - 1 : 1 - r.metric / p0;
-        return { f: Math.max(-1, Math.min(1, d / 0.08)), t: `${d >= 0 ? '▲' : '▼'} ${pct(Math.abs(d))} vs Plan` };
-    }
-    function devStyle(o) {
-        return `--dw:${(Math.abs(o.f) * 50).toFixed(1)}%;--dl:${o.f >= 0 ? 50 : 50 - Math.abs(o.f) * 50}%`;
-    }
-
     // Ändert sich die Reihenfolge, gleiten die Zeilen an ihren neuen Platz (FLIP-Animation).
     // Sonst werden nur die Zahlen aktualisiert – nichts flackert.
     function renderRank(S) {
@@ -517,13 +503,6 @@ const Host = (() => {
                         rs.innerHTML = v;
                         rs.className = `rs ${B.cls(r)}`;
                     }
-                    if (row) {
-                        const o = dev(B, r, all);
-                        row.querySelector('.rd').textContent = o.t;
-                        row.querySelector('.rd').className = `rd ${o.f >= 0 ? 'up' : 'down'}`;
-                        row.querySelector('.rk-dev').setAttribute('style', devStyle(o));
-                        row.querySelector('.rk-dev').className = `rk-dev ${o.f >= 0 ? 'up' : 'down'}`;
-                    }
                 }
             }
             return;
@@ -535,7 +514,7 @@ const Host = (() => {
             return `<div class="rk-group" style="--rc:${R.color}"><div class="rk-head"><b>${roleIcon(B.role, 20)} ${R.short}</b> <span>${B.title}</span></div>
                 ${list.map((r, i) => `<div class="rank-row ${r.bankrupt ? 'dead' : ''} ${i === 0 ? 'lead' : ''}" data-k="${r.id}"><span class="rk">${['🥇', '🥈', '🥉'][i] || i + 1}</span>
                     <span class="rn">${avatar(r.name, r.bot)}${esc(r.name)}${r.bot ? ' <span class="dim">🤖</span>' : ''}${r.connected === false && !r.bot ? ' <span class="dim" title="Verbindung weg">📵</span>' : ''}${r.rep ? ` <span class="rk-rep" title="Verträge gebrochen">💔${r.rep}</span>` : ''}</span>
-                    <span class="rs ${B.cls(r)}">${B.val(r)}</span>${(o => `<small class="rd ${o.f >= 0 ? 'up' : 'down'}">${o.t}</small><i class="rk-dev ${o.f >= 0 ? 'up' : 'down'}" style="${devStyle(o)}"></i>`)(dev(B, r, all))}</div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
+                    <span class="rs ${B.cls(r)}">${B.val(r)}</span></div>`).join('')}${more ? `<div class="rk-more">+ ${more} weitere</div>` : ''}</div>`;
         }).join('');
         el.querySelectorAll('[data-k]').forEach(n => {
             const top = before.get(n.dataset.k);

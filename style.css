@@ -1726,15 +1726,6 @@ body:has(#v-desk.active) .p-coach { top: 104px; bottom: auto; left: 50%; right: 
 .worldmap .grat line { stroke: rgba(140, 170, 220, .07); stroke-width: .3; }
 .worldmap .trop-l { font: 600 3.2px "JetBrains Mono", monospace; fill: rgba(255, 181, 71, .5); letter-spacing: .3px; }
 
-/* ===== Ranglisten: Abweichung vom Plan ===== */
-.rk-group .rank-row { position: relative; padding-bottom: 17px; }
-.rk-group .rank-row .rd { position: absolute; right: 8px; bottom: 2px; font-family: var(--mono); font-size: 10px; line-height: 12px; opacity: .9; white-space: nowrap; }
-.rk-dev { position: absolute; left: 42px; right: 118px; bottom: 7px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .06); }
-.rk-dev::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255, 255, 255, .3); }
-.rk-dev::after { content: ""; position: absolute; top: 0; bottom: 0; left: var(--dl, 50%); width: var(--dw, 0); border-radius: 2px; transition: left .6s, width .6s; }
-.rk-dev.up::after { background: linear-gradient(90deg, rgba(34, 229, 138, .5), #22e58a); box-shadow: 0 0 6px rgba(34, 229, 138, .6); }
-.rk-dev.down::after { background: linear-gradient(90deg, #ff4d6a, rgba(255, 77, 106, .5)); box-shadow: 0 0 6px rgba(255, 77, 106, .6); }
-
 /* ===== Gemeinsamer SVG-Kurschart ===== */
 .pg { width: 100%; height: auto; display: block; }
 .pg .pg-maj { stroke: rgba(140, 170, 220, .13); stroke-width: 1; }
