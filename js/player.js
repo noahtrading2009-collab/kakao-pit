@@ -1190,9 +1190,10 @@ const Player = (() => {
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
         const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
-        const LDATA = { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS };
-        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, () => renderDesk()) : null;
-        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
+        // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
+        const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
+        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, () => renderDesk()) : null;
+        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
         const img = hi || lo;
         deskBg(img);
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
@@ -1291,11 +1292,11 @@ const Player = (() => {
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         const LDATA = {
             HH, by, pipeY, xa, xb,
-            silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: kk, i })),
+            silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: 'n', i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
-        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}|lo`, LDATA, 800, () => renderDesk()) : null;
-        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}`, LDATA, pxW, () => renderDesk()) : null;
+        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}|lo`, LDATA, 800, () => renderDesk()) : null;
+        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}`, LDATA, pxW, () => renderDesk()) : null;
         const img = hi || lo;
         deskBg(img);
         const silos = tiles.map((kk, i) => {
@@ -1309,6 +1310,7 @@ const Player = (() => {
             if (img) {
                 return `<g class="silo r ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})"><title>${tipS}</title>
                     <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
+                    ${kk === 'deal' || kk === 'fut' ? `<rect x="${(w * 0.62).toFixed(1)}" y="12" width="6" height="80" fill="url(#beanFill)"/><rect x="${(w * 0.62 + 0.6).toFixed(1)}" y="13" width="1" height="78" fill="rgba(255,255,255,.28)"/><rect x="0" y="52" width="${w}" height="9" fill="url(#${kk === 'deal' ? 'bandD' : 'bandF'})"/>` : ''}
                     <text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
                     <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
                     ${kk === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
@@ -1349,6 +1351,9 @@ const Player = (() => {
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
             <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern>
+            <linearGradient id="beanFill" x1="0" x2="1"><stop offset="0" stop-color="#4a2810"/><stop offset=".5" stop-color="#a0642c"/><stop offset="1" stop-color="#3e200c"/></linearGradient>
+            <linearGradient id="bandD" x1="0" x2="1"><stop offset="0" stop-color="#0c1f45"/><stop offset=".3" stop-color="#2f6fd0"/><stop offset=".42" stop-color="#7fb0f5"/><stop offset=".7" stop-color="#23529e"/><stop offset="1" stop-color="#0a1a3a"/></linearGradient>
+            <linearGradient id="bandF" x1="0" x2="1"><stop offset="0" stop-color="#4a3006"/><stop offset=".3" stop-color="#c98a1a"/><stop offset=".42" stop-color="#f6cd6a"/><stop offset=".7" stop-color="#a8700f"/><stop offset="1" stop-color="#3a2604"/></linearGradient>
             <linearGradient id="chocFall" x1="0" x2="1"><stop offset="0" stop-color="#3a1c0a"/><stop offset=".3" stop-color="#7a4422"/><stop offset=".45" stop-color="#b47a4c"/><stop offset=".6" stop-color="#6a3a1c"/><stop offset="1" stop-color="#2e1607"/></linearGradient></defs>
             ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}

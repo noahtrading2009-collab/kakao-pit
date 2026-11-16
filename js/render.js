@@ -41,12 +41,27 @@ const Render = (() => {
     // Höchstens ein Auftrag läuft, ein weiterer wartet – ältere wartende Aufträge verfallen
     let busy = false;
     let queued = null;
+    const STORE = `kp-render-${ver}`;
     function run(job) {
         busy = true;
         const id = ++seq;
         waits[id] = job;
-        worker.postMessage({ id, type: job.type, L: job.L, pxW: job.pxW });
+        // Schon einmal gerechnet (auch in einer früheren Runde)? Dann sofort aus dem Speicher laden.
+        const fromCache = self.caches ? caches.open(STORE).then(c => c.match(`/__kp-render/${encodeURIComponent(job.key)}`)).then(r => (r ? r.blob() : null)).then(b => (b ? createImageBitmap(b) : null)).catch(() => null) : Promise.resolve(null);
+        fromCache.then(bmp => {
+            if (bmp) {
+                delete waits[id];
+                store(job.key, bmp);
+                if (window.KP_DEBUG) console.log('Render (gespeichert)', job.key);
+                next();
+                job.done && job.done();
+                return;
+            }
+            worker.postMessage({ id, type: job.type, L: job.L, pxW: job.pxW, key: job.key, store: STORE });
+        });
     }
+    // Alte gespeicherte Bilder früherer Versionen aufräumen
+    if (self.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('kp-render-') && k !== STORE).forEach(k => caches.delete(k))).catch(() => {});
     function next() {
         busy = false;
         if (queued) { const j = queued; queued = null; run(j); }

@@ -1444,13 +1444,19 @@ const RenderCore = (() => {
 // Als Web Worker: Auftrag annehmen, Bild rechnen, als JPEG zurückschicken
 if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
     self.onmessage = async e => {
-        const { id, type, L, pxW } = e.data;
+        const { id, type, L, pxW, key, store } = e.data;
         try {
             const t0 = Date.now();
             const c = RenderCore[type](L, pxW);
             const tm = c._tm;
-            const bmp = c.transferToImageBitmap();
+            // Erst anzeigen lassen, dann in Ruhe für das nächste Mal speichern
+            const bmp = await createImageBitmap(c);
             self.postMessage({ id, bmp, ms: Date.now() - t0, tm }, [bmp]);
+            if (store && self.caches) {
+                const blob = await c.convertToBlob({ type: 'image/webp', quality: 0.92 });
+                const cache = await caches.open(store);
+                await cache.put(new Request(`/__kp-render/${encodeURIComponent(key)}`), new Response(blob, { headers: { 'Content-Type': 'image/webp' } }));
+            }
         } catch (err) {
             self.postMessage({ id, err: String((err && err.stack) || err) });
         }
