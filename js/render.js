@@ -31,7 +31,7 @@ const Render = (() => {
     // Fertige Bilder als ImageBitmap (ohne JPEG-Umweg) – höchstens 4 behalten
     function store(key, bmp) {
         cache.set(key, { bmp });
-        while (cache.size > 4) {
+        while (cache.size > 6) {
             const first = cache.keys().next().value;
             const v = cache.get(first);
             if (v && v.bmp && v.bmp.close) v.bmp.close();

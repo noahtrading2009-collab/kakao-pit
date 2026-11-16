@@ -124,16 +124,21 @@ const App = (() => {
     const X = lon => ((lon + 170) / 340) * W;
     const Y = lat => ((75 - lat) / 130) * H;
     const step = window.innerWidth < 720 ? 3 : 2;
-    let dots = '';
-    for (const [lat, ranges] of LAND_HI) {
-        if (lat % step || lat > 74 || lat < -55) continue;
-        for (const [a, b] of ranges) {
-            for (let lon = Math.ceil(a / step) * step; lon <= b; lon += step) {
-                if (lon < -170 || lon > 170) continue;
-                dots += `<circle cx="${X(lon).toFixed(1)}" cy="${Y(lat).toFixed(1)}" r="1.25"/>`;
+    const dotsImg = paintImage(W, H, 2, x => {
+        x.fillStyle = 'rgba(140,170,220,.28)';
+        x.beginPath();
+        for (const [lat, ranges] of LAND_HI) {
+            if (lat % step || lat > 74 || lat < -55) continue;
+            for (const [a, b] of ranges) {
+                for (let lon = Math.ceil(a / step) * step; lon <= b; lon += step) {
+                    if (lon < -170 || lon > 170) continue;
+                    x.moveTo(X(lon) + 1.25, Y(lat));
+                    x.arc(X(lon), Y(lat), 1.25, 0, Math.PI * 2);
+                }
             }
         }
-    }
+        x.fill();
+    });
     const spots = [['Elfenbeinküste', -5.5, 6.8], ['Ghana', -1.2, 6.9], ['Ecuador', -79, -1.5], ['Indonesien', 120, -2], ['Kamerun', 12, 4.5], ['Brasilien', -39.5, -14]];
     const hubs = [['London', -0.1, 51.5], ['New York', -74, 40.7], ['Amsterdam', 4.9, 52.4]];
     const route = (a, b, bend) => {
@@ -164,7 +169,7 @@ const App = (() => {
     bg.className = 'start-bg';
     bg.setAttribute('aria-hidden', 'true');
     bg.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" class="sb-map"><defs><radialGradient id="sbFade" cx="50%" cy="42%" r="60%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><mask id="sbMask"><rect width="${W}" height="${H}" fill="url(#sbFade)"/></mask></defs>
-            <g mask="url(#sbMask)"><g class="sb-dots">${dots}</g>${routes}${pins}</g></svg>
+            <g mask="url(#sbMask)"><image href="${dotsImg}" x="0" y="0" width="${W}" height="${H}"/>${routes}${pins}</g></svg>
         <div class="sb-chart"><svg viewBox="0 0 2400 400" preserveAspectRatio="none"><defs><linearGradient id="sbArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb547" stop-opacity=".22"/><stop offset="1" stop-color="#ffb547" stop-opacity="0"/></linearGradient></defs>
             <g class="sb-roll"><g class="sb-candles">${candles}</g><g class="sb-candles" transform="translate(1200 0)">${candles}</g>
             <polygon points="0,400 ${seg(0)} ${seg(1200)} 2400,400" fill="url(#sbArea)"/><polyline points="${seg(0)} ${seg(1200)}" class="sb-line"/></g></svg></div>

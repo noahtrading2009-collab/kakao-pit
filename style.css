@@ -1878,3 +1878,15 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .plant-map .enrobe-flow { fill: none; stroke: rgba(255, 220, 180, .28); stroke-width: 26; stroke-dasharray: 3 7; animation: chocFlow .8s linear infinite; }
 @keyframes chocFlow { to { stroke-dashoffset: -20; } }
 @media (prefers-reduced-motion: reduce) { .plant-map .enrobe-flow { animation: none; } }
+
+/* ===== Leistung: keine bildschirmweiten Überblendungen, keine animierten Filter ===== */
+body::after { mix-blend-mode: normal !important; opacity: .35 !important; }
+.farm-map.rendered .vil-ring { filter: none; }
+.plant-map .s-led.deal, .plant-map .s-led.fut { filter: none; }
+.vil.open .vil-ring, .t-routes path, .farm-map .river-flow, .plant-map .pipe-flow { animation: none !important; }
+.t-coast { filter: none; }
+.sb-ship, .sb-line { filter: none; }
+.hero-emblem, .logo { filter: none; }
+
+/* Leistung: Hintergrund-Leuchten steht still (ein unscharfer, bewegter Bildschirm-Hintergrund kostet jedes Bild viel Rechenzeit) */
+.bg-aurora i { animation: none !important; }

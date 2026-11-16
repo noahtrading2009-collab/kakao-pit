@@ -466,6 +466,9 @@ const Host = (() => {
             anim.running = false;
             return;
         }
+        // Höchstens 30 Bilder pro Sekunde für den Chart – flüssig genug und halb so viel Arbeit
+        if (anim.drawnAt && now - anim.drawnAt < 31) { requestAnimationFrame(frame); return; }
+        anim.drawnAt = now;
         // Linear über die ganze Sekunde: Kurs und Zeitachse wandern gleichmässig weiter (kein Ruck, kein Stocken).
         anim.lastFrame = performance.now();
         const k = Math.min(1, (now - anim.t0) / 1000);
@@ -582,17 +585,25 @@ const Host = (() => {
     let mapDots = null;
     function dots() {
         if (mapDots) return mapDots;
-        let out = '';
-        for (const [lat, ranges] of LAND_HI) {
-            if (lat > 77 || lat < -56) continue;
-            for (const [a, b] of ranges) for (let lon = a; lon <= b; lon++) out += `<circle cx="${mx(lon)}" cy="${my(lat)}" r=".42"/>`;
-        }
         const coast = COAST_HI.map(c => {
             let d = '';
             for (let i = 0; i < c.length; i += 2) d += `${i && Math.abs(c[i] - c[i - 2]) < 180 ? 'L' : 'M'}${mx(c[i] / 2)} ${my(c[i + 1] / 2)}`;
             return d;
         }).join('');
-        mapDots = `${out}</g><path d="${coast}" class="coast"/><g>`;
+        const url = paintImage(MAP_W, MAP_H, 6, x => {
+            x.fillStyle = 'rgba(140,170,220,.34)';
+            x.beginPath();
+            for (const [lat, ranges] of LAND_HI) {
+                if (lat > 77 || lat < -56) continue;
+                for (const [a, b] of ranges) for (let lon = a; lon <= b; lon++) { x.moveTo(mx(lon) + 0.42, my(lat)); x.arc(mx(lon), my(lat), 0.42, 0, Math.PI * 2); }
+            }
+            x.fill();
+            x.strokeStyle = 'rgba(170,200,245,.6)';
+            x.lineWidth = 0.32;
+            x.lineJoin = 'round';
+            x.stroke(new Path2D(coast));
+        });
+        mapDots = `<image href="${url}" x="0" y="0" width="${MAP_W}" height="${MAP_H}"/>`;
         return mapDots;
     }
 
@@ -675,7 +686,7 @@ const Host = (() => {
         const box = cv.parentElement;
         const w = box.clientWidth - 20;
         const h = box.clientHeight - 20;
-        const k = HQ() * stageScale;
+        const k = Math.max(window.devicePixelRatio || 1, 1.25) * stageScale; // mindestens Bildschirm-Auflösung, ohne unnötige Mehrarbeit pro Bild
         cv.width = Math.round(w * k);
         cv.height = Math.round(h * k);
         cv.dataset.k = k;
@@ -900,7 +911,7 @@ const Host = (() => {
                 path();
                 c.lineWidth = 2.8;
                 c.shadowColor = hv.c1;
-                c.shadowBlur = 16;
+                c.shadowBlur = 0; // Leuchten kommt von der breiten, halbtransparenten Linie darunter (viel günstiger)
                 c.stroke();
                 c.shadowBlur = 0;
                 c.restore();

@@ -752,3 +752,15 @@ window.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(box.firstElementChild);
     } catch (e) { /* ohne Texturen geht es auch */ }
 });
+
+// Statische Grafik (z. B. 14'000 Kartenpunkte) einmal als Bild malen statt als tausende SVG-Elemente –
+// sonst muss der Browser bei jeder Animation darüber alles neu zeichnen.
+function paintImage(w, h, scale, draw) {
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(w * scale);
+    cv.height = Math.round(h * scale);
+    const x = cv.getContext('2d');
+    x.scale(scale, scale);
+    draw(x);
+    return cv.toDataURL('image/png');
+}

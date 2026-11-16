@@ -697,7 +697,7 @@ const Player = (() => {
         c.strokeStyle = `rgb(${col})`;
         c.lineWidth = 2;
         c.shadowColor = `rgb(${col})`;
-        c.shadowBlur = 8;
+        c.shadowBlur = 0;
         c.stroke();
         c.shadowBlur = 0;
         c.lineTo(W - 2, H);
@@ -1189,7 +1189,11 @@ const Player = (() => {
         const FIELDS = LAY.fields;
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
         const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
-        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS }, pxW, () => renderDesk()) : null;
+        // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
+        const LDATA = { VH, villages: occupied, sky: me.sky, river, road, fields: FIELDS };
+        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, () => renderDesk()) : null;
+        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${tiles.length}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
+        const img = hi || lo;
         deskBg(img);
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
             const [x, y] = occupied[i];
@@ -1205,7 +1209,7 @@ const Player = (() => {
                 <g class="dry-mat"><rect x="-26" y="10" width="14" height="6" rx="1" fill="#6b3d1e"/><rect x="-25" y="11" width="12" height="4" fill="url(#dBeans)"/></g>
                 ${trees}
                 ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}`}
-                ${kk !== 'lost' ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
+                ${kk !== 'lost' && !img ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
                 ${kk === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
                 <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g></g>`;
         }).join('');
@@ -1240,9 +1244,9 @@ const Player = (() => {
             <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
             <g class="port" transform="translate(735 ${(360 * k).toFixed(1)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
             ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="${368 * k}">🚚</text><text class="truck t2" x="420" y="${362 * k}">🚚</text><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
-            <g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>
+            ${img ? '' : `<g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>`}
             ${villages}
-            <g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>
+            ${img ? '' : `<g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>`}
             ${img ? '' : `<rect width="800" height="${VH}" fill="url(#dVig)" pointer-events="none"/>`}
             <g class="map-ticks">${ticks}</g>
             <g class="compass" transform="translate(760 70)"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
@@ -1284,11 +1288,15 @@ const Player = (() => {
         const xa = cx(lastRow[0] || 0);
         const xb = cx(lastRow[lastRow.length - 1] || 0);
         const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
-        const img = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}`, {
+        // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
+        const LDATA = {
             HH, by, pipeY, xa, xb,
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: kk, i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
-        }, pxW, () => renderDesk()) : null;
+        };
+        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}|lo`, LDATA, 800, () => renderDesk()) : null;
+        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.join('')}|${pxW}`, LDATA, pxW, () => renderDesk()) : null;
+        const img = hi || lo;
         deskBg(img);
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
@@ -1351,11 +1359,15 @@ const Player = (() => {
             <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>`}
             ${silos}
             <g transform="translate(0 ${by})">
-                ${img ? '<defs><clipPath id="beltClip"><rect x="0" y="-20" width="570" height="120"/><rect x="745" y="-20" width="60" height="120"/></clipPath></defs>' : ''}
+                ${img ? '<defs><clipPath id="beltClip"><rect x="0" y="-20" width="570" height="120"/><rect x="745" y="-20" width="60" height="120"/></clipPath><clipPath id="clipRaw"><rect x="0" y="-20" width="505" height="120"/></clipPath><clipPath id="clipCoat"><rect x="505" y="-20" width="65" height="120"/></clipPath><clipPath id="clipWrap"><rect x="745" y="-20" width="60" height="120"/></clipPath></defs>' : ''}
                 <g ${img ? 'clip-path="url(#beltClip)"' : ''}>
                 <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
                 ${Array.from({ length: 19 }, (_, i) => `<circle cx="${48 + i * 39.5}" cy="73" r="4.5" class="roller"/>`).join('')}
-                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>
+                ${img ? `
+                <g clip-path="url(#clipRaw)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 52)"><rect width="34" height="14" rx="2" fill="#e4c28a"/><path d="M0 4.7 H34 M0 9.3 H34 M8.5 0 V14 M17 0 V14 M25.5 0 V14" stroke="#b98c52" stroke-width=".9"/><rect width="34" height="2" fill="rgba(255,255,255,.35)"/></g>`).join('')}</g></g>
+                <g clip-path="url(#clipCoat)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 50)"><rect width="34" height="16" rx="4" fill="#3d1d0b"/><rect x="2" y="1.5" width="30" height="3" rx="1.5" fill="rgba(255,225,190,.45)"/><rect x="3" y="11" width="28" height="2" rx="1" fill="rgba(0,0,0,.35)"/></g>`).join('')}</g></g>
+                <g clip-path="url(#clipWrap)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g></g>` : `
+                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>`}
                 </g>
                 ${img ? `<g class="enrobe"><rect x="503" y="22" width="26" height="44" fill="url(#chocFall)"/><rect x="503" y="22" width="26" height="44" class="enrobe-flow"/><ellipse cx="516" cy="66" rx="16" ry="3" fill="#3a1d0c"/></g>
                 <text x="95" y="-58" text-anchor="middle" class="p-st">RÖSTER</text><text x="235" y="-46" text-anchor="middle" class="p-st">CONCHE</text><text x="516" y="-20" text-anchor="middle" class="p-st">ÜBERZIEHER</text><text x="657" y="22" text-anchor="middle" class="p-st">KÜHLTUNNEL</text><text x="705" y="98" text-anchor="middle" class="p-st small">VERSAND</text><text x="190" y="98" text-anchor="middle" class="p-st small">ROHKAKAO</text>` : ''}
@@ -1496,14 +1508,6 @@ const Player = (() => {
         // Punkteraster 1° aus echten Natural-Earth-Daten, dazu die exakte Küstenlinie
         const rowOf = lat => LAND_HI[78 - lat];
         const isLand = (lon, lat) => { const r = rowOf(lat); return !!r && r[1].some(([a, b]) => lon >= a && lon <= b); };
-        let dots = '';
-        for (let lat = 72; lat >= -32; lat--) {
-            for (let lon = -165; lon <= 150; lon++) {
-                if (!isLand(lon, lat)) continue;
-                const wa = lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11;
-                dots += `<circle cx="${tx(lon).toFixed(1)}" cy="${ty(lat).toFixed(1)}" r=".72"${wa ? ' class="wa"' : ''}/>`;
-            }
-        }
         const coastD = COAST_HI.map(c => {
             let d = '';
             for (let i = 0; i < c.length; i += 2) {
@@ -1539,7 +1543,25 @@ const Player = (() => {
             <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
-        $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><g class="t-land">${dots}</g><path d="${coastD}" class="t-coast"/>
+        $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
+                const W2 = [];
+                x.fillStyle = 'rgba(79,209,255,.26)';
+                x.beginPath();
+                for (let lat = 72; lat >= -32; lat--) for (let lon = -165; lon <= 150; lon++) {
+                    if (!isLand(lon, lat)) continue;
+                    if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
+                    x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2);
+                }
+                x.fill();
+                x.fillStyle = 'rgba(255,181,71,.75)';
+                x.beginPath();
+                for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
+                x.fill();
+                x.strokeStyle = 'rgba(79,209,255,.7)';
+                x.lineWidth = 0.55;
+                x.lineJoin = 'round';
+                x.stroke(new Path2D(coastD));
+            })}" x="0" y="0" width="${TW}" height="${TH}"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
@@ -1807,7 +1829,7 @@ const Player = (() => {
             c.strokeStyle = `rgb(${rgb})`;
             c.lineWidth = 2;
             c.shadowColor = `rgb(${rgb})`;
-            c.shadowBlur = 10;
+            c.shadowBlur = 0;
             c.stroke();
             c.shadowBlur = 0;
             c.restore();
