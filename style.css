@@ -1890,3 +1890,5 @@ body::after { mix-blend-mode: normal !important; opacity: .35 !important; }
 
 /* Leistung: Hintergrund-Leuchten steht still (ein unscharfer, bewegter Bildschirm-Hintergrund kostet jedes Bild viel Rechenzeit) */
 .bg-aurora i { animation: none !important; }
+
+.plant-map .enrobe-flow { fill: none; stroke: rgba(255, 220, 180, .55); stroke-width: 1.4; stroke-dasharray: 2 5; animation: chocFlow .6s linear infinite; }

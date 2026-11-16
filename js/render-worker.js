@@ -380,14 +380,21 @@ const RenderCore = (() => {
             x.rotate((rot * Math.PI) / 180);
             // leicht unregelmässige Ränder
             const poly = [];
-            const N = 18;
+            const N = 28;
+            const cut = (r() * 4) | 0; // eine Ecke fehlt (Bach, Fels, Nachbarparzelle)
+            const amp = Math.min(fw, fh) * 0.09;
             for (let q = 0; q < N; q++) {
                 const t = q / N;
                 const side = Math.floor(t * 4);
                 const s = t * 4 - side;
-                const pt = [[-fw / 2 + s * fw, -fh / 2], [fw / 2, -fh / 2 + s * fh], [fw / 2 - s * fw, fh / 2], [-fw / 2, fh / 2 - s * fh]][side];
-                poly.push([pt[0] + (r() - 0.5) * 3, pt[1] + (r() - 0.5) * 3]);
+                let pt = [[-fw / 2 + s * fw, -fh / 2], [fw / 2, -fh / 2 + s * fh], [fw / 2 - s * fw, fh / 2], [-fw / 2, fh / 2 - s * fh]][side];
+                const wob = (vn(q * 0.7 + fx * 0.05, fy * 0.05) - 0.5) * 2 * amp;
+                const nrm = [[0, -1], [1, 0], [0, 1], [-1, 0]][side];
+                pt = [pt[0] - nrm[0] * Math.abs(wob), pt[1] - nrm[1] * Math.abs(wob)];
+                if (side === cut && s > 0.62) { const qn = (s - 0.62) / 0.38; pt = [pt[0] - nrm[0] * fh * 0.35 * qn, pt[1] - nrm[1] * fw * 0.0 - nrm[1] * fh * 0.35 * qn]; }
+                poly.push(pt);
             }
+            const insidePoly = (px, py) => { let c2 = false; for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) { const [xa, ya] = poly[a]; const [xb, yb] = poly[b]; if ((ya > py) !== (yb > py) && px < ((xb - xa) * (py - ya)) / (yb - ya) + xa) c2 = !c2; } return c2; };
             const path = new Path2D();
             poly.forEach(([px, py], q) => (q ? path.lineTo(px, py) : path.moveTo(px, py)));
             path.closePath();
@@ -414,8 +421,8 @@ const RenderCore = (() => {
             const sp = 5.4;
             for (let yy = -fh / 2 + sp / 2; yy < fh / 2 - 1; yy += sp) {
                 for (let xx = -fw / 2 + sp / 2; xx < fw / 2 - 1; xx += sp) {
-                    const edge = Math.min(fw / 2 - Math.abs(xx), fh / 2 - Math.abs(yy));
-                    if (r() < (edge < 4 ? 0.35 : 0.07)) continue;
+                    if (!insidePoly(xx, yy) || !insidePoly(xx * 0.94, yy * 0.9)) continue;
+                    if (r() < 0.07) continue;
                     const lx = xx + (r() - 0.5) * 1.2;
                     const ly = yy + (r() - 0.5) * 1.2;
                     cocoa.push([fx + fw / 2 + lx * ca - ly * sa, fy + fh / 2 + lx * sa + ly * ca, 2.2 + r() * 0.9, 1 + ((r() * 2) | 0), (r() * 3) | 0]);
@@ -432,11 +439,12 @@ const RenderCore = (() => {
         mark('fields');
         // 4b) Bäche: schlängeln sich von oben in den Fluss, nie durch Dörfer, Felder oder über die Strasse
         const creekPts = [];
-        for (let ci = 0, made = 0; ci < 14 && made < 2; ci++) {
+        for (let ci = 0, made = 0; ci < 60 && made < 3; ci++) {
             const rr = rng(300 + ci);
-            let cx = 70 + rr() * 660;
-            let cy = 4;
-            let ang = Math.PI / 2;
+            const fromSide = ci % 3 === 2;
+            let cx = fromSide ? (rr() < 0.5 ? 4 : W - 4) : 40 + rr() * 720;
+            let cy = fromSide ? 30 + rr() * (H * 0.5) : 4;
+            let ang = fromSide ? (cx < W / 2 ? 0.3 : Math.PI - 0.3) : Math.PI / 2;
             const pts = [[cx, cy]];
             let ok = false;
             for (let st = 0; st < 260; st++) {
@@ -450,17 +458,20 @@ const RenderCore = (() => {
                 pts.push([cx, cy]);
                 if (dRiver(cx, cy) < 8) { ok = true; break; }
                 if (cx < 10 || cx > W - 10 || cy > H - 10) break;
-                if (dRoad(cx, cy) < 9 || inField(cx, cy, 4) || villageAt(cx, cy, 1.5)) break;
+                if (dRoad(cx, cy) < 9 || inField(cx, cy, 3) || villageAt(cx, cy, 1.25)) break;
             }
             if (!ok || pts.length < 12) continue;
             made++;
             const cp = new Path2D();
             pts.forEach(([px, py], q) => (q ? cp.lineTo(px, py) : cp.moveTo(px, py)));
-            x.strokeStyle = 'rgba(70,58,34,.55)';
-            x.lineWidth = 4.2;
+            x.strokeStyle = 'rgba(70,58,34,.6)';
+            x.lineWidth = 6;
             x.stroke(cp);
-            x.strokeStyle = '#2f3b24';
-            x.lineWidth = 2.4;
+            x.strokeStyle = '#2b3622';
+            x.lineWidth = 3.6;
+            x.stroke(cp);
+            x.strokeStyle = '#3a4a30';
+            x.lineWidth = 2;
             x.stroke(cp);
             x.strokeStyle = 'rgba(140,175,195,.35)';
             x.lineWidth = 0.8;
@@ -500,13 +511,14 @@ const RenderCore = (() => {
                 x.lineTo(best[0], best[1]);
                 x.stroke();
             }
+            const sv = 0.8 + rng(700 + vi)() * 0.55;
             const blob = new Path2D();
             const NB = 28;
             for (let q = 0; q <= NB; q++) {
                 const a = (q / NB) * Math.PI * 2;
                 const rad = 1 + (vn(Math.cos(a) * 2 + vi * 5, Math.sin(a) * 2) - 0.5) * 0.55;
-                const px = vx + Math.cos(a) * 36 * rad;
-                const py = vy + Math.sin(a) * 23 * rad;
+                const px = vx + Math.cos(a) * 36 * rad * sv;
+                const py = vy + Math.sin(a) * 23 * rad * sv;
                 q ? blob.lineTo(px, py) : blob.moveTo(px, py);
             }
             x.save();
@@ -717,6 +729,7 @@ const RenderCore = (() => {
             x.save();
             x.translate(px, py);
             x.rotate(ang);
+            x.scale(1.9, 1.9);
             if (kind === 'pickup') {
                 x.fillStyle = 'rgba(0,0,0,.4)';
                 x.fillRect(-2.6 + 0.8, -1.25 + 0.9, 5.4, 2.5);
@@ -743,11 +756,11 @@ const RenderCore = (() => {
             x.restore();
         };
         for (let q = 0; q < road.length; q += 1) {
-            if (r() > 0.022) continue;
+            if (r() > 0.045) continue;
             const a = road[Math.max(0, q - 1)];
             const b = road[Math.min(road.length - 1, q + 1)];
             const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-            const side = r() < 0.5 ? -1.7 : 1.7;
+            const side = r() < 0.5 ? -2.4 : 2.4;
             const nx = -Math.sin(ang) * side;
             const ny = Math.cos(ang) * side;
             vehicle(road[q][0] + nx, road[q][1] + ny, ang + (side < 0 ? Math.PI : 0), r() < 0.45 ? 'pickup' : 'moped', ['#e8e8e8', '#c0392b', '#2c6fb3', '#f2f2f2', '#d4a017'][(r() * 5) | 0]);
@@ -759,7 +772,12 @@ const RenderCore = (() => {
             vehicle(vx - 10 + rr() * 20, vy + 4 + rr() * 6, rr() * 6, 'moped', '#d35400');
         }
         // Menschen: in den Dörfern, auf den Pfaden und bei der Ernte in den Plantagen
-        const person = (px, py, shirt, carry) => {
+        const person = (px0, py0, shirt, carry) => {
+            x.save();
+            x.translate(px0, py0);
+            x.scale(1.7, 1.7);
+            const px = 0;
+            const py = 0;
             x.fillStyle = 'rgba(0,0,0,.4)';
             x.beginPath(); x.ellipse(px + 0.6, py + 0.7, 0.6, 0.35, 0.6, 0, 7); x.fill();
             x.fillStyle = shirt;
@@ -767,6 +785,7 @@ const RenderCore = (() => {
             x.fillStyle = '#3b2416';
             x.beginPath(); x.arc(px - 0.1, py - 0.12, 0.3, 0, 7); x.fill();
             if (carry) { x.fillStyle = '#cdb68a'; x.beginPath(); x.ellipse(px - 0.05, py - 0.2, 0.55, 0.38, 0, 0, 7); x.fill(); }
+            x.restore();
         };
         const shirts = ['#e74c3c', '#f1c40f', '#3498db', '#ecf0f1', '#9b59b6', '#e67e22', '#1abc9c'];
         for (let vi = 0; vi < L.villages.length; vi++) {
@@ -799,6 +818,30 @@ const RenderCore = (() => {
             x.fillRect(qx - 6, qy - 6, 8, 8);
         }
         x.restore();
+        // Haufenwolken mit ihrem Schatten am Boden (Sonne links oben → Schatten nach rechts unten)
+        const nCloud = L.sky === 'drought' ? 1 : L.sky === 'rain' || L.sky === 'blackpod' ? 5 : 3;
+        for (let q = 0; q < nCloud; q++) {
+            const rr = rng(8100 + q);
+            const ccx = 80 + rr() * (W - 160);
+            const ccy = 60 + rr() * (H - 120);
+            const puffs = Array.from({ length: 9 }, () => [ccx + (rr() - 0.5) * 70, ccy + (rr() - 0.5) * 28, 14 + rr() * 16]);
+            x.save();
+            x.filter = `blur(${(12 * k).toFixed(0)}px)`;
+            x.fillStyle = 'rgba(10,20,10,.28)';
+            for (const [px, py, pr] of puffs) { x.beginPath(); x.arc(px + 46, py + 58, pr, 0, 7); x.fill(); }
+            x.restore();
+            x.save();
+            x.filter = `blur(${(5 * k).toFixed(0)}px)`;
+            for (const [px, py, pr] of puffs) {
+                const g = x.createRadialGradient(px - pr * 0.3, py - pr * 0.35, pr * 0.1, px, py, pr);
+                g.addColorStop(0, 'rgba(255,255,255,.82)');
+                g.addColorStop(0.7, 'rgba(236,240,246,.6)');
+                g.addColorStop(1, 'rgba(210,218,230,0)');
+                x.fillStyle = g;
+                x.beginPath(); x.arc(px, py, pr, 0, 7); x.fill();
+            }
+            x.restore();
+        }
         if (L.sky === 'rain' || L.sky === 'blackpod') {
             x.fillStyle = 'rgba(40,60,80,.16)';
             x.fillRect(0, 0, W, H);
