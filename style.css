@@ -1892,3 +1892,25 @@ body::after { mix-blend-mode: normal !important; opacity: .35 !important; }
 .bg-aurora i { animation: none !important; }
 
 .plant-map .enrobe-flow { fill: none; stroke: rgba(255, 220, 180, .55); stroke-width: 1.4; stroke-dasharray: 2 5; animation: chocFlow .6s linear infinite; }
+
+/* ===== Lebendige Kooperative: eigene GPU-Ebenen (nur transform/opacity) ===== */
+#d-life .lf-in { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#d-life .lf-in > * { position: absolute; will-change: transform, opacity; }
+.lf-cloud { left: 0; width: 220px; height: 110px; animation: lfCloud 120s linear infinite; }
+.lf-cloud img { position: absolute; left: 0; top: 0; width: 220px; height: 110px; }
+.lf-cloud .lf-shade { transform: translate(46px, 58px); }
+@keyframes lfCloud { from { transform: translateX(-260px); } to { transform: translateX(860px); } }
+.lf-smoke { width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: radial-gradient(circle, rgba(225,225,220,.75), rgba(225,225,220,0) 70%); animation: lfSmoke 4.2s ease-out infinite; }
+@keyframes lfSmoke { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 15% { opacity: .85; } 100% { transform: translate(10px, -14px) scale(3.2); opacity: 0; } }
+.lf-glint { width: 2.4px; height: 1px; border-radius: 1px; background: #fffbe6; box-shadow: 0 0 2px #fff; animation: lfGlint 3s ease-in-out infinite; opacity: 0; }
+@keyframes lfGlint { 0%, 100% { opacity: 0; transform: scaleX(.4); } 50% { opacity: .9; transform: scaleX(1.4); } }
+.lf-bird { left: 0; animation: lfBird 34s linear infinite; }
+.lf-bird svg { display: block; animation: lfFlap .45s ease-in-out infinite alternate; transform-origin: center; }
+@keyframes lfBird { from { transform: translate(-30px, 0); } 50% { transform: translate(400px, -30px); } to { transform: translate(840px, 10px); } }
+@keyframes lfFlap { to { transform: scaleY(.35); } }
+.lf-car { width: 10px; height: 4.6px; offset-rotate: auto; animation: lfDrive 40s linear infinite; }
+.lf-car.rev { animation-direction: reverse; offset-rotate: auto 180deg; }
+.lf-car b { position: absolute; inset: 0; border-radius: 1.2px; box-shadow: 1.2px 1.6px 0 rgba(0,0,0,.4); }
+.lf-car i { position: absolute; right: 1.2px; top: .5px; width: 2px; height: 3.6px; background: #1b2530; border-radius: .5px; }
+@keyframes lfDrive { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@media (prefers-reduced-motion: reduce) { #d-life .lf-in > *, .lf-bird svg { animation: none !important; } }

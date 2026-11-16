@@ -696,15 +696,16 @@ const RenderCore = (() => {
             x.beginPath(); x.moveTo(lx, ly); x.lineTo(lx + 9, ly + 1.5); x.stroke();
             for (let q = 0; q < 5; q++) { x.fillStyle = ['#d9423b', '#f2c94c', '#2f80ed', '#f5f5f5', '#27ae60', '#9b51e0'][(rr() * 6) | 0]; x.fillRect(lx + 0.8 + q * 1.7, ly + 0.15 + q * 0.27, 1.1, 0.8); }
             // Feuerstelle mit Rauchfahne (Wind nach rechts)
-            const fx2 = vx + 2 + rr() * 8;
-            const fy2 = vy + 2 + rr() * 6;
+            const fr = rng(5000 + vi);
+            const fx2 = vx + 2 + fr() * 8;
+            const fy2 = vy + 2 + fr() * 6;
             x.fillStyle = '#2a2018';
             x.beginPath(); x.arc(fx2, fy2, 1.2, 0, 7); x.fill();
             x.fillStyle = '#ff8a2a';
             x.beginPath(); x.arc(fx2, fy2, 0.45, 0, 7); x.fill();
             x.save();
             x.filter = `blur(${(1.6 * k).toFixed(1)}px)`;
-            for (let q = 0; q < 5; q++) { x.fillStyle = `rgba(215,215,210,${0.32 - q * 0.05})`; x.beginPath(); x.arc(fx2 + 1.5 + q * 2.6, fy2 - 1 - q * 1.1, 1.2 + q * 0.7, 0, 7); x.fill(); }
+
             x.restore();
             // runde Strohhütte (Küche) in jedem zweiten Dorf
             if (rr() < 0.55) {
@@ -819,7 +820,7 @@ const RenderCore = (() => {
         }
         x.restore();
         // Haufenwolken mit ihrem Schatten am Boden (Sonne links oben → Schatten nach rechts unten)
-        const nCloud = L.sky === 'drought' ? 1 : L.sky === 'rain' || L.sky === 'blackpod' ? 5 : 3;
+        const nCloud = 0; // Wolken ziehen jetzt animiert darüber (eigene Ebene)
         for (let q = 0; q < nCloud; q++) {
             const rr = rng(8100 + q);
             const ccx = 80 + rr() * (W - 160);
@@ -1438,7 +1439,7 @@ const RenderCore = (() => {
     }
 
 
-    return { farm, plant, samplePath };
+    return { farm, plant, samplePath, rng };
 })();
 
 // Als Web Worker: Auftrag annehmen, Bild rechnen, als JPEG zurückschicken

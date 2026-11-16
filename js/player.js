@@ -1053,6 +1053,79 @@ const Player = (() => {
         return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
     }
 
+    // Lebendige Ebene über dem gerechneten Luftbild: Wolken, Rauch, Glitzern, Vögel, Fahrzeuge.
+    // Nur Transform/Opacity-Animationen auf eigenen Ebenen → die Grafikkarte bewegt sie, die Karte wird nie neu gezeichnet.
+    let lifeSprites = null;
+    function lifeSpritesMake() {
+        if (lifeSprites) return lifeSprites;
+        const cloud = paintImage(220, 110, 2, x => {
+            x.filter = 'blur(5px)';
+            const r = RenderCore.rng(77);
+            for (let i = 0; i < 11; i++) {
+                const px = 50 + r() * 120;
+                const py = 40 + r() * 32;
+                const pr = 18 + r() * 22;
+                const g = x.createRadialGradient(px - pr * 0.3, py - pr * 0.35, pr * 0.1, px, py, pr);
+                g.addColorStop(0, 'rgba(255,255,255,.95)');
+                g.addColorStop(0.7, 'rgba(236,240,246,.7)');
+                g.addColorStop(1, 'rgba(210,218,230,0)');
+                x.fillStyle = g;
+                x.beginPath(); x.arc(px, py, pr, 0, 7); x.fill();
+            }
+        });
+        const shade = paintImage(220, 110, 1, x => {
+            x.filter = 'blur(12px)';
+            x.fillStyle = 'rgba(10,20,10,.42)';
+            x.beginPath(); x.ellipse(110, 56, 78, 30, 0, 0, 7); x.fill();
+        });
+        lifeSprites = { cloud, shade };
+        return lifeSprites;
+    }
+    function deskLife(LAY, VH, show) {
+        const host = $('d-world');
+        if (!host) return;
+        let el = $('d-life');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'd-life';
+            host.parentElement.insertBefore(el, host);
+        }
+        if (!show || !LAY || typeof RenderCore === 'undefined') { el.style.display = 'none'; return; }
+        // Gleiche Fläche wie das Bild (object-fit: contain)
+        const W = host.offsetWidth;
+        const H = host.offsetHeight;
+        const f = Math.min(W / 800, H / VH);
+        const ox = host.offsetLeft + (W - 800 * f) / 2;
+        const oy = host.offsetTop + (H - VH * f) / 2;
+        el.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${VH * f}px;pointer-events:none;z-index:0;overflow:hidden;display:block`;
+        const key = `${VH}|${LAY.villages.length}|${me.sky || 'sun'}`;
+        if (el.dataset.k === key) {
+            el.firstElementChild.style.transform = `scale(${f})`;
+            return;
+        }
+        el.dataset.k = key;
+        const S = lifeSpritesMake();
+        const r = RenderCore.rng(4242);
+        const nCloud = me.sky === 'drought' ? 1 : me.sky === 'rain' || me.sky === 'blackpod' ? 5 : 3;
+        const clouds = Array.from({ length: nCloud }, (_, i) => {
+            const y = 40 + r() * (VH - 140);
+            const dur = 90 + r() * 70;
+            return `<div class="lf-cloud" style="top:${y.toFixed(0)}px;animation-duration:${dur.toFixed(0)}s;animation-delay:${(-r() * dur).toFixed(0)}s"><img src="${S.shade}" class="lf-shade" alt=""><img src="${S.cloud}" class="lf-puff" alt=""></div>`;
+        }).join('');
+        const smoke = LAY.villages.map((v, vi) => {
+            const fr = RenderCore.rng(5000 + vi);
+            const fx = v[0] + 2 + fr() * 8;
+            const fy = v[1] + 2 + fr() * 6;
+            return [0, 1, 2].map(q => `<i class="lf-smoke" style="left:${fx.toFixed(1)}px;top:${fy.toFixed(1)}px;animation-delay:${(-q * 1.4 - vi * 0.37).toFixed(2)}s"></i>`).join('');
+        }).join('');
+        const riv = RenderCore.samplePath(LAY.river, 9);
+        const glints = riv.filter(() => r() < 0.45).map(([gx, gy]) => `<i class="lf-glint" style="left:${(gx + (r() - 0.5) * 8).toFixed(1)}px;top:${(gy + (r() - 0.5) * 6).toFixed(1)}px;animation-delay:${(-r() * 4).toFixed(2)}s;animation-duration:${(2 + r() * 2.5).toFixed(2)}s"></i>`).join('');
+        const birds = [0, 1].map(i => `<div class="lf-bird" style="top:${(60 + r() * (VH - 200)).toFixed(0)}px;animation-delay:${(-i * 17).toFixed(0)}s"><svg viewBox="0 0 24 10" width="14" height="6"><path d="M0 6 Q6 0 12 6 Q18 0 24 6" fill="none" stroke="#1a2414" stroke-width="2" stroke-linecap="round"/></svg></div>`).join('');
+        const cols = ['#e8e8e8', '#c0392b', '#2c6fb3', '#f2f2f2', '#d4a017'];
+        const cars = [0, 1, 2].map(i => `<div class="lf-car ${i % 2 ? 'rev' : ''}" style="offset-path:path('${LAY.road}');animation-delay:${(-i * 13 - r() * 6).toFixed(1)}s;animation-duration:${(34 + r() * 10).toFixed(0)}s"><b style="background:${cols[i % cols.length]}"></b><i></i></div>`).join('');
+        el.innerHTML = `<div class="lf-in" style="width:800px;height:${VH}px;transform:scale(${f})">${glints}${cars}${smoke}${clouds}${birds}</div>`;
+    }
+
     // Gerechnetes Bild als Leinwand hinter der Status-Ebene (gleiche Position wie #d-world)
     function deskBg(bmp) {
         const host = $('d-world');
@@ -1196,6 +1269,8 @@ const Player = (() => {
         const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
         const img = hi || lo;
         deskBg(img);
+        deskLife(null, 0, false);
+        deskLife(LAY, VH, !!img);
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
             const [x, y] = occupied[i];
             const trees = Array.from({ length: 7 }, (_, j) => {
