@@ -1053,77 +1053,261 @@ const Player = (() => {
         return { prod, contract, fut, futIn, over: Math.max(0, fut - remaining), open: Math.max(0, remaining - futIn), lost: prod ? me.lostSmuggle || 0 : 0, cut: prod ? 0 : me.needCut || 0 };
     }
 
-    // Lebendige Ebene über dem gerechneten Luftbild: Wolken, Rauch, Glitzern, Vögel, Fahrzeuge.
-    // Nur Transform/Opacity-Animationen auf eigenen Ebenen → die Grafikkarte bewegt sie, die Karte wird nie neu gezeichnet.
-    let lifeSprites = null;
-    function lifeSpritesMake() {
-        if (lifeSprites) return lifeSprites;
-        const cloud = paintImage(220, 110, 2, x => {
-            x.filter = 'blur(5px)';
-            const r = RenderCore.rng(77);
-            for (let i = 0; i < 11; i++) {
-                const px = 50 + r() * 120;
-                const py = 40 + r() * 32;
-                const pr = 18 + r() * 22;
+    // Lebendige Ebene über dem gerechneten Luftbild – EINE Leinwand, eine Zeichen-Schleife.
+    // Alles entsteht zufällig neu (Wolken, Autos, Rauch, Vögel), nichts wiederholt sich als Schleife.
+    // Der Zustand bleibt erhalten, wenn der Leitstand jede Sekunde aktualisiert wird – nichts springt zurück.
+    const LIFE = { on: false, raf: 0, last: 0, key: '', rect: '', clouds: [], smoke: [], glints: [], cars: [], birds: [], drops: [], wind: 0, windT: 0, nextCar: 0, nextBird: 8, emit: [] };
+    let lifeSpr = null;
+    function lifeSprites() {
+        if (lifeSpr) return lifeSpr;
+        const mk = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d')); return c; };
+        const clouds = [11, 23, 37, 51].map(seed => mk(440, 220, x => {
+            x.filter = 'blur(9px)';
+            const r = RenderCore.rng(seed);
+            const n = 9 + ((r() * 6) | 0);
+            for (let i = 0; i < n; i++) {
+                const px = 90 + r() * 260;
+                const py = 85 + r() * 60 - (i % 3) * 8;
+                const pr = 34 + r() * 46;
                 const g = x.createRadialGradient(px - pr * 0.3, py - pr * 0.35, pr * 0.1, px, py, pr);
                 g.addColorStop(0, 'rgba(255,255,255,.95)');
-                g.addColorStop(0.7, 'rgba(236,240,246,.7)');
-                g.addColorStop(1, 'rgba(210,218,230,0)');
+                g.addColorStop(0.65, 'rgba(234,238,245,.72)');
+                g.addColorStop(1, 'rgba(205,214,228,0)');
                 x.fillStyle = g;
                 x.beginPath(); x.arc(px, py, pr, 0, 7); x.fill();
             }
+        }));
+        const shade = mk(440, 220, x => {
+            x.filter = 'blur(22px)';
+            x.fillStyle = 'rgba(8,18,8,.5)';
+            x.beginPath(); x.ellipse(220, 115, 150, 58, 0, 0, 7); x.fill();
         });
-        const shade = paintImage(220, 110, 1, x => {
-            x.filter = 'blur(12px)';
-            x.fillStyle = 'rgba(10,20,10,.42)';
-            x.beginPath(); x.ellipse(110, 56, 78, 30, 0, 0, 7); x.fill();
+        const puff = mk(64, 64, x => {
+            const g = x.createRadialGradient(32, 32, 2, 32, 32, 32);
+            g.addColorStop(0, 'rgba(232,232,226,.9)');
+            g.addColorStop(0.5, 'rgba(225,225,220,.45)');
+            g.addColorStop(1, 'rgba(220,220,215,0)');
+            x.fillStyle = g; x.fillRect(0, 0, 64, 64);
         });
-        lifeSprites = { cloud, shade };
-        return lifeSprites;
+        lifeSpr = { clouds, shade, puff };
+        return lifeSpr;
+    }
+    const lr = (a, b) => a + Math.random() * (b - a);
+    function lifeCloud(fresh) {
+        const L = LIFE;
+        const sc = lr(0.55, 1.25);
+        return { v: (Math.random() * 4) | 0, x: fresh ? lr(-200, 800) : -460 * sc - lr(0, 120), y: lr(-40, L.VH - 120), sc, sp: lr(5, 12), a: lr(0.65, 0.95), dy: lr(-0.6, 0.6) };
+    }
+    function lifeCar() {
+        const L = LIFE;
+        const kinds = [['#e9e9e6', 10, 4.6], ['#b8342a', 10, 4.6], ['#2d6db0', 10, 4.6], ['#f3f3f0', 10, 4.6], ['#c99a1c', 10, 4.6], ['#6d7a3a', 17, 5.6], ['#d8d2c4', 17, 5.6]];
+        const k = kinds[(Math.random() * kinds.length) | 0];
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        return { s: dir > 0 ? 0 : L.roadLen, dir, sp: lr(14, 26) * (k[1] > 12 ? 0.75 : 1), col: k[0], len: k[1], wid: k[2], wait: 0 };
+    }
+    function lifeAt(s) {
+        const R = LIFE.road;
+        const cum = LIFE.roadCum;
+        let lo = 0;
+        let hi = cum.length - 1;
+        while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] < s) lo = m; else hi = m; }
+        const t = (s - cum[lo]) / Math.max(0.001, cum[hi] - cum[lo]);
+        return [R[lo][0] + (R[hi][0] - R[lo][0]) * t, R[lo][1] + (R[hi][1] - R[lo][1]) * t, Math.atan2(R[hi][1] - R[lo][1], R[hi][0] - R[lo][0])];
+    }
+    function lifeSetup(LAY, VH) {
+        const L = LIFE;
+        L.VH = VH;
+        L.sky = me.sky || 'sun';
+        L.road = RenderCore.samplePath(LAY.road, 4);
+        L.roadCum = [0];
+        for (let i = 1; i < L.road.length; i++) L.roadCum.push(L.roadCum[i - 1] + Math.hypot(L.road[i][0] - L.road[i - 1][0], L.road[i][1] - L.road[i - 1][1]));
+        L.roadLen = L.roadCum[L.roadCum.length - 1] || 1;
+        L.river = RenderCore.samplePath(LAY.river, 3);
+        L.emit = LAY.villages.map((v, vi) => {
+            const fr = RenderCore.rng(5000 + vi);
+            return { x: v[0] + 2 + fr() * 8, y: v[1] + 2 + fr() * 6, next: Math.random() * 1.5, burn: Math.random() < 0.8 };
+        });
+        const nC = L.sky === 'drought' ? 1 : L.sky === 'rain' || L.sky === 'blackpod' ? 6 : 3;
+        L.clouds = Array.from({ length: nC }, () => lifeCloud(true));
+        L.cars = [];
+        L.nextCar = lr(0.5, 3);
+        for (let i = 0; i < 2; i++) { const c = lifeCar(); c.s = lr(0, L.roadLen); L.cars.push(c); }
+        L.smoke = [];
+        L.glints = [];
+        L.birds = [];
+        L.drops = [];
+    }
+    function lifeStep(dt, t) {
+        const L = LIFE;
+        // Wind dreht langsam und zufällig
+        L.windT -= dt;
+        if (L.windT <= 0) { L.windTo = lr(0.4, 1.6); L.windT = lr(6, 18); }
+        L.wind += ((L.windTo || 1) - L.wind) * Math.min(1, dt * 0.3);
+        for (const c of L.clouds) {
+            c.x += c.sp * L.wind * dt;
+            c.y += c.dy * dt;
+            if (c.x > 820) Object.assign(c, lifeCloud(false));
+        }
+        // Rauch: jedes Dorf zündet unregelmässig, Feuer gehen aus und wieder an
+        for (const e of L.emit) {
+            e.next -= dt;
+            if (e.next > 0) continue;
+            if (Math.random() < 0.02) e.burn = !e.burn;
+            e.next = lr(0.35, 1.1);
+            if (e.burn && L.smoke.length < 260) L.smoke.push({ x: e.x + lr(-0.8, 0.8), y: e.y, vx: lr(-1, 1), vy: lr(-4.5, -2.8), age: 0, life: lr(3, 5.5), r0: lr(1.4, 2.2) });
+        }
+        for (const s of L.smoke) {
+            s.age += dt;
+            s.vx += (L.wind * 3.2 - s.vx) * dt * 0.6;
+            s.x += s.vx * dt;
+            s.y += s.vy * dt;
+            s.vy *= 1 - dt * 0.15;
+        }
+        L.smoke = L.smoke.filter(s => s.age < s.life);
+        // Glitzern auf dem Fluss
+        const want = L.sky === 'rain' || L.sky === 'blackpod' ? 6 : 22;
+        while (L.glints.length < want && L.river.length) {
+            const [gx, gy] = L.river[(Math.random() * L.river.length) | 0];
+            L.glints.push({ x: gx + lr(-4, 4), y: gy + lr(-3, 3), age: 0, life: lr(0.8, 2.2), w: lr(1.6, 3.2) });
+        }
+        for (const g of L.glints) g.age += dt;
+        L.glints = L.glints.filter(g => g.age < g.life);
+        // Autos: kommen unregelmässig, fahren mit eigenem Tempo, halten Abstand
+        L.nextCar -= dt;
+        if (L.nextCar <= 0 && L.cars.length < 5) { L.cars.push(lifeCar()); L.nextCar = lr(3, 14); }
+        for (const c of L.cars) {
+            const ahead = L.cars.filter(o => o !== c && o.dir === c.dir && (o.s - c.s) * c.dir > 0).reduce((m, o) => Math.min(m, Math.abs(o.s - c.s)), 1e9);
+            const sp = ahead < c.len + 10 ? 0 : ahead < c.len + 26 ? c.sp * 0.4 : c.sp;
+            c.s += c.dir * sp * dt;
+        }
+        L.cars = L.cars.filter(c => c.s >= -20 && c.s <= L.roadLen + 20);
+        // Vögel: ab und zu ein kleiner Schwarm in zufälliger Richtung
+        L.nextBird -= dt;
+        if (L.nextBird <= 0) {
+            L.nextBird = lr(12, 35);
+            const n = 1 + ((Math.random() * 5) | 0);
+            const fromL = Math.random() < 0.5;
+            const y0 = lr(40, L.VH - 60);
+            const ang = (fromL ? 0 : Math.PI) + lr(-0.35, 0.35);
+            for (let i = 0; i < n; i++) L.birds.push({ x: (fromL ? -20 : 820) - Math.cos(ang) * i * lr(10, 18), y: y0 + lr(-14, 14), vx: Math.cos(ang) * lr(26, 34), vy: Math.sin(ang) * 28, ph: Math.random() * 7, f: lr(7, 10) });
+        }
+        for (const b of L.birds) { b.x += b.vx * dt; b.y += b.vy * dt + Math.sin(t * 0.8 + b.ph) * 4 * dt; b.ph += b.f * dt; }
+        L.birds = L.birds.filter(b => b.x > -60 && b.x < 860);
+        // Regen
+        if (L.sky === 'rain' || L.sky === 'blackpod') {
+            while (L.drops.length < 140) L.drops.push({ x: lr(-40, 800), y: lr(-20, L.VH), sp: lr(260, 380) });
+            for (const d of L.drops) { d.y += d.sp * dt; d.x += d.sp * 0.18 * dt; if (d.y > L.VH) { d.y = lr(-30, 0); d.x = lr(-40, 800); } }
+        }
+    }
+    function lifeDraw(x) {
+        const L = LIFE;
+        const S = lifeSprites();
+        x.setTransform(L.scale, 0, 0, L.scale, 0, 0);
+        x.clearRect(0, 0, 800, L.VH);
+        // Glitzern
+        for (const g of L.glints) {
+            const a = Math.sin((g.age / g.life) * Math.PI);
+            x.fillStyle = `rgba(255,250,228,${(a * 0.85).toFixed(3)})`;
+            x.fillRect(g.x - (g.w * a) / 2, g.y, g.w * a, 0.9);
+        }
+        // Autos
+        for (const c of L.cars) {
+            const [px, py, ang] = lifeAt(Math.max(0, Math.min(L.roadLen, c.s)));
+            x.save();
+            x.translate(px, py);
+            x.rotate(ang + (c.dir < 0 ? Math.PI : 0));
+            x.translate(0, c.dir < 0 ? -1.6 : 1.6); // Rechtsverkehr
+            x.fillStyle = 'rgba(0,0,0,.38)';
+            x.fillRect(-c.len / 2 + 1, -c.wid / 2 + 1.3, c.len, c.wid);
+            x.fillStyle = c.col;
+            x.fillRect(-c.len / 2, -c.wid / 2, c.len, c.wid);
+            x.fillStyle = '#1b2530';
+            x.fillRect(c.len / 2 - (c.len > 12 ? 5 : 3.4), -c.wid / 2 + 0.6, 1.8, c.wid - 1.2);
+            if (c.len > 12) { x.fillStyle = 'rgba(120,80,40,.85)'; x.fillRect(-c.len / 2 + 1, -c.wid / 2 + 0.8, c.len - 7, c.wid - 1.6); }
+            x.restore();
+        }
+        // Rauch
+        for (const s of L.smoke) {
+            const q = s.age / s.life;
+            const r = s.r0 + q * 7;
+            x.globalAlpha = Math.min(1, q * 6) * (1 - q) * 0.75;
+            x.drawImage(S.puff, s.x - r, s.y - r, r * 2, r * 2);
+        }
+        x.globalAlpha = 1;
+        // Wolkenschatten, dann Wolken
+        for (const c of L.clouds) { x.globalAlpha = c.a * 0.8; x.drawImage(S.shade, c.x + 70 * c.sc, c.y + 95 * c.sc, 440 * c.sc * 0.5, 220 * c.sc * 0.5); }
+        for (const c of L.clouds) { x.globalAlpha = c.a; x.drawImage(S.clouds[c.v], c.x, c.y, 440 * c.sc * 0.5, 220 * c.sc * 0.5); }
+        x.globalAlpha = 1;
+        // Vögel
+        x.strokeStyle = '#18200f';
+        x.lineWidth = 1.4;
+        x.lineCap = 'round';
+        x.beginPath();
+        for (const b of L.birds) {
+            const fl = Math.sin(b.ph) * 3;
+            x.moveTo(b.x - 6, b.y - fl);
+            x.quadraticCurveTo(b.x - 3, b.y - 2.5, b.x, b.y);
+            x.quadraticCurveTo(b.x + 3, b.y - 2.5, b.x + 6, b.y - fl);
+        }
+        x.stroke();
+        // Regen
+        if (L.drops.length && (L.sky === 'rain' || L.sky === 'blackpod')) {
+            x.strokeStyle = 'rgba(210,225,240,.28)';
+            x.lineWidth = 0.7;
+            x.beginPath();
+            for (const d of L.drops) { x.moveTo(d.x, d.y); x.lineTo(d.x + 1.6, d.y + 9); }
+            x.stroke();
+        }
+    }
+    function lifeLoop(now) {
+        const L = LIFE;
+        const cv = $('d-life');
+        const desk = $('v-desk');
+        if (!L.on || !cv || !desk || !desk.classList.contains('active')) { L.raf = 0; L.last = 0; return; }
+        L.raf = requestAnimationFrame(lifeLoop);
+        // höchstens 40 Bilder pro Sekunde – flüssig, aber schont den Laptop
+        if (L.last && now - L.last < 24) return;
+        const dt = L.last ? Math.min(0.1, (now - L.last) / 1000) : 0.016;
+        L.last = now;
+        lifeStep(dt, now / 1000);
+        lifeDraw(L.ctx);
     }
     function deskLife(LAY, VH, show) {
         const host = $('d-world');
         if (!host) return;
-        let el = $('d-life');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'd-life';
-            host.parentElement.insertBefore(el, host);
+        let cv = $('d-life');
+        if (!cv) {
+            cv = document.createElement('canvas');
+            cv.id = 'd-life';
+            host.parentElement.insertBefore(cv, host);
         }
-        if (!show || !LAY || typeof RenderCore === 'undefined') { el.style.display = 'none'; return; }
+        const L = LIFE;
+        if (!show || !LAY || typeof RenderCore === 'undefined') {
+            if (cv.style.display !== 'none') cv.style.display = 'none';
+            L.on = false;
+            return;
+        }
         // Gleiche Fläche wie das Bild (object-fit: contain)
         const W = host.offsetWidth;
         const H = host.offsetHeight;
         const f = Math.min(W / 800, H / VH);
         const ox = host.offsetLeft + (W - 800 * f) / 2;
         const oy = host.offsetTop + (H - VH * f) / 2;
-        el.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${VH * f}px;pointer-events:none;z-index:0;overflow:hidden;display:block`;
-        const key = `${VH}|${LAY.villages.length}|${me.sky || 'sun'}`;
-        if (el.dataset.k === key) {
-            el.firstElementChild.style.transform = `scale(${f})`;
-            return;
+        const rect = `${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}`;
+        if (L.rect !== rect || cv.style.display === 'none') {
+            L.rect = rect;
+            const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+            cv.width = Math.round(800 * f * dpr);
+            cv.height = Math.round(VH * f * dpr);
+            cv.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${VH * f}px;pointer-events:none;z-index:0;display:block`;
+            L.ctx = cv.getContext('2d');
+            L.scale = f * dpr;
         }
-        el.dataset.k = key;
-        const S = lifeSpritesMake();
-        const r = RenderCore.rng(4242);
-        const nCloud = me.sky === 'drought' ? 1 : me.sky === 'rain' || me.sky === 'blackpod' ? 5 : 3;
-        const clouds = Array.from({ length: nCloud }, (_, i) => {
-            const y = 40 + r() * (VH - 140);
-            const dur = 90 + r() * 70;
-            return `<div class="lf-cloud" style="top:${y.toFixed(0)}px;animation-duration:${dur.toFixed(0)}s;animation-delay:${(-r() * dur).toFixed(0)}s"><img src="${S.shade}" class="lf-shade" alt=""><img src="${S.cloud}" class="lf-puff" alt=""></div>`;
-        }).join('');
-        const smoke = LAY.villages.map((v, vi) => {
-            const fr = RenderCore.rng(5000 + vi);
-            const fx = v[0] + 2 + fr() * 8;
-            const fy = v[1] + 2 + fr() * 6;
-            return [0, 1, 2].map(q => `<i class="lf-smoke" style="left:${fx.toFixed(1)}px;top:${fy.toFixed(1)}px;animation-delay:${(-q * 1.4 - vi * 0.37).toFixed(2)}s"></i>`).join('');
-        }).join('');
-        const riv = RenderCore.samplePath(LAY.river, 9);
-        const glints = riv.filter(() => r() < 0.45).map(([gx, gy]) => `<i class="lf-glint" style="left:${(gx + (r() - 0.5) * 8).toFixed(1)}px;top:${(gy + (r() - 0.5) * 6).toFixed(1)}px;animation-delay:${(-r() * 4).toFixed(2)}s;animation-duration:${(2 + r() * 2.5).toFixed(2)}s"></i>`).join('');
-        const birds = [0, 1].map(i => `<div class="lf-bird" style="top:${(60 + r() * (VH - 200)).toFixed(0)}px;animation-delay:${(-i * 17).toFixed(0)}s"><svg viewBox="0 0 24 10" width="14" height="6"><path d="M0 6 Q6 0 12 6 Q18 0 24 6" fill="none" stroke="#1a2414" stroke-width="2" stroke-linecap="round"/></svg></div>`).join('');
-        const cols = ['#e8e8e8', '#c0392b', '#2c6fb3', '#f2f2f2', '#d4a017'];
-        const cars = [0, 1, 2].map(i => `<div class="lf-car ${i % 2 ? 'rev' : ''}" style="offset-path:path('${LAY.road}');animation-delay:${(-i * 13 - r() * 6).toFixed(1)}s;animation-duration:${(34 + r() * 10).toFixed(0)}s"><b style="background:${cols[i % cols.length]}"></b><i></i></div>`).join('');
-        el.innerHTML = `<div class="lf-in" style="width:800px;height:${VH}px;transform:scale(${f})">${glints}${cars}${smoke}${clouds}${birds}</div>`;
+        const key = `${VH}|${LAY.villages.length}|${me.sky || 'sun'}`;
+        if (L.key !== key) { L.key = key; lifeSetup(LAY, VH); }
+        L.on = true;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) { lifeDraw(L.ctx); return; }
+        if (!L.raf) L.raf = requestAnimationFrame(lifeLoop);
     }
 
     // Gerechnetes Bild als Leinwand hinter der Status-Ebene (gleiche Position wie #d-world)
@@ -1136,7 +1320,8 @@ const Player = (() => {
             cv.id = 'd-bg';
             host.parentElement.insertBefore(cv, host);
         }
-        cv.style.cssText = `position:absolute;left:${host.offsetLeft}px;top:${host.offsetTop}px;width:${host.offsetWidth}px;height:${host.offsetHeight}px;object-fit:contain;pointer-events:none;z-index:0;display:${bmp ? 'block' : 'none'}`;
+        const css = `position:absolute;left:${host.offsetLeft}px;top:${host.offsetTop}px;width:${host.offsetWidth}px;height:${host.offsetHeight}px;object-fit:contain;pointer-events:none;z-index:0;display:${bmp ? 'block' : 'none'}`;
+        if (cv._css !== css) { cv._css = css; cv.style.cssText = css; }
         if (bmp && cv._bmp !== bmp) {
             cv.width = bmp.width;
             cv.height = bmp.height;
@@ -1269,7 +1454,6 @@ const Player = (() => {
         const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
         const img = hi || lo;
         deskBg(img);
-        deskLife(null, 0, false);
         deskLife(LAY, VH, !!img);
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
             const [x, y] = occupied[i];
@@ -1374,6 +1558,7 @@ const Player = (() => {
         const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}`, LDATA, pxW, () => renderDesk()) : null;
         const img = hi || lo;
         deskBg(img);
+        deskLife(null, 0, false);
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
             const y = top + Math.floor(i / per) * rowH;
