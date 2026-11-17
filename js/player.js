@@ -109,6 +109,7 @@ const Player = (() => {
         if (msg.t === 's') {
             pub = msg.pub;
             me = msg.me;
+            if (pub.phase === 'lobby') deskPrewarm();
             if (pub.phase === 'shop' && !ended) {
                 if (!$('v-shop').classList.contains('active')) {
                     App.show('v-shop');
@@ -1450,8 +1451,8 @@ const Player = (() => {
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
         const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
-        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, () => renderDesk()) : null;
-        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, () => renderDesk()) : null;
+        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, deskRedraw) : null;
+        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, deskRedraw) : null;
         const img = hi || lo;
         deskBg(img);
         deskLife(LAY, VH, !!img);
@@ -1554,8 +1555,8 @@ const Player = (() => {
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: 'n', i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
-        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}|lo`, LDATA, 800, () => renderDesk()) : null;
-        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}`, LDATA, pxW, () => renderDesk()) : null;
+        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}|lo`, LDATA, 800, deskRedraw) : null;
+        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}`, LDATA, pxW, deskRedraw) : null;
         const img = hi || lo;
         deskBg(img);
         deskLife(null, 0, false);
@@ -1658,6 +1659,25 @@ const Player = (() => {
         return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}</div>
             <div class="tk-btns">${hedgeBtn}${undoBtn}</div>
             <div class="tk-lim">Pfand ${Math.round(CFG.marginRate * 100)} % · Gebühr ${CFG.fee} CHF pro 10 t · Was im Dezember offen ist: −${Math.round(CFG.spotPenalty * 100)} %</div>`;
+    }
+
+    // Fertiges Bild → nur neu zeichnen, wenn der Leitstand gerade sichtbar ist
+    const deskRedraw = () => { if ($('v-desk').classList.contains('active')) renderDesk(); };
+    // Schon im Warteraum das Luftbild bzw. die Fabrikhalle rechnen lassen (unsichtbar, in der richtigen Grösse),
+    // damit beim Start der Börse alles sofort da ist.
+    let prewarmKey = '';
+    function deskPrewarm() {
+        if (!me || !deskMode() || $('v-desk').classList.contains('active')) return;
+        const key = `${me.role}|${window.innerWidth}x${window.innerHeight}|${me.sky || ''}`;
+        if (key === prewarmKey) return;
+        prewarmKey = key;
+        const d = $('v-desk');
+        const prod = me.role === 'producer';
+        d.classList.toggle('farm', prod);
+        d.classList.toggle('plant', !prod);
+        d.classList.add('prewarm');
+        try { prod ? farmSVG() : plantSVG(); } catch (e) { if (window.KP_DEBUG) console.warn('Vorrechnen', e); }
+        d.classList.remove('prewarm');
     }
 
     function renderDesk() {

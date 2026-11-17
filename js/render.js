@@ -41,13 +41,27 @@ const Render = (() => {
     // Höchstens ein Auftrag läuft, ein weiterer wartet – ältere wartende Aufträge verfallen
     let busy = false;
     let queued = null;
-    const STORE = `kp-render-${ver}`;
+    // Gespeicherte Bilder gelten, solange sich die Zeichen-Regeln (render-worker.js) nicht ändern –
+    // ein normales Update der App löscht sie also nicht mehr.
+    const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    const STOREp = fetch(`js/render-worker.js?v=${ver}`)
+        .then(r => r.text())
+        .then(t => crypto.subtle.digest('SHA-1', new TextEncoder().encode(t)))
+        .then(h => `kp-render-${hex(h).slice(0, 12)}`)
+        .catch(() => `kp-render-${ver}`);
+    // Kurzer Fingerabdruck der Bilddaten (Dörfer, Fluss, Felder …) – ändert sich die Anordnung, gibt es ein neues Bild
+    const sig = L => {
+        const s = JSON.stringify(L);
+        let h = 5381;
+        for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+        return (h >>> 0).toString(36);
+    };
     function run(job) {
         busy = true;
         const id = ++seq;
         waits[id] = job;
         // Schon einmal gerechnet (auch in einer früheren Runde)? Dann sofort aus dem Speicher laden.
-        const fromCache = self.caches ? caches.open(STORE).then(c => c.match(`/__kp-render/${encodeURIComponent(job.key)}`)).then(r => (r ? r.blob() : null)).then(b => (b ? createImageBitmap(b) : null)).catch(() => null) : Promise.resolve(null);
+        const fromCache = self.caches ? STOREp.then(S => caches.open(S)).then(c => c.match(`/__kp-render/${encodeURIComponent(job.key)}`)).then(r => (r ? r.blob() : null)).then(b => (b ? createImageBitmap(b) : null)).catch(() => null) : Promise.resolve(null);
         fromCache.then(bmp => {
             if (bmp) {
                 delete waits[id];
@@ -57,16 +71,17 @@ const Render = (() => {
                 job.done && job.done();
                 return;
             }
-            worker.postMessage({ id, type: job.type, L: job.L, pxW: job.pxW, key: job.key, store: STORE });
+            STOREp.then(S => worker.postMessage({ id, type: job.type, L: job.L, pxW: job.pxW, key: job.key, store: S }));
         });
     }
     // Alte gespeicherte Bilder früherer Versionen aufräumen
-    if (self.caches) caches.keys().then(ks => ks.filter(k => k.startsWith('kp-render-') && k !== STORE).forEach(k => caches.delete(k))).catch(() => {});
+    if (self.caches) STOREp.then(S => caches.keys().then(ks => ks.filter(k => k.startsWith('kp-render-') && k !== S).forEach(k => caches.delete(k)))).catch(() => {});
     function next() {
         busy = false;
         if (queued) { const j = queued; queued = null; run(j); }
     }
-    function get(type, key, L, pxW, done) {
+    function get(type, key0, L, pxW, done) {
+        const key = `${key0}|${sig(L)}`;
         const hit = cache.get(key);
         if (hit && hit.bmp) return hit.bmp;
         if (hit && hit.pending) return null;
