@@ -694,7 +694,7 @@ const Player = (() => {
             const y = H - 4 - ((v - lo) / span) * (H - 8);
             i ? c.lineTo(x, y) : c.moveTo(x, y);
         });
-        const col = up ? '34,229,138' : '255,77,106';
+        const col = up ? '86,199,150' : '226,104,120';
         c.strokeStyle = `rgb(${col})`;
         c.lineWidth = 2;
         c.shadowColor = `rgb(${col})`;
@@ -1814,7 +1814,7 @@ const Player = (() => {
         const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
             ${Object.entries(WA_HI).map(([k, rs]) => `<path class="t-cty ${k}" d="${rs.map(r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${ix(r[i] / 100).toFixed(1)} ${iy(r[i + 1] / 100).toFixed(1)}`; return `${d}Z`; }).join('')}"/>`).join('')}
-            <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(34,229,138,.28)" stroke-width="1.5"/></pattern></defs>
+            <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(86,199,150,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
             <path d="M${ix(-8.2)} ${iy(9.4)} C ${ix(-6.5)} ${iy(8)}, ${ix(-5.2)} ${iy(7.8)}, ${ix(-4.8)} ${iy(5.25)} C ${ix(-3.8)} ${iy(6.8)}, ${ix(-1.6)} ${iy(7.2)}, ${ix(-0.4)} ${iy(5.7)}" class="t-ins-crop"/>
             <path d="M${ix(-5.4)} ${iy(9.8)} C ${ix(-5.2)} ${iy(8.4)}, ${ix(-5.6)} ${iy(7)}, ${ix(-5.1)} ${iy(5.2)}" class="t-ins-river"/>
@@ -1830,7 +1830,7 @@ const Player = (() => {
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
                 const W2 = [];
-                x.fillStyle = 'rgba(79,209,255,.26)';
+                x.fillStyle = 'rgba(132,180,214,.26)';
                 x.beginPath();
                 for (let lat = 72; lat >= -32; lat--) for (let lon = -165; lon <= 150; lon++) {
                     if (!isLand(lon, lat)) continue;
@@ -1838,11 +1838,11 @@ const Player = (() => {
                     x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2);
                 }
                 x.fill();
-                x.fillStyle = 'rgba(255,181,71,.75)';
+                x.fillStyle = 'rgba(217,178,111,.75)';
                 x.beginPath();
                 for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
                 x.fill();
-                x.strokeStyle = 'rgba(79,209,255,.7)';
+                x.strokeStyle = 'rgba(132,180,214,.7)';
                 x.lineWidth = 0.55;
                 x.lineJoin = 'round';
                 x.stroke(new Path2D(coastD));
@@ -1997,7 +1997,7 @@ const Player = (() => {
             return;
         }
         const term = id === 't-chart';
-        const acc = term ? '79,209,255' : getComputedStyle(cv).getPropertyValue('--tcr').trim() || '255,181,71';
+        const acc = term ? '132,180,214' : getComputedStyle(cv).getPropertyValue('--tcr').trim() || '217,178,111';
         const L = 62;
         const R = 86;
         const T = 12;
@@ -2074,8 +2074,8 @@ const Player = (() => {
             const l1 = Math.min(...seg);
             const xm = X(a + (seg.length - 1) / 2);
             const upC = cl >= o;
-            c.strokeStyle = upC ? 'rgba(34,229,138,.45)' : 'rgba(255,77,106,.45)';
-            c.fillStyle = upC ? 'rgba(34,229,138,.16)' : 'rgba(255,77,106,.16)';
+            c.strokeStyle = upC ? 'rgba(86,199,150,.45)' : 'rgba(226,104,120,.45)';
+            c.fillStyle = upC ? 'rgba(86,199,150,.16)' : 'rgba(226,104,120,.16)';
             c.beginPath();
             c.moveTo(Math.round(xm) + 0.5, Y(h1));
             c.lineTo(Math.round(xm) + 0.5, Y(l1));
@@ -2092,7 +2092,7 @@ const Player = (() => {
             for (let i = 1; i < n - 1; i++) c.quadraticCurveTo(X(i), Y(d[i]), (X(i) + X(i + 1)) / 2, (Y(d[i]) + Y(d[i + 1])) / 2);
             c.lineTo(X(n - 1), Y(d[n - 1]));
         };
-        for (const [y0, y1, rgb, top] of [[0, yPlan, '34,229,138', true], [yPlan, H, '255,77,106', false]]) {
+        for (const [y0, y1, rgb, top] of [[0, yPlan, '86,199,150', true], [yPlan, H, '226,104,120', false]]) {
             c.save();
             c.beginPath();
             c.rect(0, y0, W, y1 - y0);
@@ -2130,14 +2130,14 @@ const Player = (() => {
             const py = Y(d[i]);
             const lab = `${isHi ? 'H' : 'T'} ${fmt(d[i])}`;
             const tw = c.measureText(lab).width + 8;
-            c.fillStyle = 'rgba(5,8,15,.8)';
+            c.fillStyle = 'rgba(10,8,6,.8)';
             c.fillRect(px - tw / 2, isHi ? py - 20 : py + 6, tw, 14);
             c.fillStyle = isHi ? '#7dffc0' : '#ff9aac';
             c.fillText(lab, px - tw / 2 + 4, isHi ? py - 9.5 : py + 16.5);
         }
         // Geld-/Briefkurs als Band und Preisschild am rechten Rand
         const last = d[n - 1];
-        const col = last >= pub.p0 ? '#22e58a' : '#ff4d6a';
+        const col = last >= pub.p0 ? '#56c796' : '#e26878';
         const ly = Y(last);
         const ask = Math.round(last * (1 + CFG.spread));
         const bid = Math.round(last * (1 - CFG.spread));
@@ -2169,7 +2169,7 @@ const Player = (() => {
         c.font = '9.5px "JetBrains Mono", monospace';
         c.fillStyle = 'rgba(255,107,129,.8)';
         c.fillText(`B ${fmt(ask)}`, W - R + 14, Math.max(T + 8, ly - 16));
-        c.fillStyle = 'rgba(34,229,138,.8)';
+        c.fillStyle = 'rgba(86,199,150,.8)';
         c.fillText(`G ${fmt(bid)}`, W - R + 14, Math.min(H - B, ly + 23));
         c.beginPath();
         c.arc(X(n - 1), ly, 4.5, 0, Math.PI * 2);
@@ -2269,7 +2269,7 @@ const Player = (() => {
         const pts = m.hist.map(([sec, v]) => `${X(sec).toFixed(1)},${Y(v).toFixed(1)}`);
         const last = m.hist[m.hist.length - 1];
         const up = m.final >= m.p0;
-        const col = up ? '#22e58a' : '#ff4d6a';
+        const col = up ? '#56c796' : '#e26878';
         const gid = `mg${Math.random().toString(36).slice(2, 7)}`;
         // Monatsraster
         const months = 4;
@@ -2284,7 +2284,7 @@ const Player = (() => {
             const x = X(t.s);
             const y = Y(t.price);
             const buy = t.q > 0;
-            const c = buy ? '#22e58a' : '#ff4d6a';
+            const c = buy ? '#56c796' : '#e26878';
             const label = `${buy ? 'Kauf' : 'Verkauf'} ${Math.abs(t.q * CFG.size)} t · ${fmt(t.price)}`;
             const tw = label.length * 6.2 + 14;
             const tx = clamp(x - tw / 2, L, W - R - tw);
@@ -2295,7 +2295,7 @@ const Player = (() => {
             return `<g class="mr-mark">
                 <line x1="${x}" x2="${x}" y1="${y}" y2="${buy ? ty - 9 : ty + 9}" stroke="${c}" stroke-width="1" stroke-dasharray="2 2" opacity=".7"/>
                 <path d="${buy ? `M${x} ${y + 3} l-6 9 h12 z` : `M${x} ${y - 3} l-6 -9 h12 z`}" fill="${c}"/>
-                <rect x="${tx}" y="${ty - 10}" width="${tw}" height="20" rx="10" fill="rgba(5,8,15,.92)" stroke="${c}" stroke-width="1"/>
+                <rect x="${tx}" y="${ty - 10}" width="${tw}" height="20" rx="10" fill="rgba(10,8,6,.92)" stroke="${c}" stroke-width="1"/>
                 <text x="${tx + tw / 2}" y="${ty + 4}" text-anchor="middle" class="mr-tag" fill="${c}">${label}</text></g>`;
         }).join('');
         const hedger = m.role !== 'spec';

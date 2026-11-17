@@ -73,7 +73,7 @@ const FEATURE_TEXT = {
 const HQ = () => Math.max(2, window.devicePixelRatio || 1);
 
 // ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
-function confetti(ms = 3500, colors = ['#ffb547', '#22e58a', '#a78bfa', '#60a5fa', '#f472b6', '#fde047']) {
+function confetti(ms = 3500, colors = ['#d9b26f', '#56c796', '#a99bd6', '#60a5fa', '#f472b6', '#fde047']) {
     const cv = document.createElement('canvas');
     cv.className = 'confetti';
     document.body.appendChild(cv);
@@ -126,7 +126,7 @@ function roleIcon(role, size = 32) {
     const u = `ri${iconSeq++}`;
     const s = `width="${size}" height="${size}" viewBox="0 0 64 64" class="role-ico" aria-hidden="true"`;
     if (role === 'producer') {
-        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset=".5" stop-color="#e0822f"/><stop offset="1" stop-color="#7a3a12"/></linearGradient>
+        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0d49a"/><stop offset=".5" stop-color="#e0822f"/><stop offset="1" stop-color="#7a3a12"/></linearGradient>
             <linearGradient id="${u}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#86efac"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs>
             <path d="M44 8 C 56 4, 60 14, 52 20 C 48 14, 46 12, 44 8Z" fill="url(#${u}b)"/>
             <ellipse cx="30" cy="36" rx="16" ry="24" transform="rotate(-28 30 36)" fill="url(#${u}a)"/>
@@ -150,7 +150,7 @@ function roleIcon(role, size = 32) {
         <path d="M30 22 C 36 16, 40 13, 46 8" stroke="#fff" stroke-width="2" opacity=".5" fill="none" stroke-linecap="round"/>
         <path d="M4 46 Q 12 40 20 46 T 36 46 T 52 46 T 64 44 V60 H4 Z" fill="url(#${u}w)"/>
         <path d="M4 50 Q 12 44 20 50 T 36 50 T 52 50 T 64 48" stroke="#bfdbfe" stroke-width="2" fill="none" opacity=".7"/>
-        <path d="M44 30 L50 24 L54 28 L60 20" stroke="#22e58a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        <path d="M44 30 L50 24 L54 28 L60 20" stroke="#56c796" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 // ===== Einfache Erklärung: Was ist ein Future und wie verdient meine Rolle Geld? =====
@@ -218,7 +218,7 @@ const ROLES = {
         cannot: ['Auf fallende Preise wetten – das dürfen nur Hedgefonds'],
     },
     spec: {
-        name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a78bfa', physical: 0, cash: 120000, limit: 20,
+        name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a99bd6', physical: 0, cash: 120000, limit: 20,
         goal: 'Wette auf steigende oder fallende Preise – und mach den grössten Gewinn.',
         mission: 'Ihr habt keinen Kakao. Ihr wettet auf den Preis – und übernehmt so das Risiko der anderen.',
         hint: 'Jedes Gerücht hat einen Ort. Im Terminal fragst du dort Berichte an – jeder ist nur ein Indiz.',

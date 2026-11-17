@@ -105,7 +105,7 @@ const Scenes = (() => {
         const svg = `<svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMid slice">
             <defs><linearGradient id="fsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset="1" stop-color="#39465a"/></linearGradient>
             <linearGradient id="silo" x1="0" x2="1"><stop offset="0" stop-color="#8a96a8"/><stop offset=".5" stop-color="#d5dde8"/><stop offset="1" stop-color="#7a8698"/></linearGradient>
-            <linearGradient id="choc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="1" stop-color="#c86a12"/></linearGradient></defs>
+            <linearGradient id="choc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d39a62"/><stop offset="1" stop-color="#c86a12"/></linearGradient></defs>
             <rect width="360" height="200" fill="url(#fsky)"/>
             <g class="smoke"><circle cx="292" cy="34" r="9"/><circle cx="300" cy="22" r="12"/><circle cx="312" cy="10" r="15"/></g>
             <rect x="284" y="40" width="18" height="60" fill="#5b6576"/><rect x="284" y="46" width="18" height="5" fill="#ff9f1c"/>

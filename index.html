@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>
     // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
-    window.KP_V='85';
+    window.KP_V='88';
     fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
         v = (v || '').trim();
         try {
@@ -17,12 +17,12 @@
     }).catch(() => {});
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#070b14">
+    <meta name="theme-color" content="#0a0806">
     <title>KAKAO PIT</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=85">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=88">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -35,17 +35,17 @@
         <div class="start-wrap">
             <div class="hero-emblem">
                 <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="gb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffcf8a"/><stop offset=".45" stop-color="#c47a4a"/><stop offset="1" stop-color="#5a2e14"/></linearGradient></defs>
-                    <circle cx="60" cy="60" r="56" fill="none" stroke="rgba(255,181,71,.35)" stroke-width="1.5" stroke-dasharray="4 6"/>
+                    <circle cx="60" cy="60" r="56" fill="none" stroke="rgba(217,178,111,.35)" stroke-width="1.5" stroke-dasharray="4 6"/>
                     <ellipse cx="60" cy="60" rx="26" ry="40" fill="url(#gb)" transform="rotate(28 60 60)"/>
                     <path d="M48 30 C 64 52, 56 70, 72 90" stroke="#3a1a08" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
-                    <path d="M14 78 L34 66 L48 72 L66 50 L82 58 L106 30" stroke="#22e58a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    <circle cx="106" cy="30" r="4.5" fill="#22e58a"/></svg>
+                    <path d="M14 78 L34 66 L48 72 L66 50 L82 58 L106 30" stroke="#56c796" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="106" cy="30" r="4.5" fill="#56c796"/></svg>
             </div>
             <div class="logo"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
             <p class="tagline">Das Multiplayer-Börsenspiel um Kakao-Futures.<br><b>Bauern. Fabriken. Hedgefonds.</b> Jeder mit eigenem Auftrag – live gegeneinander.</p>
             <div class="start-cards">
                 <div class="card start-card">
-                    <h2>📱 Mitspielen</h2>
+                    <h2><span class="h2-k">I</span> Mitspielen</h2>
                     <p class="dim">Gib den Raumcode vom grossen Bildschirm ein.</p>
                     <label>Raumcode<input id="in-code" maxlength="5" autocomplete="off" placeholder="z. B. K7Q2M" spellcheck="false"></label>
                     <label>Dein Name<input id="in-name" maxlength="16" autocomplete="off" placeholder="Trader-Name"></label>
@@ -53,8 +53,8 @@
                         <div class="role-pick" id="seg-role">
                             <button data-role="producer" style="--rc:#4ade80"><i>🌱</i><b>Kooperative</b><small>Ernte absichern</small></button>
                             <button data-role="processor" style="--rc:#f59e0b"><i>🏭</i><b>Fabrik</b><small>Einkauf sichern</small></button>
-                            <button data-role="spec" style="--rc:#a78bfa"><i>🦈</i><b>Hedgefonds</b><small>Spekulieren</small></button>
-                            <button data-role="" class="active" style="--rc:#ffb547"><i>🎲</i><b>Zufall</b><small>Host verteilt</small></button>
+                            <button data-role="spec" style="--rc:#a99bd6"><i>🦈</i><b>Hedgefonds</b><small>Spekulieren</small></button>
+                            <button data-role="" class="active" style="--rc:#d9b26f"><i>🎲</i><b>Zufall</b><small>Host verteilt</small></button>
                         </div>
                     </label>
                     <p class="device-tip">💻 <b>Tipp:</b> Am Laptop bekommst du einen eigenen Vollbild-Leitstand – Kooperativen-Zentrale, Fabrik-Leitstand oder Hedgefonds-Terminal.</p>
@@ -62,7 +62,7 @@
                     <p class="err" id="join-err"></p>
                 </div>
                 <div class="card start-card">
-                    <h2>🖥️ Spiel leiten</h2>
+                    <h2><span class="h2-k">II</span> Spiel leiten</h2>
                     <p class="dim">Für den Beamer oder grossen Bildschirm. Erstellt einen Raum, zeigt Live-Chart, News und Rangliste.</p>
                     <label>Spieldauer
                         <div class="seg" id="seg-len"><button data-len="kurz">Kurz · 4 Min.</button><button data-len="normal" class="active">Normal · 6 Min.</button><button data-len="lang">Lang · 8 Min.</button></div>
@@ -262,16 +262,16 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js?v=85"></script>
-    <script src="js/geo.js?v=85"></script>
-    <script src="js/engine.js?v=85"></script>
-    <script src="js/bots.js?v=85"></script>
-    <script src="js/net.js?v=85"></script>
-    <script src="js/host.js?v=85"></script>
-    <script src="js/scenes.js?v=85"></script>
+    <script src="js/common.js?v=88"></script>
+    <script src="js/geo.js?v=88"></script>
+    <script src="js/engine.js?v=88"></script>
+    <script src="js/bots.js?v=88"></script>
+    <script src="js/net.js?v=88"></script>
+    <script src="js/host.js?v=88"></script>
+    <script src="js/scenes.js?v=88"></script>
     <script src="js/render-worker.js?v=64"></script>
-    <script src="js/render.js?v=85"></script>
-    <script src="js/player.js?v=85"></script>
-    <script src="js/app.js?v=85"></script>
+    <script src="js/render.js?v=88"></script>
+    <script src="js/player.js?v=88"></script>
+    <script src="js/app.js?v=88"></script>
 </body>
 </html>

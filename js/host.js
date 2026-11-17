@@ -92,7 +92,7 @@ const Host = (() => {
         $('join-url').textContent = location.protocol === 'file:' ? 'Achtung: Die Datei muss online liegen, damit Handys beitreten können.' : url.replace(/^https?:\/\//, '').replace(/\?join=.*/, '');
         $('qr').innerHTML = '';
         if (typeof QRCode !== 'undefined' && location.protocol !== 'file:') {
-            new QRCode($('qr'), { text: url, width: 180, height: 180, colorDark: '#e6edf7', colorLight: '#0d1424' });
+            new QRCode($('qr'), { text: url, width: 180, height: 180, colorDark: '#f2ebdf', colorLight: '#15100c' });
         }
         if (!Net.available()) {
             $('net-status').innerHTML = '<span class="bad">PeerJS konnte nicht geladen werden. Besteht eine Internetverbindung?</span> Ihr könnt trotzdem mit KI-Tradern spielen.';
@@ -263,7 +263,7 @@ const Host = (() => {
     const LOBBY_SCENE = {
         producer: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3e8fd6"/><stop offset="1" stop-color="#f5d9a0"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls1)"/><circle cx="235" cy="26" r="13" fill="#fff3b0" class="ls-sun"/><g class="ls-cloud"><ellipse cx="60" cy="22" rx="26" ry="8" fill="rgba(255,255,255,.8)"/><ellipse cx="78" cy="17" rx="16" ry="8" fill="rgba(255,255,255,.9)"/></g><path d="M0 62 Q 80 40 160 58 T 300 52 V90 H0Z" fill="#2d6e2c"/><path d="M0 76 Q 100 60 200 74 T 300 70 V90 H0Z" fill="#3c8c3a"/>${[30, 80, 130, 180, 230, 275].map((x, i) => `<g class="ls-tree" style="animation-delay:${i * -0.7}s" transform="translate(${x} ${66 + (i % 2) * 8})"><rect x="-1.5" y="-14" width="3" height="16" fill="#5b3a1f"/><circle cy="-20" r="9" fill="#2f9e44"/><circle cx="-6" cy="-15" r="6" fill="#3fbf55"/><circle cx="6" cy="-15" r="6" fill="#2f9e44"/><ellipse cx="2" cy="-8" rx="2" ry="3.4" fill="#f0a63a"/></g>`).join('')}</svg>`,
         processor: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2230"/><stop offset="1" stop-color="#4a3a2c"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls2)"/><g class="ls-smoke"><circle cx="232" cy="18" r="7"/><circle cx="240" cy="9" r="9"/><circle cx="250" cy="2" r="11"/></g><rect x="226" y="22" width="12" height="40" fill="#5b6576"/><path d="M70 62 V44 L100 30 V44 L130 30 V44 L160 30 V44 L190 30 V44 L220 30 V62Z" fill="#4a5568"/><rect x="70" y="62" width="150" height="28" fill="#2d3748"/>${[0, 1, 2, 3].map(i => `<rect x="${82 + i * 34}" y="68" width="20" height="10" rx="2" fill="#ffcf6b" class="ls-win" style="animation-delay:${i * 0.5}s"/>`).join('')}<rect x="18" y="26" width="36" height="64" rx="6" fill="#aeb8c6"/><rect x="21" y="52" width="30" height="36" rx="4" fill="#c86a12"/><g class="ls-belt">${Array.from({ length: 14 }, (_, i) => `<rect x="${i * 30}" y="82" width="18" height="8" rx="2" fill="#7a4320"/>`).join('')}</g></svg>`,
-        spec: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#140d2a"/><stop offset="1" stop-color="#2a1b4f"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls3)"/>${[[20, 50], [44, 34], [70, 58], [96, 40], [122, 26], [148, 46], [174, 30], [200, 18], [226, 38], [252, 22], [278, 12]].map(([x, yy], i) => `<g class="ls-candle" style="animation-delay:${i * 0.12}s"><line x1="${x}" x2="${x}" y1="${yy - 8}" y2="${yy + 22}" stroke="${i % 3 === 1 ? '#ff4d6a' : '#22e58a'}" stroke-width="1.5"/><rect x="${x - 5}" y="${yy}" width="10" height="${12 + (i % 3) * 3}" fill="${i % 3 === 1 ? '#ff4d6a' : '#22e58a'}" rx="1.5"/></g>`).join('')}<polyline points="20,64 70,70 122,48 174,52 226,40 278,26" fill="none" stroke="#ffb547" stroke-width="2" class="ls-line"/><rect y="78" width="300" height="12" fill="rgba(0,0,0,.35)"/></svg>`,
+        spec: `<svg viewBox="0 0 300 90" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="ls3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#140d2a"/><stop offset="1" stop-color="#2a1b4f"/></linearGradient></defs><rect width="300" height="90" fill="url(#ls3)"/>${[[20, 50], [44, 34], [70, 58], [96, 40], [122, 26], [148, 46], [174, 30], [200, 18], [226, 38], [252, 22], [278, 12]].map(([x, yy], i) => `<g class="ls-candle" style="animation-delay:${i * 0.12}s"><line x1="${x}" x2="${x}" y1="${yy - 8}" y2="${yy + 22}" stroke="${i % 3 === 1 ? '#e26878' : '#56c796'}" stroke-width="1.5"/><rect x="${x - 5}" y="${yy}" width="10" height="${12 + (i % 3) * 3}" fill="${i % 3 === 1 ? '#e26878' : '#56c796'}" rx="1.5"/></g>`).join('')}<polyline points="20,64 70,70 122,48 174,52 226,40 278,26" fill="none" stroke="#d9b26f" stroke-width="2" class="ls-line"/><rect y="78" width="300" height="12" fill="rgba(0,0,0,.35)"/></svg>`,
     };
 
     function renderLobby() {
@@ -524,7 +524,7 @@ const Host = (() => {
             if (top === undefined || !n.animate) return;
             const dy = top - n.getBoundingClientRect().top;
             if (Math.abs(dy) < 2) return;
-            n.animate([{ transform: `translateY(${dy}px)`, background: 'rgba(255,181,71,.25)' }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.2,1,.3,1)' });
+            n.animate([{ transform: `translateY(${dy}px)`, background: 'rgba(217,178,111,.25)' }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.2,1,.3,1)' });
         });
     }
 
@@ -591,14 +591,14 @@ const Host = (() => {
             return d;
         }).join('');
         const url = paintImage(MAP_W, MAP_H, 6, x => {
-            x.fillStyle = 'rgba(140,170,220,.34)';
+            x.fillStyle = 'rgba(200,170,120,.34)';
             x.beginPath();
             for (const [lat, ranges] of LAND_HI) {
                 if (lat > 77 || lat < -56) continue;
                 for (const [a, b] of ranges) for (let lon = a; lon <= b; lon++) { x.moveTo(mx(lon) + 0.42, my(lat)); x.arc(mx(lon), my(lat), 0.42, 0, Math.PI * 2); }
             }
             x.fill();
-            x.strokeStyle = 'rgba(170,200,245,.6)';
+            x.strokeStyle = 'rgba(225,200,150,.6)';
             x.lineWidth = 0.32;
             x.lineJoin = 'round';
             x.stroke(new Path2D(coast));
@@ -635,7 +635,7 @@ const Host = (() => {
                     ${here.length ? `<text x="${lx}" y="${below ? y + 15 : y - 10.5}" text-anchor="${anchor}" class="reg-p">${here.slice(0, 3).map(p => esc(p.name.slice(0, 8))).join(', ')}</text>` : ''}</g>`;
             }).join('');
             el.innerHTML = `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="xMidYMid meet" class="worldmap">
-                <defs><radialGradient id="mapglow"><stop offset="0" stop-color="rgba(255,181,71,.25)"/><stop offset="1" stop-color="rgba(255,181,71,0)"/></radialGradient></defs>
+                <defs><radialGradient id="mapglow"><stop offset="0" stop-color="rgba(217,178,111,.25)"/><stop offset="1" stop-color="rgba(217,178,111,0)"/></radialGradient></defs>
                 <rect x="0" y="${my(23.5)}" width="${MAP_W}" height="${my(-23.5) - my(23.5)}" class="tropics"/>
                 <line x1="0" x2="${MAP_W}" y1="${my(0)}" y2="${my(0)}" class="equator"/>
                 <g class="grat">${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150].map(l => `<line x1="${mx(l)}" x2="${mx(l)}" y1="0" y2="${MAP_H}"/>`).join('')}${[-40, -20, 20, 40, 60].map(l => `<line x1="0" x2="${MAP_W}" y1="${my(l)}" y2="${my(l)}"/>`).join('')}</g>
@@ -655,7 +655,7 @@ const Host = (() => {
                     const r = REGIONS[p.region];
                     const x = mx(r.lon);
                     const y = my(r.lat);
-                    const col = p.kind === 'yes' ? '#22e58a' : p.kind === 'no' ? '#a78bfa' : p.kind === 'rumor' ? '#ffb547' : '#ff4d6a';
+                    const col = p.kind === 'yes' ? '#56c796' : p.kind === 'no' ? '#a99bd6' : p.kind === 'rumor' ? '#d9b26f' : '#e26878';
                     return `<g class="pin"><circle cx="${x}" cy="${y}" r="3" stroke="${col}" class="pin-ring"/><circle cx="${x}" cy="${y}" r="3" stroke="${col}" class="pin-ring d2"/>
                         <text x="${x + 4}" y="${y + 2}" class="pin-ico">${p.icon}</text></g>`;
                 }).join('');
@@ -762,9 +762,9 @@ const Host = (() => {
             const x0 = x(m * S.monthSec);
             const x1 = x((m + 1) * S.monthSec);
             const cur = !target && m + 1 === S.month;
-            c.fillStyle = cur ? 'rgba(255,181,71,.06)' : m % 2 ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,0)';
+            c.fillStyle = cur ? 'rgba(217,178,111,.06)' : m % 2 ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,0)';
             c.fillRect(x0, T, x1 - x0, H - T - B);
-            c.fillStyle = cur ? 'rgba(255,181,71,.55)' : 'rgba(140,160,200,.35)';
+            c.fillStyle = cur ? 'rgba(217,178,111,.55)' : 'rgba(140,160,200,.35)';
             c.font = 'bold 11px "JetBrains Mono", monospace';
             c.fillText(`M${m + 1}`, x0 + 8, H - B - 8);
         }
@@ -774,7 +774,7 @@ const Host = (() => {
             const bw = Math.max(1.5, (W - L - R) / total - 0.6);
             for (const [s, v] of vol.bins) {
                 const bh = (v.abs / vol.max) * 46;
-                c.fillStyle = v.net >= 0 ? 'rgba(34,229,138,.28)' : 'rgba(255,77,106,.28)';
+                c.fillStyle = v.net >= 0 ? 'rgba(86,199,150,.28)' : 'rgba(226,104,120,.28)';
                 c.fillRect(x(s) - bw / 2, H - B - bh, bw, bh);
             }
         }
@@ -844,7 +844,7 @@ const Host = (() => {
         c.fillText(`Plan ${fmt(S.p0)}`, W - R - 90, y(S.p0) - 6);
         if (h.length > 1) {
             const up = h[h.length - 1].p >= S.p0;
-            const col = up ? '#22e58a' : '#ff4d6a';
+            const col = up ? '#56c796' : '#e26878';
             const yPlan = y(S.p0);
             const xNow = x(h[h.length - 1].s);
             // Zukunft: schraffiert, damit klar ist, wie viel Handelszeit noch bleibt
@@ -885,8 +885,8 @@ const Host = (() => {
             };
             // Über dem Plan grün, darunter rot – Fläche jeweils zwischen Kurve und Planlinie
             const halves = [
-                { clip: [0, 0, W, yPlan], c1: '#22e58a', a: 'rgba(34,229,138,.30)', g0: T, g1: yPlan, rev: false },
-                { clip: [0, yPlan, W, H], c1: '#ff4d6a', a: 'rgba(255,77,106,.30)', g0: H - B, g1: yPlan, rev: true },
+                { clip: [0, 0, W, yPlan], c1: '#56c796', a: 'rgba(86,199,150,.30)', g0: T, g1: yPlan, rev: false },
+                { clip: [0, yPlan, W, H], c1: '#e26878', a: 'rgba(226,104,120,.30)', g0: H - B, g1: yPlan, rev: true },
             ];
             for (const hv of halves) {
                 c.save();
@@ -929,14 +929,14 @@ const Host = (() => {
                     if (i >= h.length - 3) continue;
                     const px = x(h[i].s);
                     const py = y(h[i].p);
-                    c.fillStyle = isHi ? '#22e58a' : '#ff4d6a';
+                    c.fillStyle = isHi ? '#56c796' : '#e26878';
                     c.beginPath();
                     if (isHi) { c.moveTo(px, py - 6); c.lineTo(px - 5, py - 13); c.lineTo(px + 5, py - 13); }
                     else { c.moveTo(px, py + 6); c.lineTo(px - 5, py + 13); c.lineTo(px + 5, py + 13); }
                     c.fill();
                     const lab = `${isHi ? 'H' : 'T'} ${fmt(h[i].p)}`;
                     const tw = c.measureText(lab).width;
-                    c.fillStyle = 'rgba(5,8,15,.75)';
+                    c.fillStyle = 'rgba(10,8,6,.75)';
                     c.fillRect(px - tw / 2 - 5, isHi ? py - 31 : py + 15, tw + 10, 16);
                     c.fillStyle = isHi ? '#7dffc0' : '#ff9aac';
                     c.fillText(lab, px - tw / 2, isHi ? py - 19 : py + 27);
@@ -1047,13 +1047,13 @@ const Host = (() => {
                 c.closePath();
                 c.fillStyle = col;
                 c.fill();
-                c.strokeStyle = '#0b1020';
+                c.strokeStyle = '#100c09';
                 c.stroke();
             } else {
                 // Ausstieg: Ring
                 c.beginPath();
                 c.arc(px, py, 6, 0, Math.PI * 2);
-                c.fillStyle = '#0b1020';
+                c.fillStyle = '#100c09';
                 c.fill();
                 c.strokeStyle = col;
                 c.lineWidth = 3;
@@ -1066,7 +1066,7 @@ const Host = (() => {
             const tx = px - tw / 2;
             if (free(tx, ty, tw, 15)) {
                 labels.push({ x: tx, y: ty, w: tw, h: 15 });
-                c.fillStyle = 'rgba(11,16,32,.85)';
+                c.fillStyle = 'rgba(22,17,12,.85)';
                 c.fillRect(tx, ty, tw, 15);
                 c.fillStyle = col;
                 c.fillText(tag, tx + 4, ty + 11);
@@ -1081,7 +1081,7 @@ const Host = (() => {
         const kw = c.measureText(key).width + 22;
         const items = humans.map(h => ({ h, w: c.measureText(h.name.slice(0, 10)).width + 32 }));
         const total = kw + items.reduce((s, i) => s + i.w, 0) + 8;
-        c.fillStyle = 'rgba(11,16,32,.8)';
+        c.fillStyle = 'rgba(22,17,12,.8)';
         c.fillRect(L + 2, T - 6, Math.min(W - L - 20, total), 20);
         c.fillStyle = '#c8d3e6';
         c.fillText(key, lx, ly + 8);
@@ -1090,7 +1090,7 @@ const Host = (() => {
             if (lx + w > W - 20) return;
             c.fillStyle = markColor(h.id);
             c.fillRect(lx, ly, 10, 10);
-            c.fillStyle = '#e6edf7';
+            c.fillStyle = '#f2ebdf';
             c.fillText(h.name.slice(0, 10), lx + 15, ly + 9);
             lx += w;
         });
@@ -1165,7 +1165,7 @@ const Host = (() => {
         const X = sv => L + ((sv - s0) / Math.max(1, s1 - s0)) * (W - L - R);
         const Y = v => T + ((hi - v) / (hi - lo)) * (H - T - B);
         const up = ps[ps.length - 1] >= ref;
-        const col = up ? '#22e58a' : '#ff4d6a';
+        const col = up ? '#56c796' : '#e26878';
         const id = `ps${Math.random().toString(36).slice(2, 7)}`;
         const line = pts.map(p => `${X(p.s).toFixed(1)},${Y(p.p).toFixed(1)}`).join(' ');
         let grid = '';
@@ -1185,7 +1185,7 @@ const Host = (() => {
             const tw = t.length * 6.4 + 10;
             const tx = Math.max(L, Math.min(W - R - tw, x - tw / 2));
             const ty = isHi ? y - 22 : y + 8;
-            return `<path d="M${x} ${isHi ? y - 3 : y + 3} l-4 ${isHi ? -6 : 6} h8z" fill="${isHi ? '#22e58a' : '#ff4d6a'}"/><rect x="${tx}" y="${ty}" width="${tw}" height="14" rx="7" class="pg-tag"/><text x="${tx + tw / 2}" y="${ty + 10.5}" text-anchor="middle" class="pg-tt ${isHi ? 'up' : 'down'}">${t}</text>`;
+            return `<path d="M${x} ${isHi ? y - 3 : y + 3} l-4 ${isHi ? -6 : 6} h8z" fill="${isHi ? '#56c796' : '#e26878'}"/><rect x="${tx}" y="${ty}" width="${tw}" height="14" rx="7" class="pg-tag"/><text x="${tx + tw / 2}" y="${ty + 10.5}" text-anchor="middle" class="pg-tt ${isHi ? 'up' : 'down'}">${t}</text>`;
         };
         const marks = (o.marks || []).map(m => `<circle cx="${X(m.s).toFixed(1)}" cy="${Y(m.p).toFixed(1)}" r="3.5" class="pg-mk"/>`).join('');
         const last = pts[pts.length - 1];
@@ -1335,7 +1335,7 @@ const Host = (() => {
         const Y = v => h - 4 - ((v - lo) / span) * (h - 8);
         const pts = hs.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
         const up = y.final >= y.p0;
-        const col = up ? '#22e58a' : '#ff4d6a';
+        const col = up ? '#56c796' : '#e26878';
         const gid = `ys${y.year}${Math.random().toString(36).slice(2, 6)}`;
         return `<svg viewBox="0 0 ${w} ${h}" class="yc-spark" preserveAspectRatio="none">
             <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
@@ -1467,7 +1467,7 @@ const Host = (() => {
             const w = list[0];
             const R = ROLES[B.role];
             stages.push(() => {
-                setTimeout(() => confetti(2600, [R.color, '#ffffff', '#ffd27a']), 900);
+                setTimeout(() => confetti(2600, [R.color, '#ffffff', '#f0d49a']), 900);
                 return `<div class="sh-stage sh-award" style="--rc:${R.color}"><div class="sh-kicker">BESTE${B.role === 'spec' ? 'R' : ''} ${R.name.toUpperCase()}</div>
                     <div class="sh-envelope">✉️</div>
                     <div class="sh-reveal"><div class="sh-emb">${roleIcon(B.role, 120)}</div><div class="sh-name">${esc(w.name)}</div>

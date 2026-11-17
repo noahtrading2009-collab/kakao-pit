@@ -125,7 +125,7 @@ const App = (() => {
     const Y = lat => ((75 - lat) / 130) * H;
     const step = window.innerWidth < 720 ? 3 : 2;
     const dotsImg = paintImage(W, H, 2, x => {
-        x.fillStyle = 'rgba(140,170,220,.28)';
+        x.fillStyle = 'rgba(200,170,120,.28)';
         x.beginPath();
         for (const [lat, ranges] of LAND_HI) {
             if (lat % step || lat > 74 || lat < -55) continue;
@@ -170,7 +170,7 @@ const App = (() => {
     bg.setAttribute('aria-hidden', 'true');
     bg.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" class="sb-map"><defs><radialGradient id="sbFade" cx="50%" cy="42%" r="60%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><mask id="sbMask"><rect width="${W}" height="${H}" fill="url(#sbFade)"/></mask></defs>
             <g mask="url(#sbMask)"><image href="${dotsImg}" x="0" y="0" width="${W}" height="${H}"/>${routes}${pins}</g></svg>
-        <div class="sb-chart"><svg viewBox="0 0 2400 400" preserveAspectRatio="none"><defs><linearGradient id="sbArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb547" stop-opacity=".22"/><stop offset="1" stop-color="#ffb547" stop-opacity="0"/></linearGradient></defs>
+        <div class="sb-chart"><svg viewBox="0 0 2400 400" preserveAspectRatio="none"><defs><linearGradient id="sbArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9b26f" stop-opacity=".22"/><stop offset="1" stop-color="#d9b26f" stop-opacity="0"/></linearGradient></defs>
             <g class="sb-roll"><g class="sb-candles">${candles}</g><g class="sb-candles" transform="translate(1200 0)">${candles}</g>
             <polygon points="0,400 ${seg(0)} ${seg(1200)} 2400,400" fill="url(#sbArea)"/><polyline points="${seg(0)} ${seg(1200)}" class="sb-line"/></g></svg></div>
         <div class="sb-beans">${Array.from({ length: 12 }, (_, i) => `<i style="left:${(i * 83) % 100}%;animation-delay:${-i * 2.3}s;animation-duration:${16 + (i % 5) * 4}s;--s:${0.6 + (i % 4) * 0.25};--r:${(i * 47) % 360}deg"></i>`).join('')}</div>`;
