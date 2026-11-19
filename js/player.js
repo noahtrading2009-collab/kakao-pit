@@ -1155,7 +1155,7 @@ const Player = (() => {
             if (e.next > 0) continue;
             if (Math.random() < 0.02) e.burn = !e.burn;
             e.next = lr(0.35, 1.1);
-            if (e.burn && L.smoke.length < 260) L.smoke.push({ x: e.x + lr(-0.8, 0.8), y: e.y, vx: lr(-1, 1), vy: lr(-4.5, -2.8), age: 0, life: lr(3, 5.5), r0: lr(1.4, 2.2) });
+            if (e.burn && L.smoke.length < (Gfx.low() ? 70 : 260)) L.smoke.push({ x: e.x + lr(-0.8, 0.8), y: e.y, vx: lr(-1, 1), vy: lr(-4.5, -2.8), age: 0, life: lr(3, 5.5), r0: lr(1.4, 2.2) });
         }
         for (const s of L.smoke) {
             s.age += dt;
@@ -1267,7 +1267,7 @@ const Player = (() => {
         if (!L.on || !cv || !desk || !desk.classList.contains('active')) { L.raf = 0; L.last = 0; return; }
         L.raf = requestAnimationFrame(lifeLoop);
         // höchstens 40 Bilder pro Sekunde – flüssig, aber schont den Laptop
-        if (L.last && now - L.last < 24) return;
+        if (L.last && now - L.last < (Gfx.low() ? 48 : 24)) return; // niedrig: ca. 20 Bilder/s
         const dt = L.last ? Math.min(0.1, (now - L.last) / 1000) : 0.016;
         L.last = now;
         lifeStep(dt, now / 1000);
@@ -1296,10 +1296,11 @@ const Player = (() => {
         const ox = host.offsetLeft + (W - 800 * f) / 2;
         const oy = host.offsetTop + (H - VH * f) / 2;
         const zq = Math.min(2.5, Math.round(DZ.s * 2) / 2);
-        const rect = `${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}|${zq}`;
+        const gq = Gfx.level();
+        const rect = `${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}|${zq}|${gq}`;
         if (L.rect !== rect || cv.style.display === 'none') {
             L.rect = rect;
-            const dpr = Math.min(1.5, window.devicePixelRatio || 1) * zq;
+            const dpr = Gfx.low() ? 1 : Math.min(1.5, window.devicePixelRatio || 1) * zq;
             cv.width = Math.round(800 * f * dpr);
             cv.height = Math.round(VH * f * dpr);
             cv.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${VH * f}px;pointer-events:none;z-index:0;display:block`;
@@ -1451,7 +1452,7 @@ const Player = (() => {
         const { river, road } = LAY;
         const FIELDS = LAY.fields;
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
-        const pxW = Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // doppelte Reserve fürs Hineinzoomen
+        const pxW = Gfx.low() ? Math.min(1200, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * 1.25) / 400) * 400) : Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // hoch: doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
         const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
@@ -1562,7 +1563,7 @@ const Player = (() => {
         const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
         const xa = cx(lastRow[0] || 0);
         const xb = cx(lastRow[lastRow.length - 1] || 0);
-        const pxW = Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // doppelte Reserve fürs Hineinzoomen
+        const pxW = Gfx.low() ? Math.min(1200, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * 1.25) / 400) * 400) : Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // hoch: doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         const LDATA = {
             HH, by, pipeY, xa, xb,
@@ -1802,6 +1803,12 @@ const Player = (() => {
         if (DSEL.size) dQty = Math.max(1, Math.round(deskSelTons() / CFG.size));
     }
 
+    window.addEventListener('gfxchange', () => {
+        if (!me || !pub) return;
+        if ($('v-desk').classList.contains('active')) renderDesk();
+        else if ($('v-term').classList.contains('active')) renderTerm();
+        else if ($('v-player').classList.contains('active')) render();
+    });
     function bindDeskMap() {
         const host = $('d-world');
         const pan = host.parentElement;

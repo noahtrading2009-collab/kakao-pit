@@ -467,7 +467,7 @@ const Host = (() => {
             return;
         }
         // Höchstens 30 Bilder pro Sekunde für den Chart – flüssig genug und halb so viel Arbeit
-        if (anim.drawnAt && now - anim.drawnAt < 31) { requestAnimationFrame(frame); return; }
+        if (anim.drawnAt && now - anim.drawnAt < (Gfx.low() ? 48 : 31)) { requestAnimationFrame(frame); return; }
         anim.drawnAt = now;
         // Linear über die ganze Sekunde: Kurs und Zeitachse wandern gleichmässig weiter (kein Ruck, kein Stocken).
         anim.lastFrame = performance.now();

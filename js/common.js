@@ -6,7 +6,7 @@ const CFG = {
     months: 4,             // Handelsmonate bis zur Fälligkeit (Dezember)
     monthSec: { kurz: 60, normal: 90, lang: 120 },
     settleSec: 7,          // Pause für die Abrechnung am Monatsende
-    preSec: 180,           // Pre-Market: höchstens so lange – öffnet früher, sobald alle das Tutorial fertig haben
+    preSec: 240,           // Pre-Market (4 Min.): höchstens so lange – öffnet früher, sobald alle das Tutorial fertig haben
     marginRate: 0.10,      // Einschuss: 10 % des Kontraktwerts
     maintenance: 0.7,      // Margin Call unter 70 % des nötigen Einschusses
     callSec: 25,           // Zeit, um nachzuschiessen
@@ -69,8 +69,39 @@ const FEATURE_TEXT = {
     buyers: { role: 'producer', icon: '🤝', name: 'Händler-Angebote', text: 'Händler bieten dir feste Preise für einen Teil der Ernte.' },
 };
 
-// Canvas immer mindestens doppelt aufgelöst rendern: scharfe Linien auch auf Beamern mit 1080p
-const HQ = () => Math.max(2, window.devicePixelRatio || 1);
+// ===== Grafik-Stufe: «hoch» (volle Auflösung, alle Effekte) oder «niedrig» (für schwächere Laptops) =====
+// Wird pro Gerät gespeichert. Ohne Wahl: schwache Geräte starten automatisch mit «niedrig».
+const Gfx = (() => {
+    let level = null;
+    try { level = localStorage.getItem('kp-gfx'); } catch (e) { /* egal */ }
+    if (level !== 'high' && level !== 'low') {
+        const cores = navigator.hardwareConcurrency || 8;
+        const mem = navigator.deviceMemory || 8;
+        level = cores <= 4 || mem <= 4 ? 'low' : 'high';
+    }
+    const paint = () => {
+        document.documentElement.classList.toggle('gfx-low', level === 'low');
+        document.querySelectorAll('.gfx-btn').forEach(b => {
+            b.innerHTML = level === 'high' ? '<i>◆</i>Grafik hoch' : '<i>◇</i>Grafik niedrig';
+            b.title = level === 'high' ? 'Auf «niedrig» stellen – schneller auf schwachen Laptops' : 'Auf «hoch» stellen – volle Auflösung und alle Effekte';
+        });
+    };
+    return {
+        low: () => level === 'low',
+        level: () => level,
+        set(l) {
+            level = l;
+            try { localStorage.setItem('kp-gfx', l); } catch (e) { /* egal */ }
+            paint();
+            window.dispatchEvent(new Event('gfxchange'));
+        },
+        toggle() { this.set(level === 'high' ? 'low' : 'high'); },
+        paint,
+    };
+})();
+
+// Canvas-Auflösung: «hoch» mindestens doppelt (scharf auch auf 1080p-Beamern), «niedrig» = Bildschirm-Auflösung
+const HQ = () => (Gfx.low() ? Math.min(1.25, window.devicePixelRatio || 1) : Math.max(2, window.devicePixelRatio || 1));
 
 // ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
 function confetti(ms = 3500, colors = ['#d9b26f', '#56c796', '#a99bd6', '#60a5fa', '#f472b6', '#fde047']) {

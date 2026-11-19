@@ -107,6 +107,8 @@ const App = (() => {
         $('btn-how').addEventListener('click', howTo);
         // Ton an/aus auf allen Geräten (Beamer, Handy, Terminal) – wird gespeichert
         document.querySelectorAll('.snd-btn').forEach(b => b.addEventListener('click', () => Sound.toggle()));
+        document.querySelectorAll('.gfx-btn').forEach(b => b.addEventListener('click', () => Gfx.toggle()));
+        Gfx.paint();
         Sound.setMuted(Sound.muted());
         $('modal-ov').addEventListener('click', e => { if (e.target.id === 'modal-ov') $('modal-ov').classList.add('hidden'); });
     }
