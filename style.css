@@ -2241,3 +2241,9 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 .t-west rect { stroke: rgba(240, 205, 132, .55) !important; fill: rgba(240, 205, 132, .04) !important; }
 .t-inset { background: radial-gradient(500px 220px at 45% 40%, rgba(46, 58, 74, .45), rgba(10, 12, 16, .4)) !important; border-color: rgba(214, 178, 112, .2) !important; }
 .t-inset-h { color: #f0cd84 !important; letter-spacing: .22em !important; }
+
+/* ===================== Terminal: Weltkarte gross, Westafrika kompakt ===================== */
+.t-grid { grid-template-columns: minmax(280px, 310px) 1fr minmax(300px, 330px) !important; }
+#t-map { display: flex !important; flex-direction: column; gap: 8px; }
+#t-map .t-world { flex: 1 1 62% !important; height: 100% !important; min-height: 0; width: 100%; border-radius: 8px; background: radial-gradient(120% 90% at 45% 45%, rgba(40, 50, 64, .55), rgba(10, 12, 16, .2) 75%); }
+#t-map .t-inset { flex: 0 1 38% !important; min-height: 110px; }

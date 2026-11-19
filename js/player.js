@@ -1291,7 +1291,10 @@ const Player = (() => {
         { k: 'ship', x: 46, row: 1, name: 'Versand', p: 'Karton → Palette → Handel', txt: 'Tafeln kommen in Kartons, Kartons auf Paletten – und ab in die Läden.' },
     ];
     const PW = { clean: 62, roast: 96, winnow: 70, grind: 84, mix: 84, refine: 64, conche: 104, temper: 66, deposit: 84, cool: 150, demould: 66, wrap: 78, ship: 60 };
-    const PLINE = { T: 0, sp: 1, HH: 0, B1: 0, B2: 0, stat: null, statKey: '' };
+    // Die Linie wird in einem eigenen 800×300-Raum gezeichnet und verkleinert unten in die Halle gesetzt
+    const PLINE = { T: 0, sp: 1, HH: 0, B1: 150, B2: 278, sc: 0.68, stat: null, statKey: '' };
+    PLINE.Z = 300 * PLINE.sc;
+    PLINE.ox = (800 - 800 * PLINE.sc) / 2;
     const lerp = (a, b, t) => a + (b - a) * t;
     function rrect(x, x0, y0, w, h, r) { x.beginPath(); x.moveTo(x0 + r, y0); x.arcTo(x0 + w, y0, x0 + w, y0 + h, r); x.arcTo(x0 + w, y0 + h, x0, y0 + h, r); x.arcTo(x0, y0 + h, x0, y0, r); x.arcTo(x0, y0, x0 + w, y0, r); x.closePath(); }
     function steel(x, x0, y0, w, h, r = 3, tone = 1) {
@@ -1569,7 +1572,7 @@ const Player = (() => {
           x.strokeStyle = 'rgba(125,255,176,.35)'; x.lineWidth = 0.8; x.beginPath(); for (let i = 0; i <= 30; i++) { const p = i / 30; const px = x0 + 3 + p * (w - 6); const py = yOf(tempAt(p)); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke();
           const cur = tempAt(ph); x.fillStyle = '#7dffb0'; x.beginPath(); x.arc(x0 + 3 + ph * (w - 6), yOf(cur), 1.4, 0, 7); x.fill();
           x.font = '600 6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${cur.toFixed(1)}°C`, cx, y0 + 31);
-          x.fillStyle = '#5a2c10'; for (let q = 0; q < 4; q++) { x.fillRect(640 + ((T * 12 + q * 9) % 36), B2 - 69.5, 3, 2); x.fillRect(520 + ((T * 12 + q * 13) % 52), B2 - 73.5, 3, 2); } }
+          x.fillStyle = '#5a2c10'; for (let q = 0; q < 4; q++) { x.fillRect(673 - ((T * 12 + q * 9) % 36), B2 - 69.5, 3, 2); x.fillRect(569 - ((T * 12 + q * 13) % 52), B2 - 73.5, 3, 2); } }
         // Zähler: Tafeln heute
         const bars = Math.floor((T * V) / G) * 6 + 1200;
         x.fillStyle = 'rgba(14,11,8,.78)'; rrect(x, 652, P.B1 - 146, 140, 20, 4); x.fill(); x.strokeStyle = 'rgba(214,178,112,.35)'; x.lineWidth = 0.6; x.stroke();
@@ -1587,10 +1590,8 @@ const Player = (() => {
         if (!show) return;
         L.args = null;
         L.mode = 'plant';
-        PLINE.sp = sp;
+        PLINE.sp = sp * 0.7; // ruhig – der Blick gehört dem Chart
         PLINE.HH = HH;
-        PLINE.B1 = HH - 150;
-        PLINE.B2 = HH - 22;
         const W = host.offsetWidth;
         const H = host.offsetHeight;
         const f = Math.min(W / 800, H / HH);
@@ -1612,6 +1613,8 @@ const Player = (() => {
             st.height = cv.height;
             const sx = st.getContext('2d');
             sx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
+            sx.translate(PLINE.ox, HH - PLINE.Z);
+            sx.scale(PLINE.sc, PLINE.sc);
             plantStatic(sx, PLINE);
             PLINE.stat = st;
             deskZoomApply();
@@ -1622,11 +1625,13 @@ const Player = (() => {
     }
     function plantFrame(x) {
         const L = LIFE;
-        const y0 = Math.floor((PLINE.HH - 300) * L.scale);
+        const y0 = Math.floor((PLINE.HH - PLINE.Z - 4) * L.scale);
         x.setTransform(1, 0, 0, 1, 0, 0);
         x.clearRect(0, y0, x.canvas.width, x.canvas.height - y0);
         if (PLINE.stat) x.drawImage(PLINE.stat, 0, y0, x.canvas.width, x.canvas.height - y0, 0, y0, x.canvas.width, x.canvas.height - y0);
         x.setTransform(L.scale, 0, 0, L.scale, 0, 0);
+        x.translate(PLINE.ox, PLINE.HH - PLINE.Z);
+        x.scale(PLINE.sc, PLINE.sc);
         plantDyn(x, PLINE, PLINE.T);
     }
 
@@ -1657,16 +1662,7 @@ const Player = (() => {
 
     // SVG-Ebene über der Linie: Schritt-Nummern, Namen, Flächen für die Maus
     function plantLineSVG(HH) {
-        const B = [HH - 150, HH - 22];
-        const items = PST.map((s, i) => {
-            const w = PW[s.k];
-            const yb = B[s.row];
-            const h = s.row ? 100 : 118;
-            return `<g class="pst" data-st="${i}"><rect class="pst-hit" x="${s.x - w / 2 - 4}" y="${yb - h}" width="${w + 8}" height="${h + 6}" rx="6"/>
-                <g transform="translate(${s.x} ${yb + 9})"><circle r="5.4" class="pst-n"/><text y="2" text-anchor="middle" class="pst-nt">${i + 1}</text><text x="8" y="2.4" class="pst-t">${esc(s.name)}</text></g></g>`;
-        }).join('');
-        return `<text x="40" y="${HH - 284}" class="p-wall-t pst-head">SCHOKOLADEN-PRODUKTION · VON DER BOHNE ZUR TAFEL</text>
-            ${items}`;
+        return `<text x="${PLINE.ox + 6}" y="${HH - PLINE.Z - 4}" class="p-wall-t pst-head">PRODUKTION · VON DER BOHNE ZUR TAFEL</text>`;
     }
 
     function deskLife(LAY, VH, show) {
@@ -1944,7 +1940,7 @@ const Player = (() => {
         for (let per = 3; per <= Math.min(12, Math.max(3, n)); per++) {
             const rows = Math.ceil(n / per);
             const s = Math.min(1.7, 720 / (per * (w + gap)));
-            const hNeed = 50 + rows * 150 * s + 350;
+            const hNeed = 50 + rows * 150 * s + 270;
             const sFit = Math.min(s, s * ((800 * ar) / hNeed));
             if (!best || sFit > best.s) best = { per, rows, s: sFit };
         }
@@ -1953,8 +1949,8 @@ const Player = (() => {
         const rowH = 150 * s;
         const top = 50;
         const ly = top + rows * rowH;
-        const HH = Math.ceil(Math.max(800 * ar, ly + 340) / 40) * 40;
-        const by = HH - 300; // Wand bis hier, darunter der Hallenboden mit der Produktion
+        const HH = Math.ceil(Math.max(800 * ar, ly + PLINE.Z + 50) / 40) * 40;
+        const by = HH - PLINE.Z + 10; // Wand bis hier, darunter der Hallenboden mit der Produktion
         const pipeY = Math.min(ly + 4, by - 6);
         const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
         const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
@@ -1963,7 +1959,7 @@ const Player = (() => {
         const pxW = Gfx.low() ? Math.min(1200, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * 1.25) / 400) * 400) : Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // hoch: doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         const LDATA = {
-            HH, by, pipeY, xa, xb, v2: true, inX: 70, inY: HH - 248,
+            HH, by, pipeY, xa, xb, v2: true, inX: PLINE.ox + 70 * PLINE.sc, inY: HH - PLINE.Z + 52 * PLINE.sc,
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: 'n', i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
@@ -2041,10 +2037,10 @@ const Player = (() => {
             ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
-            <path d="M${xa.toFixed(1)} ${pipeY} H70 V${HH - 250}" class="pipe-flow"/>
+            <path d="M${xa.toFixed(1)} ${pipeY} H${(PLINE.ox + 70 * PLINE.sc).toFixed(1)} V${(HH - PLINE.Z + 50 * PLINE.sc).toFixed(1)}" class="pipe-flow"/>
             ${silos}
             ${plantLineSVG(HH)}
-            <text x="40" y="${HH - 273}" class="pl-k">Marge ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf ${mm} % · Linie läuft mit ${Math.round((0.55 + 0.45 * (tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length))) * 100)} % – je mehr Kakao gesichert, desto schneller</text></svg>`;
+            <text x="${PLINE.ox + 6}" y="${HH - PLINE.Z + 6}" class="pl-k">Marge ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf ${mm} % · Linie läuft mit ${Math.round((0.55 + 0.45 * (tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length))) * 100)} % – je mehr Kakao gesichert, desto schneller</text></svg>`;
     }
 
     function deskTicket() {
@@ -2502,9 +2498,10 @@ const Player = (() => {
 
     // Weltkarte (zugeschnitten auf die relevanten Breiten) + vergrösserter Ausschnitt Westafrika
     const TW = 630;
-    const TH = 232;
-    const tx = lon => ((lon + 165) / 315) * TW;
-    const ty = lat => 10 + ((72 - lat) / 104) * (TH - 20);
+    const TH = 290;
+    // Ausschnitt: von Ecuador bis Indonesien (−100° bis 135°), 70° N bis 36° S – so wird die Welt grösser
+    const tx = lon => ((lon + 100) / 235) * TW;
+    const ty = lat => 8 + ((70 - lat) / 106) * (TH - 16);
     const WEST = ['gh', 'ci', 'abj', 'acc'];
     const IW = 450;
     const IH = 150;
@@ -2541,7 +2538,7 @@ const Player = (() => {
             for (let i = 0; i < c.length; i += 2) {
                 const lo = c[i] / 2;
                 const la = c[i + 1] / 2;
-                if (lo < -165 || lo > 150 || la > 73 || la < -33) { d += ' '; continue; }
+                if (lo < -102 || lo > 137 || la > 71 || la < -37) { d += ' '; continue; }
                 d += `${d && !d.endsWith(' ') && Math.abs(c[i] - c[i - 2]) < 180 ? 'L' : 'M'}${tx(lo).toFixed(1)} ${ty(la).toFixed(1)}`;
             }
             return d.replace(/ +/g, '');
@@ -2592,7 +2589,7 @@ const Player = (() => {
                 x.shadowBlur = 1.6;
                 x.fillStyle = 'rgba(150,186,214,.34)';
                 x.beginPath();
-                for (let lat = 72; lat >= -32; lat--) for (let lon = -165; lon <= 150; lon++) {
+                for (let lat = 70; lat >= -36; lat--) for (let lon = -100; lon <= 135; lon++) {
                     if (!isLand(lon, lat)) continue;
                     if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
                     if (Math.abs(lat) <= 12) { BELT.push([lon, lat]); continue; }
@@ -2618,7 +2615,7 @@ const Player = (() => {
                 x.lineWidth = 0.45;
                 x.stroke(new Path2D(coastD));
             })}" x="0" y="0" width="${TW}" height="${TH}"/>
-            <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
+            <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         termMapInteract();
@@ -2820,6 +2817,49 @@ const Player = (() => {
         const t = (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
         return [lerp(pts[i - 1][0], pts[i][0], t), lerp(pts[i - 1][1], pts[i][1], t), Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0])];
     }
+    // Fein gezeichnete Sprites (einmal, vierfach aufgelöst)
+    let TSPR = null;
+    function tSprites() {
+        if (TSPR) return TSPR;
+        const mk = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w * 4; c.height = h * 4; const x = c.getContext('2d'); x.scale(4, 4); draw(x); return c; };
+        // Containerschiff (Draufsicht, Bug rechts): 26 × 7
+        const ship = mk(26, 7, x => {
+            x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.moveTo(25.5, 4); x.quadraticCurveTo(22, 0.8, 18, 1.2); x.lineTo(2, 1.4); x.lineTo(1.2, 6.2); x.lineTo(18, 6.4); x.quadraticCurveTo(22, 6.6, 25.5, 4); x.fill();
+            const hull = x.createLinearGradient(0, 0.5, 0, 6.5); hull.addColorStop(0, '#2b3542'); hull.addColorStop(0.5, '#1a222c'); hull.addColorStop(1, '#2b3542');
+            x.fillStyle = hull; x.beginPath(); x.moveTo(25, 3.5); x.quadraticCurveTo(21.5, 0.4, 17.5, 0.7); x.lineTo(1.5, 0.9); x.lineTo(0.8, 6.1); x.lineTo(17.5, 6.3); x.quadraticCurveTo(21.5, 6.6, 25, 3.5); x.fill();
+            x.strokeStyle = '#b8863f'; x.lineWidth = 0.35; x.stroke();
+            const cols = ['#9c4a35', '#3f6e78', '#c9a35b', '#6d7f52', '#8a5d3b', '#4c5a74'];
+            for (let c = 0; c < 6; c++) for (let r = 0; r < 2; r++) { x.fillStyle = cols[(c * 2 + r * 3) % cols.length]; x.fillRect(5 + c * 2.4, 1.6 + r * 2, 2.1, 1.8); }
+            x.fillStyle = '#f2ebdf'; x.fillRect(2, 1.6, 2.4, 3.8); x.fillStyle = '#9aa6b2'; x.fillRect(2.4, 2.2, 1.6, 0.6);
+        });
+        // Kakao-Lastwagen (Bug rechts): 12 × 5
+        const truck = mk(12, 5, x => {
+            x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(0.8, 1, 11, 4);
+            x.fillStyle = '#5a4630'; x.fillRect(0.4, 0.5, 8, 4);
+            x.fillStyle = '#8a5a34'; for (let q = 0; q < 3; q++) for (let r = 0; r < 2; r++) { x.beginPath(); x.ellipse(1.8 + q * 2.4, 1.5 + r * 2, 1.1, 0.8, 0, 0, 7); x.fill(); }
+            x.fillStyle = '#e9dcc4'; x.fillRect(8.8, 0.7, 2.8, 3.6); x.fillStyle = '#2b3542'; x.fillRect(10.6, 1.1, 0.8, 2.8);
+        });
+        // weiche Wolke: 40 × 20
+        const cloud = mk(40, 20, x => {
+            x.filter = 'blur(1.6px)';
+            for (const [cx, cy, r] of [[12, 12, 6], [19, 9, 7.5], [27, 11, 6], [33, 13, 4.5], [8, 14, 4]]) { const g = x.createRadialGradient(cx - 1.5, cy - 2, 0.5, cx, cy, r); g.addColorStop(0, 'rgba(240,244,250,.95)'); g.addColorStop(1, 'rgba(190,200,215,0)'); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); }
+        });
+        TSPR = { ship, truck, cloud };
+        return TSPR;
+    }
+    function drawShip(x, px, py, ang, s, alpha = 1) {
+        const S = tSprites();
+        x.save(); x.translate(px, py); x.rotate(ang); x.scale(s, s); x.globalAlpha = alpha;
+        // Kielwasser: zwei feine, auslaufende Linien und Schaum am Heck
+        const wk = x.createLinearGradient(-34, 0, -8, 0); wk.addColorStop(0, 'rgba(210,228,248,0)'); wk.addColorStop(1, 'rgba(210,228,248,.55)');
+        x.strokeStyle = wk; x.lineWidth = 0.7;
+        x.beginPath(); x.moveTo(-8, -1.6); x.lineTo(-34, -6); x.moveTo(-8, 1.6); x.lineTo(-34, 6); x.stroke();
+        const fm = x.createRadialGradient(-9, 0, 0, -9, 0, 6); fm.addColorStop(0, 'rgba(235,242,250,.6)'); fm.addColorStop(1, 'rgba(235,242,250,0)');
+        x.fillStyle = fm; x.beginPath(); x.ellipse(-12, 0, 7, 2.4, 0, 0, 7); x.fill();
+        x.drawImage(S.ship, -9, -2.4, 18, 4.85);
+        x.restore();
+    }
+
     function termAnimSetup() {
         const map = $('t-map');
         for (const [cls, sel] of [['ta-w', '.t-world'], ['ta-i', '.t-inset-svg']]) {
@@ -2835,7 +2875,7 @@ const Player = (() => {
             ROUTES_W.forEach((R, ri) => {
                 const pts = R.map(([lo, la]) => [tx(lo), ty(la)]);
                 const cum = polyLen(pts);
-                const n = ri < 3 ? 3 : 2;
+                const n = ri < 3 ? 2 : 1;
                 for (let q = 0; q < n; q++) TA.ships.push({ pts, cum, d: (cum[cum.length - 1] / n) * q + Math.random() * 20, v: 4 + Math.random() * 2.5, dir: q % 2 ? -1 : 1 });
             });
         }
@@ -2848,7 +2888,7 @@ const Player = (() => {
         const dec = (-23.44 * Math.cos(((2 * Math.PI) / 365) * (day + 10)) * Math.PI) / 180;
         const lon0 = -((now.getUTCHours() + now.getUTCMinutes() / 60 - 12) * 15);
         const pts = [];
-        for (let lo = -165; lo <= 150; lo += 3) {
+        for (let lo = -100; lo <= 135; lo += 3) {
             const la = (Math.atan(-Math.cos(((lo - lon0) * Math.PI) / 180) / Math.tan(dec)) * 180) / Math.PI;
             pts.push([tx(lo), ty(la)]);
         }
@@ -2890,17 +2930,24 @@ const Player = (() => {
         if (W) {
             const { x, k, z } = W;
             const s = k; // 1 Bildschirm-Pixel in Kartenmass
-            // Tag/Nacht
+            // Tag/Nacht: weiche Dämmerungszone, alle 20 s neu berechnet
             if (!Gfx.low()) {
-                if (T - TA.termT > 20 || !TA.term) { TA.term = terminator(); TA.termT = T; }
-                const { pts, southNight } = TA.term;
-                const edge = southNight ? TH + 20 : -20;
-                for (let q = 0; q < 3; q++) {
-                    x.fillStyle = `rgba(4,6,12,${q === 0 ? 0.22 : 0.07})`;
-                    x.beginPath();
-                    pts.forEach(([px, py], i) => (i ? x.lineTo(px, py + (southNight ? q * 4 : -q * 4)) : x.moveTo(px, py + (southNight ? q * 4 : -q * 4))));
-                    x.lineTo(TW + 20, edge); x.lineTo(-20, edge); x.closePath(); x.fill();
+                if (T - TA.termT > 20 || !TA.termImg) {
+                    TA.termT = T;
+                    const { pts, southNight } = terminator();
+                    const c = document.createElement('canvas');
+                    c.width = TW * 2; c.height = TH * 2;
+                    const q = c.getContext('2d');
+                    q.scale(2, 2);
+                    q.filter = 'blur(7px)';
+                    q.fillStyle = 'rgba(3,5,10,.42)';
+                    q.beginPath();
+                    pts.forEach(([px, py], i) => (i ? q.lineTo(px, py) : q.moveTo(px, py)));
+                    const edge = southNight ? TH + 30 : -30;
+                    q.lineTo(TW + 30, edge); q.lineTo(-30, edge); q.closePath(); q.fill();
+                    TA.termImg = c;
                 }
+                x.drawImage(TA.termImg, 0, 0, TW, TH);
             }
             // Schiffe mit Kielwasser
             for (const sh of TA.ships) {
@@ -2909,12 +2956,7 @@ const Player = (() => {
                 if (sh.d > L) sh.d -= L; if (sh.d < 0) sh.d += L;
                 const [px, py, a] = polyAt(sh.pts, sh.cum, sh.d);
                 const ang = sh.dir > 0 ? a : a + Math.PI;
-                x.save(); x.translate(px, py); x.rotate(ang); x.scale(s * 1.3, s * 1.3);
-                const wk = x.createLinearGradient(-18, 0, 0, 0); wk.addColorStop(0, 'rgba(200,225,255,0)'); wk.addColorStop(1, 'rgba(200,225,255,.45)');
-                x.fillStyle = wk; x.beginPath(); x.moveTo(-18, -2.5); x.lineTo(-3, -1); x.lineTo(-3, 1); x.lineTo(-18, 2.5); x.closePath(); x.fill();
-                x.fillStyle = '#e9dcc4'; x.beginPath(); x.moveTo(5, 0); x.lineTo(2, -2); x.lineTo(-4, -2); x.lineTo(-4, 2); x.lineTo(2, 2); x.closePath(); x.fill();
-                x.fillStyle = '#b8863f'; x.fillRect(-3, -1.2, 3.5, 2.4);
-                x.restore();
+                drawShip(x, px, py, ang, s * 1.15);
             }
             // Live-Kurs an den Börsen London und New York
             if (TA.price !== null && pub.price !== TA.price) { TA.flash = 1; TA.flashUp = pub.price > TA.price; }
@@ -2925,8 +2967,8 @@ const Player = (() => {
                 const px = tx(L.lon);
                 const py = ty(L.lat);
                 x.save(); x.translate(px, py); x.scale(s, s);
-                const ox = key === 'lon' ? 14 : -94;
-                const oy = -38;
+                const ox = key === 'lon' ? 14 : 12;
+                const oy = key === 'lon' ? -38 : 14;
                 const fl = TA.flash;
                 x.fillStyle = 'rgba(12,10,8,.86)';
                 rrect(x, ox, oy, 80, 22, 5); x.fill();
@@ -2935,7 +2977,7 @@ const Player = (() => {
                 x.fillStyle = '#a3978a'; x.font = '600 6.5px Inter, sans-serif'; x.textAlign = 'left'; x.fillText(lb, ox + 6, oy + 8.5);
                 x.fillStyle = fl > 0 ? (TA.flashUp ? '#7fe0b4' : '#f08a9a') : '#f3dcaa'; x.font = '600 9.5px "IBM Plex Mono", monospace'; x.fillText(fmt(pr), ox + 6, oy + 18.5);
                 x.fillStyle = TA.flashUp ? '#56c796' : '#e26878'; x.font = '600 8px Inter, sans-serif'; x.textAlign = 'right'; x.fillText(TA.flashUp ? '▲' : '▼', ox + 74, oy + 18);
-                x.strokeStyle = 'rgba(214,178,112,.35)'; x.beginPath(); x.moveTo(key === 'lon' ? 3 : -3, -3); x.lineTo(key === 'lon' ? ox : ox + 80, oy + 22); x.stroke();
+                x.strokeStyle = 'rgba(214,178,112,.35)'; x.beginPath(); x.moveTo(3, key === 'lon' ? -3 : 3); x.lineTo(ox, key === 'lon' ? oy + 22 : oy); x.stroke();
                 x.restore();
             });
             // Intel-Einsatz: Bogen vom Fonds (New York) zum Einsatzort
@@ -2948,13 +2990,15 @@ const Player = (() => {
                 const bx = west ? tx(-3) : tx(B.lon); const by = west ? ty(7) : ty(B.lat);
                 const cx = (ax + bx) / 2; const cy = Math.min(ay, by) - Math.abs(bx - ax) * 0.25 - 10;
                 x.save();
-                x.setLineDash([3 * s, 3 * s]); x.lineDashOffset = -T * 12 * s;
-                x.strokeStyle = 'rgba(169,196,220,.75)'; x.lineWidth = 1.2 * s;
+                const lg = x.createLinearGradient(ax, ay, bx, by); lg.addColorStop(0, 'rgba(217,178,111,.15)'); lg.addColorStop(1, 'rgba(169,196,220,.55)');
+                x.strokeStyle = lg; x.lineWidth = 1 * s;
                 x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo(cx, cy, bx, by); x.stroke();
-                x.setLineDash([]);
-                const p = (T * 0.45) % 1; const qx = (1 - p) * (1 - p) * ax + 2 * (1 - p) * p * cx + p * p * bx; const qy = (1 - p) * (1 - p) * ay + 2 * (1 - p) * p * cy + p * p * by;
-                const g = x.createRadialGradient(qx, qy, 0, qx, qy, 5 * s); g.addColorStop(0, 'rgba(230,240,255,1)'); g.addColorStop(1, 'rgba(169,196,220,0)');
-                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, 5 * s, 0, 7); x.fill();
+                const bz = p => [(1 - p) * (1 - p) * ax + 2 * (1 - p) * p * cx + p * p * bx, (1 - p) * (1 - p) * ay + 2 * (1 - p) * p * cy + p * p * by];
+                const p = (T * 0.4) % 1;
+                for (let q = 0; q < 14; q++) { const pp = p - q * 0.012; if (pp < 0) break; const [qx, qy] = bz(pp); x.fillStyle = `rgba(230,240,255,${(0.7 * (1 - q / 14)).toFixed(3)})`; x.beginPath(); x.arc(qx, qy, (2.2 - q * 0.12) * s, 0, 7); x.fill(); }
+                const [qx, qy] = bz(p);
+                const g = x.createRadialGradient(qx, qy, 0, qx, qy, 7 * s); g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(0.3, 'rgba(200,220,245,.6)'); g.addColorStop(1, 'rgba(169,196,220,0)');
+                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, 7 * s, 0, 7); x.fill();
                 // Radar am Ziel
                 const ra = T * 3;
                 x.strokeStyle = 'rgba(169,196,220,.6)'; x.lineWidth = 1 * s;
@@ -2990,8 +3034,7 @@ const Player = (() => {
                     const d = ((T * 9 + q * (L / 3) + ri * 7) % L);
                     const [px, py, a] = polyAt(R, cum, d);
                     x.save(); x.translate(px, py); x.rotate(a); x.scale(s, s);
-                    x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(-4, -1.6, 9, 4);
-                    x.fillStyle = '#c99a5b'; x.fillRect(-5, -2.2, 7, 4.4); x.fillStyle = '#e9dcc4'; x.fillRect(2, -2, 3, 4);
+                    x.drawImage(tSprites().truck, -6, -2.5, 12, 5);
                     x.restore();
                 }
             });
@@ -3002,11 +3045,7 @@ const Player = (() => {
                 for (let q = 0; q < 2; q++) {
                     const p = ((T * 0.05 + q * 0.5 + si * 0.25) % 1);
                     const px = px0 + side * p * 26; const py = py0 + 6 + p * 20;
-                    x.save(); x.translate(px, py); x.rotate(Math.atan2(20, side * 26)); x.scale(s * 1.1, s * 1.1); x.globalAlpha = Math.min(1, p * 5) * (1 - p);
-                    x.fillStyle = 'rgba(200,225,255,.35)'; x.beginPath(); x.moveTo(-14, -2); x.lineTo(-3, -1); x.lineTo(-3, 1); x.lineTo(-14, 2); x.fill();
-                    x.fillStyle = '#e9dcc4'; x.beginPath(); x.moveTo(5, 0); x.lineTo(2, -2); x.lineTo(-4, -2); x.lineTo(-4, 2); x.lineTo(2, 2); x.closePath(); x.fill();
-                    x.fillStyle = '#b8863f'; x.fillRect(-3, -1.2, 3.5, 2.4);
-                    x.restore();
+                    drawShip(x, px, py, Math.atan2(20, side * 26), s * 1.1, Math.min(1, p * 5) * (1 - p));
                 }
             });
             // Wetter über der Region eines laufenden Gerüchts
@@ -3016,7 +3055,7 @@ const Player = (() => {
                 const L = INTEL_LOCS[k2];
                 const cx = ix(L.lon); const cy = iy(L.lat) - 18;
                 if (/regen|black|pilz|schimmel/i.test(r.text)) {
-                    x.fillStyle = 'rgba(200,210,225,.55)'; for (let q = 0; q < 3; q++) { x.beginPath(); x.arc(cx - 8 + q * 8, cy, 6 * s * 1.2 + 2, 0, 7); x.fill(); }
+                    const cw = 40 * s * 1.1; x.globalAlpha = 0.9; x.drawImage(tSprites().cloud, cx - cw / 2 + Math.sin(T * 0.6) * 2 * s, cy - cw / 4 - 4 * s, cw, cw / 2); x.globalAlpha = 1;
                     x.strokeStyle = 'rgba(160,200,255,.6)'; x.lineWidth = 0.8 * s; for (let q = 0; q < 8; q++) { const p = (T * 1.5 + q / 8) % 1; x.beginPath(); x.moveTo(cx - 12 + q * 3.4, cy + 5 + p * 14); x.lineTo(cx - 13 + q * 3.4, cy + 9 + p * 14); x.stroke(); }
                 } else if (/dürre|trocken|hitze/i.test(r.text)) {
                     const g = x.createRadialGradient(cx, cy, 1, cx, cy, 14); g.addColorStop(0, 'rgba(255,200,90,.85)'); g.addColorStop(1, 'rgba(255,170,60,0)');

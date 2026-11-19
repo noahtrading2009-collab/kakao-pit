@@ -307,7 +307,7 @@ const INTEL_LOCS = {
     bru: { name: 'Brüssel · EU', lon: 4.4, lat: 50.8, types: ['gov', 'demand'] },
     nyc: { name: 'New York · Fonds', lon: -74, lat: 40.7, types: ['funds'] },
     sha: { name: 'Shanghai · Hersteller Asien', lon: 121.5, lat: 31.2, types: ['demand'] },
-    web: { name: 'Social Media', lon: -150, lat: 30, types: ['social'] },
+    web: { name: 'Social Media', lon: -40, lat: 62, types: ['social'] },
 };
 const REGION_LOC = { ghana: 'gh', ivory: 'ci', ecuador: 'ec', indonesia: 'id' };
 // Pro Gerücht: welche Quelle an welchem Ort etwas aussagt ('R' = Region des Gerüchts) und was sie zeigt
