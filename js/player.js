@@ -2801,14 +2801,35 @@ const Player = (() => {
     }
 
     // ===== Terminal: lebendige Weltkarte (Schiffe, Lastwagen, Tag/Nacht, Kurse, Intel-Einsatz) =====
+    // Seewege nur über offenes Meer (mit Abstand zur Küste gegen die Landdaten geprüft).
+    // [Wegpunkte (Länge, Breite), Schiffstyp] – die Enden blenden weich aus (Hafen, Kanal).
     const ROUTES_W = [
-        [[-4, 4.4], [-7, 2], [-17, 11], [-19, 27], [-12, 42], [-6, 48], [4.2, 51.9]],          // Abidjan → Rotterdam
-        [[0.6, 5.0], [-1, 2.2], [-16, 9], [-18.5, 25], [-11, 40], [-5, 48.3], [4.8, 52.4]],    // Tema → Amsterdam
-        [[-4, 4.4], [-12, 2.5], [-32, 10], [-55, 26], [-70, 37], [-74, 40.6]],                // Abidjan → New York
-        [[-80, -2.2], [-82, 3], [-79.6, 9], [-76, 16], [-73, 27], [-74, 40.6]],               // Guayaquil → New York
-        [[120.5, -2], [119, -5], [117.5, 2], [114, 11], [120, 24], [121.5, 31.2]],             // Sulawesi → Shanghai
-        [[-4, 4.4], [8, -2], [12, -20], [18, -34], [40, -30], [55, -8], [52, 12], [43, 12.5]], // Abidjan → Asien (um Afrika)
+        [[[-4, 4.6], [-5, 3], [-9, 2.4], [-15, 4.5], [-20, 10], [-21.5, 19], [-20, 28], [-16, 36], [-13, 42], [-10.5, 46], [-7.5, 48.6]], 'box'],      // Abidjan → Europa (Ärmelkanal)
+        [[[0.6, 4.7], [-2, 2.6], [-10, 1.8], [-17, 5.5], [-21.5, 13], [-22.5, 22], [-20.5, 31], [-16, 39], [-12.5, 44], [-9, 47.8]], 'bulk'],      // Tema → Europa
+        [[[-4, 4.6], [-5, 3], [-10, 2.6], [-24, 8], [-42, 18], [-58, 28], [-66, 35], [-71, 39], [-73.7, 40.3]], 'box'],                             // Abidjan → New York
+        [[[-81.4, -3.1], [-81.8, -1], [-81.3, 3], [-80, 6.8], [-79.6, 8.3]], 'bulk'],                                                                // Guayaquil → Panama
+        [[[-79.7, 9.9], [-77, 13], [-71, 14.5], [-64, 15.5], [-62.5, 18.5], [-64, 24], [-68, 31], [-71.5, 37], [-73.7, 40.3]], 'bulk'],            // Panama → New York
+        [[[119.4, -5.6], [119.8, -6.9], [122.5, -7.3], [125, -6.3], [125.7, -3], [126.2, 0], [126.6, 2.5], [127.6, 5.5], [128.4, 10], [126.6, 17], [124.4, 23.5], [123, 28], [122.3, 30.7]], 'box'], // Sulawesi → Shanghai
+        [[[-4, 4.6], [-1, 2.4], [3, 1], [7, -2], [9, -8], [9.5, -18], [13, -30], [17, -36], [22, -37.2], [28, -35.2], [34, -31], [38.5, -25], [41.8, -19], [42.4, -14.5], [43, -10], [46, -5], [48.5, -1], [52, 4], [53.2, 9], [52.6, 12.8], [49.5, 12.2], [47, 11.9]], 'box'], // Abidjan → Golf von Aden
     ];
+    // Catmull-Rom: aus Wegpunkten eine weiche Kurve
+    function splineRoute(P, k = 12) {
+        const out = [];
+        for (let i = 0; i < P.length - 1; i++) {
+            const p0 = P[Math.max(0, i - 1)];
+            const p1 = P[i];
+            const p2 = P[i + 1];
+            const p3 = P[Math.min(P.length - 1, i + 2)];
+            for (let j = 0; j < k; j++) {
+                const t = j / k;
+                const t2 = t * t;
+                const t3 = t2 * t;
+                out.push([0, 1].map(c => 0.5 * (2 * p1[c] + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3)));
+            }
+        }
+        out.push(P[P.length - 1]);
+        return out;
+    }
     const TA = { on: false, raf: 0, last: 0, T: 0, ships: [], price: null, flash: 0, flashUp: true, term: null, termT: -1 };
     function polyLen(pts) { const c = [0]; for (let i = 1; i < pts.length; i++) c.push(c[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return c; }
     function polyAt(pts, cum, d) {
@@ -2822,15 +2843,35 @@ const Player = (() => {
     function tSprites() {
         if (TSPR) return TSPR;
         const mk = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w * 4; c.height = h * 4; const x = c.getContext('2d'); x.scale(4, 4); draw(x); return c; };
-        // Containerschiff (Draufsicht, Bug rechts): 26 × 7
-        const ship = mk(26, 7, x => {
-            x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.moveTo(25.5, 4); x.quadraticCurveTo(22, 0.8, 18, 1.2); x.lineTo(2, 1.4); x.lineTo(1.2, 6.2); x.lineTo(18, 6.4); x.quadraticCurveTo(22, 6.6, 25.5, 4); x.fill();
-            const hull = x.createLinearGradient(0, 0.5, 0, 6.5); hull.addColorStop(0, '#2b3542'); hull.addColorStop(0.5, '#1a222c'); hull.addColorStop(1, '#2b3542');
-            x.fillStyle = hull; x.beginPath(); x.moveTo(25, 3.5); x.quadraticCurveTo(21.5, 0.4, 17.5, 0.7); x.lineTo(1.5, 0.9); x.lineTo(0.8, 6.1); x.lineTo(17.5, 6.3); x.quadraticCurveTo(21.5, 6.6, 25, 3.5); x.fill();
-            x.strokeStyle = '#b8863f'; x.lineWidth = 0.35; x.stroke();
-            const cols = ['#9c4a35', '#3f6e78', '#c9a35b', '#6d7f52', '#8a5d3b', '#4c5a74'];
-            for (let c = 0; c < 6; c++) for (let r = 0; r < 2; r++) { x.fillStyle = cols[(c * 2 + r * 3) % cols.length]; x.fillRect(5 + c * 2.4, 1.6 + r * 2, 2.1, 1.8); }
-            x.fillStyle = '#f2ebdf'; x.fillRect(2, 1.6, 2.4, 3.8); x.fillStyle = '#9aa6b2'; x.fillRect(2.4, 2.2, 1.6, 0.6);
+        const mk8 = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w * 8; c.height = h * 8; const x = c.getContext('2d'); x.scale(8, 8); draw(x); return c; };
+        const hullPath = x => { x.beginPath(); x.moveTo(25.6, 3.5); x.bezierCurveTo(24.6, 1.2, 22, 0.6, 19, 0.6); x.lineTo(1.6, 0.7); x.quadraticCurveTo(0.5, 0.8, 0.5, 2); x.lineTo(0.5, 5); x.quadraticCurveTo(0.5, 6.2, 1.6, 6.3); x.lineTo(19, 6.4); x.bezierCurveTo(22, 6.4, 24.6, 5.8, 25.6, 3.5); x.closePath(); };
+        const bridge = x => {
+            x.fillStyle = '#f4efe6'; x.fillRect(2.2, 1.2, 3.2, 4.6);
+            x.fillStyle = '#dcd5c8'; x.fillRect(2.2, 1.2, 0.6, 4.6);
+            x.fillStyle = '#2b3542'; for (let q = 0; q < 5; q++) x.fillRect(5.0, 1.5 + q * 0.85, 0.35, 0.5);
+            x.fillStyle = '#1a1a1a'; x.fillRect(1.2, 2.9, 0.9, 1.2); x.fillStyle = '#b8863f'; x.fillRect(1.2, 3.25, 0.9, 0.35); // Schornstein
+        };
+        // Containerschiff
+        const box = mk8(26, 7, x => {
+            x.fillStyle = 'rgba(0,0,0,.35)'; x.save(); x.translate(0.5, 0.6); hullPath(x); x.fill(); x.restore();
+            const hull = x.createLinearGradient(0, 0.6, 0, 6.4); hull.addColorStop(0, '#3a4656'); hull.addColorStop(0.5, '#1d2530'); hull.addColorStop(1, '#3a4656');
+            x.fillStyle = hull; hullPath(x); x.fill();
+            x.strokeStyle = 'rgba(214,178,112,.75)'; x.lineWidth = 0.18; x.stroke();
+            x.fillStyle = '#c9c2b4'; x.beginPath(); x.moveTo(24.6, 3.5); x.bezierCurveTo(23.8, 2, 22.4, 1.5, 21, 1.5); x.lineTo(21, 5.5); x.bezierCurveTo(22.4, 5.5, 23.8, 5, 24.6, 3.5); x.fill(); // Vorschiff
+            const cols = ['#9c4a35', '#3f6e78', '#c9a35b', '#6d7f52', '#8a5d3b', '#4c5a74', '#a8a294'];
+            for (let c = 0; c < 7; c++) for (let r = 0; r < 4; r++) { x.fillStyle = cols[(c * 3 + r * 5) % cols.length]; x.fillRect(6.2 + c * 2.05, 1.25 + r * 1.15, 1.85, 1.0); x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(6.2 + c * 2.05, 1.25 + r * 1.15, 1.85, 0.2); }
+            bridge(x);
+        });
+        // Massengutfrachter (Kakaobohnen lose)
+        const bulk = mk8(26, 7, x => {
+            x.fillStyle = 'rgba(0,0,0,.35)'; x.save(); x.translate(0.5, 0.6); hullPath(x); x.fill(); x.restore();
+            const hull = x.createLinearGradient(0, 0.6, 0, 6.4); hull.addColorStop(0, '#6b3a2c'); hull.addColorStop(0.5, '#3e2119'); hull.addColorStop(1, '#6b3a2c');
+            x.fillStyle = hull; hullPath(x); x.fill();
+            x.strokeStyle = 'rgba(214,178,112,.65)'; x.lineWidth = 0.18; x.stroke();
+            x.fillStyle = '#b9b2a4'; x.fillRect(6, 1.3, 15.5, 4.4); // Deck
+            for (let q = 0; q < 5; q++) { x.fillStyle = '#4f6a5c'; x.fillRect(6.6 + q * 3.0, 1.7, 2.3, 3.6); x.fillStyle = 'rgba(255,255,255,.15)'; x.fillRect(6.6 + q * 3.0, 1.7, 2.3, 0.3); x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(6.6 + q * 3.0 + 1.1, 1.7, 0.12, 3.6); }
+            x.strokeStyle = '#e0c068'; x.lineWidth = 0.25; for (let q = 0; q < 4; q++) { x.beginPath(); x.moveTo(9.25 + q * 3, 3.5); x.lineTo(9.25 + q * 3 + 1.2, 1.4); x.stroke(); x.fillStyle = '#e0c068'; x.beginPath(); x.arc(9.25 + q * 3, 3.5, 0.35, 0, 7); x.fill(); } // Kräne
+            bridge(x);
         });
         // Kakao-Lastwagen (Bug rechts): 12 × 5
         const truck = mk(12, 5, x => {
@@ -2844,19 +2885,22 @@ const Player = (() => {
             x.filter = 'blur(1.6px)';
             for (const [cx, cy, r] of [[12, 12, 6], [19, 9, 7.5], [27, 11, 6], [33, 13, 4.5], [8, 14, 4]]) { const g = x.createRadialGradient(cx - 1.5, cy - 2, 0.5, cx, cy, r); g.addColorStop(0, 'rgba(240,244,250,.95)'); g.addColorStop(1, 'rgba(190,200,215,0)'); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); }
         });
-        TSPR = { ship, truck, cloud };
+        TSPR = { ship: box, box, bulk, truck, cloud };
         return TSPR;
     }
-    function drawShip(x, px, py, ang, s, alpha = 1) {
+    function drawShip(x, px, py, ang, s, alpha = 1, type = 'box') {
+        if (alpha <= 0.01) return;
         const S = tSprites();
         x.save(); x.translate(px, py); x.rotate(ang); x.scale(s, s); x.globalAlpha = alpha;
-        // Kielwasser: zwei feine, auslaufende Linien und Schaum am Heck
-        const wk = x.createLinearGradient(-34, 0, -8, 0); wk.addColorStop(0, 'rgba(210,228,248,0)'); wk.addColorStop(1, 'rgba(210,228,248,.55)');
-        x.strokeStyle = wk; x.lineWidth = 0.7;
-        x.beginPath(); x.moveTo(-8, -1.6); x.lineTo(-34, -6); x.moveTo(-8, 1.6); x.lineTo(-34, 6); x.stroke();
-        const fm = x.createRadialGradient(-9, 0, 0, -9, 0, 6); fm.addColorStop(0, 'rgba(235,242,250,.6)'); fm.addColorStop(1, 'rgba(235,242,250,0)');
-        x.fillStyle = fm; x.beginPath(); x.ellipse(-12, 0, 7, 2.4, 0, 0, 7); x.fill();
-        x.drawImage(S.ship, -9, -2.4, 18, 4.85);
+        // Kielwasser: V-förmig auslaufend, dazu Schaum am Heck und eine kleine Bugwelle
+        const wk = x.createLinearGradient(-40, 0, -12, 0); wk.addColorStop(0, 'rgba(215,232,250,0)'); wk.addColorStop(1, 'rgba(215,232,250,.5)');
+        x.strokeStyle = wk; x.lineWidth = 0.55;
+        x.beginPath(); x.moveTo(-12, -2); x.quadraticCurveTo(-26, -4.2, -40, -8); x.moveTo(-12, 2); x.quadraticCurveTo(-26, 4.2, -40, 8); x.stroke();
+        const fm = x.createRadialGradient(-13, 0, 0, -13, 0, 9); fm.addColorStop(0, 'rgba(240,246,252,.55)'); fm.addColorStop(1, 'rgba(240,246,252,0)');
+        x.fillStyle = fm; x.beginPath(); x.ellipse(-17, 0, 10, 2.6, 0, 0, 7); x.fill();
+        x.strokeStyle = 'rgba(235,242,250,.45)'; x.lineWidth = 0.45;
+        x.beginPath(); x.moveTo(13.4, -1.6); x.quadraticCurveTo(12, -3.4, 9, -3.9); x.moveTo(13.4, 1.6); x.quadraticCurveTo(12, 3.4, 9, 3.9); x.stroke();
+        x.drawImage(type === 'bulk' ? S.bulk : S.box, -13, -3.5, 26, 7);
         x.restore();
     }
 
@@ -2872,11 +2916,12 @@ const Player = (() => {
         }
         // Schiffe: Weltkarte in Kartenkoordinaten (Länge/Breite → x/y)
         if (!TA.ships.length) {
-            ROUTES_W.forEach((R, ri) => {
-                const pts = R.map(([lo, la]) => [tx(lo), ty(la)]);
+            ROUTES_W.forEach(([R, type], ri) => {
+                const pts = splineRoute(R.map(([lo, la]) => [tx(lo), ty(la)]));
                 const cum = polyLen(pts);
-                const n = ri < 3 ? 2 : 1;
-                for (let q = 0; q < n; q++) TA.ships.push({ pts, cum, d: (cum[cum.length - 1] / n) * q + Math.random() * 20, v: 4 + Math.random() * 2.5, dir: q % 2 ? -1 : 1 });
+                const L = cum[cum.length - 1];
+                const n = L > 200 ? 2 : 1;
+                for (let q = 0; q < n; q++) TA.ships.push({ pts, cum, type, d: (L / n) * q + Math.random() * L * 0.3, v: 2.6 + Math.random() * 1.4, dir: (q + ri) % 2 ? -1 : 1, ang: null });
             });
         }
         if (!TA.raf) TA.raf = requestAnimationFrame(termAnimLoop);
@@ -2954,9 +2999,17 @@ const Player = (() => {
                 const L = sh.cum[sh.cum.length - 1];
                 sh.d += sh.v * dt * sh.dir * (pub.paused ? 0.2 : 1);
                 if (sh.d > L) sh.d -= L; if (sh.d < 0) sh.d += L;
-                const [px, py, a] = polyAt(sh.pts, sh.cum, sh.d);
-                const ang = sh.dir > 0 ? a : a + Math.PI;
-                drawShip(x, px, py, ang, s * 1.15);
+                const [px, py] = polyAt(sh.pts, sh.cum, sh.d);
+                // Kurs aus einem Punkt etwas voraus → sanfte Wendungen, zusätzlich weich nachgeführt
+                const [ax, ay] = polyAt(sh.pts, sh.cum, Math.max(0, Math.min(L, sh.d + sh.dir * 4)));
+                const want = Math.atan2(ay - py, ax - px);
+                if (sh.ang === null) sh.ang = want;
+                let da = want - sh.ang;
+                while (da > Math.PI) da -= Math.PI * 2;
+                while (da < -Math.PI) da += Math.PI * 2;
+                sh.ang += da * Math.min(1, dt * 2.2);
+                const edge = Math.min(sh.d, L - sh.d) / Math.max(1, L * 0.09);
+                drawShip(x, px, py, sh.ang, s * 0.52, Math.max(0, Math.min(1, edge)), sh.type);
             }
             // Live-Kurs an den Börsen London und New York
             if (TA.price !== null && pub.price !== TA.price) { TA.flash = 1; TA.flashUp = pub.price > TA.price; }
@@ -3045,7 +3098,7 @@ const Player = (() => {
                 for (let q = 0; q < 2; q++) {
                     const p = ((T * 0.05 + q * 0.5 + si * 0.25) % 1);
                     const px = px0 + side * p * 26; const py = py0 + 6 + p * 20;
-                    drawShip(x, px, py, Math.atan2(20, side * 26), s * 1.1, Math.min(1, p * 5) * (1 - p));
+                    drawShip(x, px, py, Math.atan2(20, side * 26), s * 0.45, Math.min(1, p * 5) * (1 - p), si ? 'bulk' : 'box');
                 }
             });
             // Wetter über der Region eines laufenden Gerüchts
