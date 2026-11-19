@@ -2072,3 +2072,73 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 *::-webkit-scrollbar-thumb:hover { background: rgba(214, 178, 112, .5) !important; }
 
 .h2-k { font-family: var(--serif); font-style: italic; font-weight: 600; color: var(--gold); margin-right: .35em; font-size: .8em; letter-spacing: .04em; }
+
+/* ===================== Interaktive Karte ===================== */
+.d-world { position: relative; }
+#d-world { cursor: grab; touch-action: none; }
+.d-world.dragging #d-world { cursor: grabbing; }
+#d-bg, #d-life, #d-world { transition: transform .22s cubic-bezier(.2, .7, .2, 1); will-change: transform; }
+.d-world.dragging #d-bg, .d-world.dragging #d-life, .d-world.dragging #d-world { transition: none; }
+.d-world > h3, .d-world > .d-legend { position: relative; z-index: 3; }
+.d-world > h3 { background-color: rgba(14, 11, 8, .82) !important; }
+.d-legend { background: rgba(14, 11, 8, .82); }
+/* Zoom-Steuerung */
+.dz-ctl { position: absolute; right: 14px; top: 44px; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px; border-radius: 10px; background: rgba(14, 11, 8, .78); border: 1px solid rgba(214, 178, 112, .25); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+.dz-ctl button { width: 30px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #f2e6cf; font-size: 17px; line-height: 1; }
+.dz-ctl button:hover { background: rgba(217, 178, 111, .18); color: #fff; }
+.dz-val { font-family: var(--mono); font-size: 9.5px; color: #b9ab92; letter-spacing: .04em; }
+.dz-hint { position: absolute; left: 50%; bottom: 46px; transform: translateX(-50%); z-index: 4; pointer-events: none; font-size: 11px; letter-spacing: .04em; color: #e9dcc4; background: rgba(14, 11, 8, .7); border: 1px solid rgba(214, 178, 112, .2); padding: 4px 12px; border-radius: 999px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+.d-world:hover .dz-hint { opacity: .9; }
+.d-world.zoomed .dz-hint, .d-world:has(.d-load) .dz-hint, .d-world:has(.d-load) .dz-ctl { opacity: 0; pointer-events: none; }
+/* Hover-Karte */
+.d-tip { position: absolute; left: 0; top: 0; z-index: 6; width: 250px; pointer-events: none; padding: 11px 13px 10px; border-radius: 11px; background: linear-gradient(180deg, rgba(36, 27, 19, .97), rgba(18, 13, 10, .97)); border: 1px solid rgba(214, 178, 112, .35); box-shadow: inset 0 1px 0 rgba(255, 236, 200, .08), 0 20px 50px rgba(0, 0, 0, .6); opacity: 0; transition: opacity .14s; font-size: 12.5px; line-height: 1.4; color: #efe5d3; }
+.d-tip.on { opacity: 1; }
+.d-tip .dt-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.d-tip .dt-h b { font-family: var(--serif); font-size: 18px; font-weight: 600; color: #fbf3e2; letter-spacing: .01em; }
+.dt-st { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+.dt-st.deal { color: #9cc3f2; border-color: rgba(156, 195, 242, .5); }
+.dt-st.fut { color: #f0cd84; border-color: rgba(240, 205, 132, .5); }
+.dt-st.open { color: #e9dcc4; border-color: rgba(233, 220, 196, .45); border-style: dashed; }
+.dt-st.lost { color: #e98a98; border-color: rgba(233, 138, 152, .5); }
+.dt-t { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--gold-hi); }
+.dt-t small { font-family: var(--sans); font-size: 11px; color: #a3978a; font-weight: 500; margin-left: 4px; }
+.dt-l { color: #ddd1bb; margin: 2px 0 6px; }
+.dt-m { font-size: 11.5px; color: #a3978a; padding-top: 6px; border-top: 1px solid rgba(214, 178, 112, .14); }
+.dt-r { margin-top: 6px; font-size: 11.5px; padding: 6px 8px; border-radius: 7px; background: rgba(86, 199, 150, .08); color: #a7e2c6; }
+.dt-r.open { background: rgba(226, 104, 120, .1); color: #f0a8b3; }
+.dt-r.lost, .dt-r.cut { background: rgba(255, 255, 255, .04); color: #b3a796; }
+.dt-a { margin-top: 7px; font-size: 11px; letter-spacing: .06em; color: var(--gold); text-transform: uppercase; }
+/* Dörfer & Silos: Reaktion auf die Maus, Auswahl */
+.farm-map.rendered .vil { cursor: pointer; }
+.farm-map.rendered .vil .vil-ring { transition: stroke-width .15s, stroke .15s, filter .15s; }
+.farm-map.rendered .vil:hover .vil-ring { stroke-width: 3.6; filter: drop-shadow(0 0 6px rgba(255, 240, 200, .7)); }
+.farm-map.rendered .vil:hover .vil-hit { fill: rgba(255, 240, 200, .1); }
+.farm-map .vil.sel .vil-ring { stroke: #f3dcaa !important; stroke-dasharray: none !important; stroke-width: 4 !important; filter: drop-shadow(0 0 8px rgba(243, 220, 170, .9)); animation: selPulse 1.4s ease-in-out infinite !important; }
+.farm-map .vil.sel .vil-hit { fill: rgba(243, 220, 170, .16) !important; }
+.farm-map .vil.sel .vil-tag rect { stroke: #f3dcaa !important; fill: rgba(60, 44, 20, .92) !important; }
+.plant-map .silo.r { cursor: pointer; }
+.plant-map .silo.r .s-hit { transition: fill .15s; }
+.plant-map .silo.r:hover .s-hit { fill: rgba(255, 240, 200, .08); }
+.plant-map .silo.sel .s-hit { fill: rgba(243, 220, 170, .14) !important; stroke: #f3dcaa; stroke-width: 2.5; animation: selPulse 1.4s ease-in-out infinite; }
+@keyframes selPulse { 50% { opacity: .65; } }
+/* Ticket: Auswahl */
+.tk-sel { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 2px; padding: 6px 10px; border-radius: 8px; background: rgba(217, 178, 111, .1); border: 1px solid rgba(217, 178, 111, .35); font-size: 12.5px; color: #efe2c6; }
+.tk-sel b { color: var(--gold-hi); font-family: var(--mono); }
+.tk-sel button { border: 0; background: transparent; color: #b9ab92; font-size: 11.5px; text-decoration: underline; cursor: pointer; }
+/* Ladebildschirm statt Zwischen-Grafik */
+.d-load { width: 100%; height: 100%; display: grid; place-items: center; background: radial-gradient(600px 300px at 50% 45%, rgba(120, 82, 40, .18), transparent 70%); }
+.d-load-in { display: grid; justify-items: center; gap: 8px; text-align: center; animation: loadIn .5s both; }
+.d-load-in b { font-family: var(--serif); font-size: 24px; font-weight: 600; color: #f6eedf; letter-spacing: .02em; }
+.d-load-in small { font-size: 12px; color: #a3978a; letter-spacing: .04em; }
+.d-load-ico { width: 64px; height: 64px; }
+.d-load-track { fill: none; stroke: rgba(214, 178, 112, .14); stroke-width: 2; }
+.d-load-arc { fill: none; stroke: #d9b26f; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 45 140; transform-origin: 32px 32px; animation: loadSpin 1.2s linear infinite; }
+.d-load-bean { fill: none; stroke: #e9cf98; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; opacity: .9; }
+.d-load-bar { width: 180px; height: 2px; border-radius: 2px; background: rgba(214, 178, 112, .14); overflow: hidden; margin-top: 4px; }
+.d-load-bar i { display: block; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #f3dcaa, transparent); animation: loadBar 1.4s ease-in-out infinite; }
+@keyframes loadSpin { to { transform: rotate(360deg); } }
+@keyframes loadBar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+@keyframes loadIn { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .d-load-arc, .d-load-bar i, .vil.sel .vil-ring, .silo.sel .s-hit { animation: none !important; } }
+
+.d-tip { width: min(250px, calc(100% - 12px)); }

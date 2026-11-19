@@ -1283,6 +1283,7 @@ const Player = (() => {
             host.parentElement.insertBefore(cv, host);
         }
         const L = LIFE;
+        L.args = [LAY, VH, show];
         if (!show || !LAY || typeof RenderCore === 'undefined') {
             if (cv.style.display !== 'none') cv.style.display = 'none';
             L.on = false;
@@ -1294,15 +1295,17 @@ const Player = (() => {
         const f = Math.min(W / 800, H / VH);
         const ox = host.offsetLeft + (W - 800 * f) / 2;
         const oy = host.offsetTop + (H - VH * f) / 2;
-        const rect = `${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}`;
+        const zq = Math.min(2.5, Math.round(DZ.s * 2) / 2);
+        const rect = `${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}|${zq}`;
         if (L.rect !== rect || cv.style.display === 'none') {
             L.rect = rect;
-            const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+            const dpr = Math.min(1.5, window.devicePixelRatio || 1) * zq;
             cv.width = Math.round(800 * f * dpr);
             cv.height = Math.round(VH * f * dpr);
             cv.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${VH * f}px;pointer-events:none;z-index:0;display:block`;
             L.ctx = cv.getContext('2d');
             L.scale = f * dpr;
+            deskZoomApply();
         }
         const key = `${VH}|${LAY.villages.length}|${me.sky || 'sun'}`;
         if (L.key !== key) { L.key = key; lifeSetup(LAY, VH); }
@@ -1322,8 +1325,9 @@ const Player = (() => {
             host.parentElement.insertBefore(cv, host);
         }
         const css = `position:absolute;left:${host.offsetLeft}px;top:${host.offsetTop}px;width:${host.offsetWidth}px;height:${host.offsetHeight}px;object-fit:contain;pointer-events:none;z-index:0;display:${bmp ? 'block' : 'none'}`;
-        if (cv._css !== css) { cv._css = css; cv.style.cssText = css; }
+        if (cv._css !== css) { cv._css = css; cv.style.cssText = css; deskZoomApply(); }
         if (bmp && cv._bmp !== bmp) {
+            if (!cv._bmp && cv.animate) cv.animate([{ opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 700, easing: 'cubic-bezier(.2,.7,.2,1)' });
             cv.width = bmp.width;
             cv.height = bmp.height;
             cv.getContext('2d').drawImage(bmp, 0, 0);
@@ -1451,11 +1455,11 @@ const Player = (() => {
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
         const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
-        const lo = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}|lo`, LDATA, 800, deskRedraw) : null;
-        const hi = lo && pxW > 800 ? Render.farm(`farm|${VH}|${pxW}|${me.sky || 'sun'}`, LDATA, pxW, deskRedraw) : null;
-        const img = hi || lo;
+        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${Math.max(800, pxW)}|${me.sky || 'sun'}`, LDATA, Math.max(800, pxW), deskRedraw) : null;
         deskBg(img);
         deskLife(LAY, VH, !!img);
+        if (!img) return deskLoader(true);
+        DINFO = [];
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
             const [x, y] = occupied[i];
             const trees = Array.from({ length: 7 }, (_, j) => {
@@ -1464,7 +1468,15 @@ const Player = (() => {
                 return cocoaTree(Math.cos(a) * r, Math.sin(a) * r * 0.55 + 8, 0.75 + rnd(i + j * 5) * 0.4, i + j);
             }).join('');
             const [ico, lbl] = badge[kk];
-            return `<g class="vil ${kk}" transform="translate(${x} ${y.toFixed(1)}) scale(${vs})" style="animation-delay:${i * 0.04}s"><title>${unit} t · ${tip(kk, i)}</title>
+            const vr = RenderCore.rng(900 + i);
+            DINFO[i] = {
+                name: villageName(i), kk, t: unit,
+                what: tip(kk, i),
+                fam: Math.round(18 + vr() * 70),
+                trees: Math.round((unit * 2000) / 1000) * 1000,
+                risk: kk === 'open' ? `Fällt Kakao um 100 CHF/t, fehlen dir hier ${fmt(unit * 100)} CHF.` : kk === 'lost' ? 'Diese Ernte ist weg – sie zählt nicht mehr.' : 'Preis ist fix – egal, was der Markt macht.',
+            };
+            return `<g class="vil ${kk}${DSEL.has(i) ? ' sel' : ''}" data-i="${i}" transform="translate(${x} ${y.toFixed(1)}) scale(${vs})" style="animation-delay:${i * 0.04}s">
                 ${img ? '<ellipse class="vil-hit" rx="44" ry="28"/><ellipse class="vil-ring" rx="44" ry="28"/>' : `<ellipse class="vil-ground" rx="40" ry="17" cy="10"/><ellipse class="vil-ring" rx="40" ry="17" cy="10"/>
                 <ellipse rx="27" ry="10" cy="9" fill="#a8865a" opacity=".55"/>
                 <g class="dry-mat"><rect x="-26" y="10" width="14" height="6" rx="1" fill="#6b3d1e"/><rect x="-25" y="11" width="12" height="4" fill="url(#dBeans)"/></g>
@@ -1555,11 +1567,11 @@ const Player = (() => {
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: 'n', i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
-        const lo = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}|lo`, LDATA, 800, deskRedraw) : null;
-        const hi = lo && pxW > 800 ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${pxW}`, LDATA, pxW, deskRedraw) : null;
-        const img = hi || lo;
+        const img = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${Math.max(800, pxW)}`, LDATA, Math.max(800, pxW), deskRedraw) : null;
         deskBg(img);
         deskLife(null, 0, false);
+        if (!img) return deskLoader(false);
+        DINFO = [];
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
             const y = top + Math.floor(i / per) * rowH;
@@ -1569,7 +1581,13 @@ const Player = (() => {
             const ladder = Array.from({ length: 9 }, (_, j) => `<line x1="${w + 2}" x2="${w + 8}" y1="${10 + j * 10}" y2="${10 + j * 10}"/>`).join('');
             const tipS = `${unit} t · ${kk === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : kk === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : kk === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}`;
             if (img) {
-                return `<g class="silo r ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})"><title>${tipS}</title>
+                DINFO[i] = {
+                    name: `Silo S-${String(i + 1).padStart(2, '0')}`, kk, t: unit,
+                    what: tipS.replace(/^\d+ t · /, ''),
+                    bars: unit * 20000,
+                    risk: kk === 'open' ? `Steigt Kakao um 100 CHF/t, zahlst du hier ${fmt(unit * 100)} CHF mehr.` : kk === 'cut' ? 'Gestrichen – wird nicht mehr gebraucht.' : 'Einkaufspreis fix – egal, was der Markt macht.',
+                };
+                return `<g class="silo r ${kk}${DSEL.has(i) ? ' sel' : ''}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})">
                     <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
                     ${kk === 'deal' || kk === 'fut' ? `<rect x="${(w * 0.62).toFixed(1)}" y="12" width="6" height="80" fill="url(#beanFill)"/><rect x="${(w * 0.62 + 0.6).toFixed(1)}" y="13" width="1" height="78" fill="rgba(255,255,255,.28)"/><rect x="0" y="52" width="${w}" height="9" fill="url(#${kk === 'deal' ? 'bandD' : 'bandF'})"/>` : ''}
                     <text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
@@ -1656,9 +1674,185 @@ const Player = (() => {
         const bid = Math.round(pub.price * (1 - CFG.spread));
         const hedgeBtn = `<button class="${prod ? 'tk-sell' : 'tk-buy'} main" data-dt="${prod ? -1 : 1}" ${can(prod ? -1 : 1) ? '' : 'disabled'}><b>ABSICHERN</b><span>${fmt(prod ? bid : ask)}</span><small>${prod ? 'Ernte heute verkaufen' : 'Kakao heute kaufen'}</small></button>`;
         const undoBtn = `<button class="tk-undo" data-dt="${prod ? 1 : -1}" ${can(prod ? 1 : -1) ? '' : 'disabled'}><b>AUFLÖSEN</b><span>${fmt(prod ? ask : bid)}</span><small>zurücknehmen</small></button>`;
-        return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}</div>
+        const sel = DSEL.size ? `<div class="tk-sel"><span>◉ ${DSEL.size} ${prod ? (DSEL.size === 1 ? 'Dorf' : 'Dörfer') : 'Silo' + (DSEL.size === 1 ? '' : 's')} ausgewählt · <b>${dQty * CFG.size} t</b></span><button data-dsel="clear">Auswahl löschen</button></div>` : '';
+        return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${!DSEL.size && q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}</div>${sel}
             <div class="tk-btns">${hedgeBtn}${undoBtn}</div>
             <div class="tk-lim">Pfand ${Math.round(CFG.marginRate * 100)} % · Gebühr ${CFG.fee} CHF pro 10 t · Was im Dezember offen ist: −${Math.round(CFG.spotPenalty * 100)} %</div>`;
+    }
+
+    // ===== Interaktive Karte: Zoom, Verschieben, Hover-Karten, Auswahl =====
+    let DINFO = [];
+    const DSEL = new Set();
+    const DZ = { s: 1, tx: 0, ty: 0 };
+    const VNAMES = {
+        ivory: ['Abengourou', 'Daloa', 'Soubré', 'Gagnoa', 'Duékoué', 'Divo', 'Issia', 'Méagui', 'Guiglo', 'Sinfra', 'Bouaflé', 'Vavoua', 'Oumé', 'Lakota', 'Tiassalé', 'Agboville', 'Adzopé', 'Aboisso', 'Zouan', 'Bangolo', 'Buyo', 'Grabo', 'Sassandra', 'Bonon'],
+        ghana: ['Goaso', 'Sefwi Wiawso', 'Bibiani', 'Juaboso', 'Enchi', 'Asankragwa', 'Dunkwa', 'Konongo', 'Nkawkaw', 'Akim Oda', 'Assin Fosu', 'Twifo', 'Bogoso', 'Tarkwa', 'Prestea', 'Mpraeso', 'Begoro', 'Kade', 'Asamankese', 'Suhum', 'Nsawam', 'Obuasi', 'Bekwai', 'Mankranso'],
+        ecuador: ['Vinces', 'Quevedo', 'Naranjal', 'Balao', 'Machala', 'Pasaje', 'El Empalme', 'Ventanas', 'Babahoyo', 'Milagro', 'Yaguachi', 'Daule', 'Pichincha', 'Puebloviejo', 'Valencia', 'Mocache', 'Palenque', 'Baba', 'Montalvo', 'Urdaneta', 'Catarama', 'Ricaurte', 'Simón Bolívar', 'La Troncal'],
+        indonesia: ['Mamuju', 'Polewali', 'Majene', 'Luwu', 'Palopo', 'Masamba', 'Malili', 'Soroako', 'Kolaka', 'Bombana', 'Konawe', 'Poso', 'Parigi', 'Toli-Toli', 'Donggala', 'Sigi', 'Morowali', 'Banggai', 'Luwuk', 'Ampana', 'Pinrang', 'Sidrap', 'Wajo', 'Bone'],
+    };
+    const villageName = i => { const l = VNAMES[me.region] || VNAMES.ivory; return l[i % l.length] + (i >= l.length ? ' II' : ''); };
+
+    function deskLoader(prod) {
+        return `<div class="d-load ${prod ? 'farm' : 'plant'}"><div class="d-load-in">
+            <svg viewBox="0 0 64 64" class="d-load-ico"><circle cx="32" cy="32" r="29" class="d-load-track"/><circle cx="32" cy="32" r="29" class="d-load-arc"/>
+            ${prod ? '<path d="M32 16 c9 4 13 12 10 22 c-2 7 -8 10 -10 10 c-2 0 -8 -3 -10 -10 c-3 -10 1 -18 10 -22z M32 18 V46" class="d-load-bean"/>' : '<path d="M18 46 V28 l7 5 V24 l7 5 V20 l7 5 V46z M42 46 V22 h5 V46" class="d-load-bean"/>'}</svg>
+            <b>${prod ? 'Luftbild wird berechnet' : 'Fabrikhalle wird aufgebaut'}</b>
+            <small>${prod ? (me.region && REGIONS[me.region] ? `${REGIONS[me.region].name} · ` : '') : ''}einmalig in hoher Auflösung – danach sofort da</small>
+            <div class="d-load-bar"><i></i></div></div></div>`;
+    }
+
+    // Gleiche Vergrösserung für Bild, Leben und Status-Ebene (alle liegen im selben Paneel)
+    function deskZoomApply() {
+        const host = $('d-world');
+        if (!host) return;
+        for (const el of [$('d-bg'), $('d-life'), host]) {
+            if (!el) continue;
+            const ex = el.offsetLeft;
+            const ey = el.offsetTop;
+            el.style.transformOrigin = '0 0';
+            el.style.transform = DZ.s === 1 ? '' : `translate(${((DZ.s - 1) * ex + DZ.tx).toFixed(2)}px, ${((DZ.s - 1) * ey + DZ.ty).toFixed(2)}px) scale(${DZ.s.toFixed(4)})`;
+        }
+        const pan = host.parentElement;
+        pan.classList.toggle('zoomed', DZ.s > 1.001);
+        const z = pan.querySelector('.dz-val');
+        if (z) z.textContent = `${Math.round(DZ.s * 100)} %`;
+    }
+    function deskZoomClamp() {
+        const host = $('d-world');
+        const ex = host.offsetLeft;
+        const ey = host.offsetTop;
+        const W = host.offsetWidth;
+        const H = host.offsetHeight;
+        DZ.tx = Math.min(ex - DZ.s * ex, Math.max(ex + W - DZ.s * (ex + W), DZ.tx));
+        DZ.ty = Math.min(ey - DZ.s * ey, Math.max(ey + H - DZ.s * (ey + H), DZ.ty));
+        if (DZ.s <= 1.001) { DZ.s = 1; DZ.tx = 0; DZ.ty = 0; }
+    }
+    let lifeSharpT = 0;
+    function deskZoomTo(s, px, py) {
+        const host = $('d-world');
+        if (!host) return;
+        if (px === undefined) { px = host.offsetLeft + host.offsetWidth / 2; py = host.offsetTop + host.offsetHeight / 2; }
+        const ns = Math.max(1, Math.min(4, s));
+        const cx = (px - DZ.tx) / DZ.s;
+        const cy = (py - DZ.ty) / DZ.s;
+        DZ.s = ns;
+        DZ.tx = px - ns * cx;
+        DZ.ty = py - ns * cy;
+        deskZoomClamp();
+        deskZoomApply();
+        // Nach dem Zoomen die bewegte Ebene schärfer rechnen
+        clearTimeout(lifeSharpT);
+        lifeSharpT = setTimeout(() => { if (LIFE.args) deskLife(...LIFE.args); }, 250);
+    }
+
+    function deskTipShow(ev, el) {
+        const tip = $('d-tip');
+        const d = DINFO[Number(el.dataset.i)];
+        if (!tip || !d) return;
+        const prod = me.role === 'producer';
+        const st = { deal: ['Vertrag', 'deal'], fut: ['Future', 'fut'], open: ['offen', 'open'], lost: ['verloren', 'lost'], cut: ['gestrichen', 'lost'] }[d.kk] || ['', ''];
+        const key = `${el.dataset.i}|${d.kk}|${DSEL.has(Number(el.dataset.i))}`;
+        if (tip.dataset.k !== key) {
+            tip.dataset.k = key;
+            tip.innerHTML = `<div class="dt-h"><b>${esc(d.name)}</b><span class="dt-st ${st[1]}">${st[0]}</span></div>
+                <div class="dt-t">${d.t} t <small>${prod ? 'Ernte' : 'Kakao-Bohnen'}</small></div>
+                <div class="dt-l">${esc(d.what)}</div>
+                <div class="dt-m">${prod ? `${d.fam} Familien · ca. ${fmt(d.trees)} Kakaobäume` : `reicht für ca. ${fmt(d.bars)} Tafeln à 100 g`}</div>
+                <div class="dt-r ${d.kk}">${esc(d.risk)}</div>
+                ${d.kk === 'open' ? `<div class="dt-a">${DSEL.has(Number(el.dataset.i)) ? '✓ ausgewählt – klicken zum Abwählen' : 'Klicken: zum Absichern auswählen'}</div>` : ''}`;
+        }
+        const pan = tip.parentElement.getBoundingClientRect();
+        let x = ev.clientX - pan.left + 16;
+        let y = ev.clientY - pan.top + 14;
+        tip.classList.add('on');
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        if (x + tw > pan.width - 8) x = ev.clientX - pan.left - tw - 16;
+        if (y + th > pan.height - 8) y = ev.clientY - pan.top - th - 14;
+        tip.style.transform = `translate(${Math.max(6, Math.min(x, pan.width - tw - 6))}px, ${Math.max(6, Math.min(y, pan.height - th - 6))}px)`;
+    }
+    const deskTipHide = () => { const t = $('d-tip'); if (t) { t.classList.remove('on'); t.dataset.k = ''; } };
+
+    function deskSelTons() { return [...DSEL].reduce(s => s + deskUnitNow, 0); }
+    function deskSelSync() {
+        // nur offene Dörfer/Silos bleiben ausgewählt
+        for (const i of [...DSEL]) if (!DINFO[i] || DINFO[i].kk !== 'open') DSEL.delete(i);
+        if (DSEL.size) dQty = Math.max(1, Math.round(deskSelTons() / CFG.size));
+    }
+
+    function bindDeskMap() {
+        const host = $('d-world');
+        const pan = host.parentElement;
+        if (pan.dataset.bound) return;
+        pan.dataset.bound = '1';
+        const tip = document.createElement('div');
+        tip.id = 'd-tip';
+        tip.className = 'd-tip';
+        pan.appendChild(tip);
+        const ctl = document.createElement('div');
+        ctl.className = 'dz-ctl';
+        ctl.innerHTML = '<button data-z="in" title="Hineinzoomen">+</button><span class="dz-val">100 %</span><button data-z="out" title="Herauszoomen">−</button><button data-z="reset" title="Ganze Karte">⤢</button>';
+        pan.appendChild(ctl);
+        const hint = document.createElement('div');
+        hint.className = 'dz-hint';
+        hint.textContent = 'Mausrad: zoomen · Ziehen: verschieben · Doppelklick: ganze Karte';
+        pan.appendChild(hint);
+        ctl.addEventListener('click', ev => {
+            const b = ev.target.closest('button');
+            if (!b) return;
+            if (b.dataset.z === 'in') deskZoomTo(DZ.s * 1.4);
+            if (b.dataset.z === 'out') deskZoomTo(DZ.s / 1.4);
+            if (b.dataset.z === 'reset') deskZoomTo(1);
+        });
+        const local = ev => { const r = pan.getBoundingClientRect(); return [ev.clientX - r.left - pan.clientLeft, ev.clientY - r.top - pan.clientTop]; };
+        host.addEventListener('wheel', ev => {
+            if ($('d-world').querySelector('.d-load')) return;
+            ev.preventDefault();
+            const [px, py] = local(ev);
+            deskZoomTo(DZ.s * Math.exp(-ev.deltaY * 0.0018), px, py);
+        }, { passive: false });
+        let drag = null;
+        host.addEventListener('pointerdown', ev => {
+            if (ev.button !== 0) return;
+            drag = { x: ev.clientX, y: ev.clientY, tx: DZ.tx, ty: DZ.ty, moved: false };
+        });
+        window.addEventListener('pointermove', ev => {
+            if (drag && DZ.s > 1) {
+                const dx = ev.clientX - drag.x;
+                const dy = ev.clientY - drag.y;
+                if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; pan.classList.add('dragging'); deskTipHide(); }
+                if (drag.moved) {
+                    DZ.tx = drag.tx + dx;
+                    DZ.ty = drag.ty + dy;
+                    deskZoomClamp();
+                    deskZoomApply();
+                    return;
+                }
+            }
+            if (!drag || !drag.moved) {
+                const el = ev.target.closest && ev.target.closest('#d-world [data-i]');
+                if (el) deskTipShow(ev, el); else deskTipHide();
+            }
+        });
+        window.addEventListener('pointerup', () => {
+            if (drag && drag.moved) { pan.classList.remove('dragging'); host._noClick = true; setTimeout(() => { host._noClick = false; }, 0); }
+            drag = null;
+        });
+        host.addEventListener('pointerleave', deskTipHide);
+        host.addEventListener('dblclick', ev => { ev.preventDefault(); deskZoomTo(DZ.s > 1.05 ? 1 : 2.2, ...local(ev)); });
+        host.addEventListener('click', ev => {
+            if (host._noClick) return;
+            const el = ev.target.closest('[data-i]');
+            if (!el) return;
+            const i = Number(el.dataset.i);
+            if (!DINFO[i] || DINFO[i].kk !== 'open') return;
+            if (DSEL.has(i)) DSEL.delete(i); else DSEL.add(i);
+            Sound.play && Sound.play('tick');
+            if (!DSEL.size) dQty = 2;
+            renderDesk();
+            deskTipShow(ev, $('d-world').querySelector(`[data-i="${i}"]`) || el);
+        });
+        window.addEventListener('resize', () => { DZ.s = 1; DZ.tx = 0; DZ.ty = 0; deskZoomApply(); });
     }
 
     // Fertiges Bild → nur neu zeichnen, wenn der Leitstand gerade sichtbar ist
@@ -1711,7 +1905,11 @@ const Player = (() => {
 
         // Mitte: Dörfer bzw. Silos
         const H = holdings();
-        setHTML($('d-world'), prod ? farmSVG() : plantSVG());
+        bindDeskMap();
+        const mapHTML = prod ? farmSVG() : plantSVG();
+        deskSelSync();
+        setHTML($('d-world'), mapHTML);
+        deskZoomApply();
         $('d-world-h').innerHTML = prod ? `Deine Mitglieder <span>1 Dorf = ${deskUnitNow} t Ernte</span>` : `Kakao-Bedarf <span>1 Silo = ${deskUnitNow} t</span>`;
         setHTML($('d-legend'), `<span class="lg deal">📜 Vertrag ${H.contract} t</span><span class="lg fut">🔒 Futures ${H.futIn} t</span><span class="lg open">⚠️ offen ${H.open} t</span>${H.lost ? `<span class="lg lost">🚚 verloren ${H.lost} t</span>` : ''}${H.cut ? `<span class="lg cut">✂️ gestrichen ${H.cut} t</span>` : ''}${H.over ? `<span class="lg lost">🎲 ${H.over} t zu viel abgesichert!</span>` : ''}`);
 
@@ -1741,11 +1939,13 @@ const Player = (() => {
             const b = ev.target.closest('button');
             if (!b || b.disabled) return;
             if (b.dataset.rp) rpAction(b.dataset.rp);
-            if (b.dataset.dq) { dQty = Number(b.dataset.dq); renderDesk(); }
+            if (b.dataset.dq) { DSEL.clear(); dQty = Number(b.dataset.dq); renderDesk(); }
+            if (b.dataset.dsel) { DSEL.clear(); dQty = 2; renderDesk(); }
             if (b.dataset.dt) {
                 const dir = Number(b.dataset.dt);
                 if (tutTrade(dir)) return;
                 send({ t: 'trade', q: dir * Math.max(1, Math.min(dQty, room(dir))) });
+                if (DSEL.size) { DSEL.clear(); dQty = 2; }
             }
         });
     }
