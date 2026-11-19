@@ -1415,7 +1415,6 @@ const Player = (() => {
               x.fillStyle = '#b8bec5'; x.beginPath(); x.moveTo(cx + dx - 10, B1 - 112); x.lineTo(cx + dx + 10, B1 - 112); x.lineTo(cx + dx + 3, B1 - 92); x.lineTo(cx + dx - 3, B1 - 92); x.closePath(); x.fill();
               x.fillStyle = col; x.fillRect(cx + dx - 8, B1 - 111, 16, 5);
               x.fillStyle = '#2b3036'; x.fillRect(cx + dx - 1.5, B1 - 92, 3, 26);
-              x.fillStyle = 'rgba(20,16,12,.85)'; x.font = '600 5.5px Inter, sans-serif'; x.textAlign = 'center'; x.fillText(lb.toUpperCase(), cx + dx, B1 - 114);
           });
           panelBox(x, cx + w / 2 - 18, B1 - 26); }
         // 6 Feinwalzen: Ständer mit fünf Walzen
@@ -1475,7 +1474,8 @@ const Player = (() => {
     function plantDyn(x, P, T) {
         const { B1, B2 } = P;
         const at = id => PST.find(s => s.k === id).x;
-        const stream = (xa, xb, y, gap, v, draw) => { const L = xb - xa; const n = Math.ceil(L / gap); for (let i = 0; i < n; i++) { const d = (T * v + i * gap) % L; draw(v >= 0 ? xa + d : xb - d, y, i); } };
+        // gleichmässig verteilt (Abstand passt genau) und an den Enden weich ein-/ausgeblendet → kein Sprung
+        const stream = (xa, xb, y, gap, v, draw) => { const L = xb - xa; const n = Math.max(1, Math.round(L / gap)); const g = L / n; for (let i = 0; i < n; i++) { const d = (((T * Math.abs(v) + i * g) % L) + L) % L; x.globalAlpha = Math.max(0, Math.min(1, d / 5, (L - d) / 5)); draw(v >= 0 ? xa + d : xb - d, y, i); } x.globalAlpha = 1; };
         const bean = (bx, by, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(bx, by, 2.2, 1.4, 0.3, 0, 7); x.fill(); };
         // --- hintere Reihe: Material wandert nach rechts ---
         stream(92, 140, B1 - 18, 6, 9, (bx, by) => bean(bx, by, '#8a5a34'));
@@ -1503,7 +1503,7 @@ const Player = (() => {
           for (let q = 0; q < 5; q++) { const fl = 4 + Math.sin(T * 13 + q * 1.7) * 2 + Math.sin(T * 29 + q) * 1; const fx = x0 + 10 + q * 12; const g = x.createLinearGradient(0, B1 - 34 - fl, 0, B1 - 34); g.addColorStop(0, 'rgba(255,200,80,0)'); g.addColorStop(0.5, 'rgba(255,150,40,.9)'); g.addColorStop(1, 'rgba(80,140,255,.9)'); x.fillStyle = g; x.beginPath(); x.moveTo(fx - 2.5, B1 - 34); x.quadraticCurveTo(fx, B1 - 34 - fl * 2, fx + 2.5, B1 - 34); x.fill(); }
           for (let q = 0; q < 4; q++) { const p = (T * 0.35 + q / 4) % 1; x.fillStyle = `rgba(210,205,198,${(0.38 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx + 14.5 + p * 10, B1 - 116 - p * 26, 2.5 + p * 7, 0, 7); x.fill(); }
           const a = T * 1.6; x.strokeStyle = '#c3cad2'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(cx + 38 - Math.cos(a) * 14, B1 - 24.5 - Math.sin(a) * 4.2); x.lineTo(cx + 38 + Math.cos(a) * 14, B1 - 24.5 + Math.sin(a) * 4.2); x.stroke();
-          x.fillStyle = '#7dffb0'; x.font = '600 4.6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${Math.round(134 + Math.sin(T * 0.7) * 3)}°C`, cx - 40, B1 - 98.5); }
+          x.fillStyle = `rgba(125,255,176,${(0.6 + 0.3 * Math.sin(T * 0.7)).toFixed(2)})`; x.fillRect(cx - 46, B1 - 101, 8 + Math.sin(T * 0.7) * 2, 2); }
         // 3 Brechen & Schälen: Walzen drehen, Schalen fliegen in den Sack, Nibs fallen
         { const cx = at('winnow');
           for (const [ox, dir] of [[-8, 1], [8, -1]]) { x.fillStyle = '#6d757e'; x.beginPath(); x.arc(cx + ox, B1 - 97, 5.5, 0, 7); x.fill(); x.strokeStyle = '#c3cad2'; x.lineWidth = 0.9; for (let q = 0; q < 3; q++) { const a = T * 4 * dir + (q * Math.PI * 2) / 3; x.beginPath(); x.moveTo(cx + ox, B1 - 97); x.lineTo(cx + ox + Math.cos(a) * 5, B1 - 97 + Math.sin(a) * 5); x.stroke(); } }
@@ -1524,60 +1524,145 @@ const Player = (() => {
               x.fillStyle = `rgba(110,62,28,${(0.85 - q * 0.12).toFixed(2)})`; x.fillRect(cx - w / 2 + 2, y + 12, w - 4, 1.4 + (4 - q) * 0.3); }
           x.fillStyle = '#8b5a33'; for (let q = 0; q < 5; q++) { const p = (T * 0.8 + q / 5) % 1; x.fillRect(cx + 20 + q, B1 - 18 - (1 - p) * 4, 2.4, 1); } }
 
-        // --- vordere Reihe: Formen und Tafeln wandern nach links ---
-        const V = 16;           // Bandgeschwindigkeit
-        const G = 34;           // Abstand der Formen
+        // --- vordere Reihe: ein geschlossener Formen-Kreislauf, nahtlos ---
+        // Oben fahren die Formen nach LINKS (Giessen → Kühlen → Ausformen), werden umgedreht,
+        // fahren unten leer nach RECHTS zurück und kommen wieder hoch zur Giessanlage.
+        const V = 14;
         const dep = at('deposit');
-        const dem = at('demould');
-        const mould = (mx, my, full) => { x.fillStyle = '#c9d2da'; x.fillRect(mx - 12, my - 5, 24, 6); x.fillStyle = full ? '#3e1c08' : '#8f9aa6'; x.fillRect(mx - 10.5, my - 4, 21, 4); x.strokeStyle = full ? '#2a1205' : '#b4bec8'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(mx - 10.5 + q * 5.25, my - 4); x.lineTo(mx - 10.5 + q * 5.25, my); } x.stroke(); if (full) { x.fillStyle = 'rgba(255,220,180,.4)'; x.fillRect(mx - 10, my - 4, 20, 0.7); } };
-        // Formen-Band: rechts (leer) → Giessanlage (voll) → Tunnel (versteckt) → Ausformen
+        const xL = at('demould');
+        const xR = 548;
+        const yT = B2 - 20;
+        const yB = B2 - 7;
+        const run = xR - xL;
+        const dv = yB - yT;
+        const LP = 2 * run + 2 * dv;
+        const NM = 19;
+        const G = LP / NM;                 // Abstand passt genau in den Kreislauf → kein Sprung
+        const S0 = T * V;
+        const mould = (mx, my, full, rot = 0, a = 1) => {
+            if (a <= 0.01) return;
+            x.save(); x.translate(mx, my); x.rotate(rot); x.globalAlpha = a;
+            x.fillStyle = '#c9d2da'; x.fillRect(-12, -3, 24, 6);
+            x.fillStyle = full ? '#3e1c08' : '#8f9aa6'; x.fillRect(-10.5, -2, 21, 4);
+            x.strokeStyle = full ? '#2a1205' : '#b4bec8'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(-10.5 + q * 5.25, -2); x.lineTo(-10.5 + q * 5.25, 2); } x.stroke();
+            if (full) { x.fillStyle = 'rgba(255,220,180,.4)'; x.fillRect(-10, -2, 20, 0.7); }
+            x.restore();
+        };
         const shake = Math.sin(T * 60) * 0.6;
-        stream(dem + 30, 548, B2 - 20, G, -V, (mx, my) => {
-            if (mx > 282 && mx < 428) return; // im Tunnel
-            const full = mx < dep + 2;
-            mould(mx + (Math.abs(mx - dep) < 30 ? shake : 0), my, full);
-        });
-        // Dosierkolben + Tropfen: im Takt der ankommenden Formen
-        { const ph = ((T * V) % G) / G; const down = Math.max(0, Math.sin(ph * Math.PI * 2)) * 6;
+        const fadeTun = mx => Math.min(1, Math.max(0, Math.max(282 - mx, mx - 428) / 7)); // weich in den Tunnel hinein
+        for (let i = 0; i < NM; i++) {
+            const s = (((S0 + i * G) % LP) + LP) % LP;
+            if (s < run) { // oben, nach links
+                const mx = xR - s;
+                mould(mx + (Math.abs(mx - dep) < 30 ? shake : 0), yT, mx < dep + 2, 0, fadeTun(mx));
+            } else if (s < run + dv) { // Ausformen: umdrehen und absenken
+                const p = (s - run) / dv;
+                mould(xL, lerp(yT, yB, p), p < 0.5, Math.PI * p, 1);
+            } else if (s < 2 * run + dv) { // unten, leer zurück nach rechts
+                mould(xL + (s - run - dv), yB, false, Math.PI, 0.85);
+            } else { // hoch zur Giessanlage, wieder umdrehen
+                const p = (s - 2 * run - dv) / dv;
+                mould(xR, lerp(yB, yT, p), false, Math.PI * (1 + p), 0.85 + 0.15 * p);
+            }
+        }
+        // Dosierkolben + Tropfen im Takt der Formen
+        { const ph = ((((S0 - (xR - dep)) % G) + G) % G) / G; const down = Math.max(0, Math.sin(ph * Math.PI * 2)) * 6;
           for (let q = 0; q < 4; q++) { const nx = dep - 15 + q * 10; steel(x, nx - 2, B2 - 64 + down, 4, 10, 1); if (down > 3) { x.fillStyle = '#4a2410'; x.fillRect(nx - 0.8, B2 - 54 + down, 1.6, 30 - down); } } }
-        // Kühltunnel: kalter Nebel, Anzeige
-        { const cx = at('cool'); for (let q = 0; q < 6; q++) { const p = (T * 0.4 + q / 6) % 1; x.fillStyle = `rgba(210,235,255,${(0.32 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx - 50 + q * 20 + Math.sin(T + q) * 3, B2 - 64 - p * 16, 3 + p * 6, 0, 7); x.fill(); }
-          for (let q = 0; q < 5; q++) { x.fillStyle = `rgba(120,190,255,${(0.18 + 0.1 * Math.sin(T * 2 + q)).toFixed(3)})`; x.fillRect(cx - 65 + q * 27, B2 - 44, 20, 12); }
-          x.fillStyle = '#9fd6ff'; x.font = '600 5px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText('12°C', cx + 60, B2 - 46); }
-        // Ausformen: Form dreht sich, Tafel fällt
-        { const ph = ((T * V) % G) / G; const a = ph < 0.5 ? ph * 2 * Math.PI : Math.PI;
-          x.save(); x.translate(dem, B2 - 52); x.rotate(a); x.fillStyle = '#c9d2da'; x.fillRect(-12, -3, 24, 6); x.fillStyle = ph < 0.5 ? '#3e1c08' : '#8f9aa6'; x.fillRect(-10.5, -2, 21, 4); x.restore();
-          if (ph >= 0.5) { const p = (ph - 0.5) * 2; x.fillStyle = '#3e1c08'; x.fillRect(dem - 10, lerp(B2 - 48, B2 - 24, p), 20, 4); } }
-        // Rücklauf: leere Formen zurück zur Giessanlage
-        stream(260, 512, B2 - 8, G, V, (mx, my) => { x.globalAlpha = 0.85; mould(mx, my + 1, false); x.globalAlpha = 1; });
-        // Tafeln → Verpackung
-        stream(160, 206, B2 - 22, 17, -V, (bx, by) => { x.fillStyle = '#3e1c08'; x.fillRect(bx - 8, by - 1, 16, 4); x.strokeStyle = '#2a1205'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(bx - 8 + q * 4, by - 1); x.lineTo(bx - 8 + q * 4, by + 3); } x.stroke(); });
-        // Verpacken: Folienrolle dreht, Backen schliessen
+        // Kühltunnel: kalter Nebel
+        { const cx = at('cool'); for (let q = 0; q < 6; q++) { const p = (T * 0.4 + q / 6) % 1; x.fillStyle = `rgba(210,235,255,${(0.32 * Math.sin(p * Math.PI)).toFixed(3)})`; x.beginPath(); x.arc(cx - 50 + q * 20 + Math.sin(T + q) * 3, B2 - 64 - p * 16, 3 + p * 6, 0, 7); x.fill(); }
+          for (let q = 0; q < 5; q++) { x.fillStyle = `rgba(120,190,255,${(0.18 + 0.1 * Math.sin(T * 2 + q)).toFixed(3)})`; x.fillRect(cx - 65 + q * 27, B2 - 44, 20, 12); } }
+        // Tafeln: fallen beim Umdrehen aus der Form und laufen nach links in die Verpackung
+        { const flip = (((S0 - run) % G) + G) % G; // Weg seit dem letzten Umdrehen
+          for (let k = 0; k < 3; k++) {
+              const d = flip + k * G;
+              const bx = xL - 10 - d * 0.62;
+              if (bx < 176) continue;
+              const a = Math.min(1, d / 4) * Math.min(1, (bx - 176) / 8);
+              x.globalAlpha = a; x.fillStyle = '#3e1c08'; x.fillRect(bx - 8, B2 - 23, 16, 4); x.strokeStyle = '#2a1205'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(bx - 8 + q * 4, B2 - 23); x.lineTo(bx - 8 + q * 4, B2 - 19); } x.stroke(); x.globalAlpha = 1;
+          } }
+        // Verpacken: Folienrolle dreht, Backen schliessen im Takt
         { const cx = at('wrap'); const a = T * 5; x.fillStyle = '#d4a017'; x.beginPath(); x.arc(cx + 10, B2 - 84, 7, 0, 7); x.fill(); x.strokeStyle = '#f5d36b'; x.lineWidth = 1; x.beginPath(); x.arc(cx + 10, B2 - 84, 4.5, a, a + 2); x.stroke(); x.fillStyle = '#5a4510'; x.beginPath(); x.arc(cx + 10, B2 - 84, 1.6, 0, 7); x.fill();
-          const jaw = Math.abs(Math.sin(T * Math.PI * (V / 17))) * 3; x.fillStyle = '#aab2bb'; x.fillRect(cx - 4, B2 - 44 + jaw, 8, 3); x.fillRect(cx - 4, B2 - 35 - jaw, 8, 3);
-          x.fillStyle = '#7dffb0'; x.font = '600 4.4px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText('480/min', cx - 22, B2 - 39); }
-        stream(70, 98, B2 - 22, 14, -V, (bx, by) => { x.fillStyle = '#d4a017'; x.fillRect(bx - 7, by - 1, 14, 4); x.fillStyle = '#7a1f2b'; x.fillRect(bx - 3, by - 1, 6, 4); });
-        // Versand: Kartons stapeln sich, volle Palette fährt weg
-        { const cx = at('ship'); const per = 1.6; const n = Math.floor(T / per) % 13; for (let q = 0; q < Math.min(n, 12); q++) { const col = q % 3; const row = Math.floor(q / 3); x.fillStyle = '#b48a55'; x.fillRect(cx - 21 + col * 14, B2 - 15 - row * 10, 13, 9); x.fillStyle = 'rgba(0,0,0,.2)'; x.fillRect(cx - 21 + col * 14, B2 - 11 - row * 10, 13, 1); x.fillStyle = '#7a1f2b'; x.fillRect(cx - 17 + col * 14, B2 - 13 - row * 10, 5, 2); } }
-        // Conche: Rührarm, Aroma-Dampf, Laufzeit
+          const jaw = Math.abs(Math.sin((S0 / G) * Math.PI)) * 3; x.fillStyle = '#aab2bb'; x.fillRect(cx - 4, B2 - 44 + jaw, 8, 3); x.fillRect(cx - 4, B2 - 35 - jaw, 8, 3); }
+        // verpackte Tafeln → Versand
+        { const off = (((S0 - run) % G) + G) % G;
+          for (let k = 0; k < 3; k++) {
+              const d = off + k * G;
+              const bx = 98 - d * 0.62;
+              if (bx < 66) continue;
+              const a = Math.min(1, d / 4) * Math.min(1, (bx - 66) / 8);
+              x.globalAlpha = a; x.fillStyle = '#d4a017'; x.fillRect(bx - 7, B2 - 23, 14, 4); x.fillStyle = '#7a1f2b'; x.fillRect(bx - 3, B2 - 23, 6, 4); x.globalAlpha = 1;
+          } }
+        // Versand: Kartons stapeln sich – ist die Palette voll, holt sie ein Gabelstapler ab und bringt eine leere
+        plantShip(x, at('ship'), B2, T);
+        // Conche: Rührarm, Aroma-Dampf, Laufzeit-Ring
         { const cx = at('conche'); const a = T * 1.1;
           x.strokeStyle = '#c3cad2'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(cx - Math.cos(a) * 40, B2 - 74 - Math.sin(a) * 4); x.lineTo(cx + Math.cos(a) * 40, B2 - 74 + Math.sin(a) * 4); x.stroke();
-          for (let q = 0; q < 4; q++) { const p = (T * 0.3 + q / 4) % 1; x.fillStyle = `rgba(200,170,140,${(0.3 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx - 30 + q * 20 + Math.sin(T + q) * 4, B2 - 82 - p * 22, 2 + p * 6, 0, 7); x.fill(); }
-          const h = (T * 0.25) % 12; x.fillStyle = '#7dffb0'; x.font = '600 4.6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')} h`, cx + 40, B2 - 45);
-          x.strokeStyle = '#d9b26f'; x.lineWidth = 1; x.beginPath(); x.arc(cx + 40, B2 - 52, 3.5, -Math.PI / 2, -Math.PI / 2 + (h / 12) * Math.PI * 2); x.stroke(); }
-        // Temperieren: Temperaturkurve 45 → 27 → 31 °C mit laufendem Punkt
-        { const cx = at('temper'); const w = 54; const x0 = cx - w / 2; const y0 = B2 - 80; const ph = (T * 0.12) % 1;
-          const tempAt = p => (p < 0.4 ? lerp(45, 27, p / 0.4) : p < 0.6 ? 27 : lerp(27, 31, (p - 0.6) / 0.4));
-          const yOf = c => y0 + 22 - ((c - 25) / 22) * 18;
-          x.strokeStyle = 'rgba(125,255,176,.35)'; x.lineWidth = 0.8; x.beginPath(); for (let i = 0; i <= 30; i++) { const p = i / 30; const px = x0 + 3 + p * (w - 6); const py = yOf(tempAt(p)); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke();
-          const cur = tempAt(ph); x.fillStyle = '#7dffb0'; x.beginPath(); x.arc(x0 + 3 + ph * (w - 6), yOf(cur), 1.4, 0, 7); x.fill();
-          x.font = '600 6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${cur.toFixed(1)}°C`, cx, y0 + 31);
+          for (let q = 0; q < 4; q++) { const p = (T * 0.3 + q / 4) % 1; x.fillStyle = `rgba(200,170,140,${(0.3 * Math.sin(p * Math.PI)).toFixed(3)})`; x.beginPath(); x.arc(cx - 30 + q * 20 + Math.sin(T + q) * 4, B2 - 82 - p * 22, 2 + p * 6, 0, 7); x.fill(); }
+          const h = (T * 0.04) % 1; x.strokeStyle = 'rgba(214,178,112,.25)'; x.lineWidth = 1.4; x.beginPath(); x.arc(cx + 40, B2 - 46, 5, 0, 7); x.stroke();
+          x.strokeStyle = '#d9b26f'; x.beginPath(); x.arc(cx + 40, B2 - 46, 5, -Math.PI / 2 + h * Math.PI * 2, -Math.PI / 2 + h * Math.PI * 2 + Math.PI * 1.2); x.stroke(); }
+        // Temperieren: geschlossene Kurve (45 → 27 → 31 °C, dann nächste Charge) – der Punkt läuft ohne Sprung
+        { const cx = at('temper'); const w = 54; const x0 = cx - w / 2; const y0 = B2 - 80; const ph = (T * 0.1) % 1;
+          const tempAt = p => (p < 0.32 ? lerp(45, 27, p / 0.32) : p < 0.45 ? 27 : p < 0.62 ? lerp(27, 31, (p - 0.45) / 0.17) : p < 0.82 ? 31 : lerp(31, 45, (p - 0.82) / 0.18));
+          const yOf = c => y0 + 26 - ((c - 25) / 22) * 20;
+          x.strokeStyle = 'rgba(125,255,176,.35)'; x.lineWidth = 0.9; x.beginPath(); for (let i = 0; i <= 40; i++) { const p = i / 40; const px = x0 + 3 + p * (w - 6); const py = yOf(tempAt(p)); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke();
+          const cur = tempAt(ph); const g = x.createRadialGradient(x0 + 3 + ph * (w - 6), yOf(cur), 0, x0 + 3 + ph * (w - 6), yOf(cur), 4); g.addColorStop(0, 'rgba(160,255,200,1)'); g.addColorStop(1, 'rgba(125,255,176,0)');
+          x.fillStyle = g; x.beginPath(); x.arc(x0 + 3 + ph * (w - 6), yOf(cur), 4, 0, 7); x.fill();
           x.fillStyle = '#5a2c10'; for (let q = 0; q < 4; q++) { x.fillRect(673 - ((T * 12 + q * 9) % 36), B2 - 69.5, 3, 2); x.fillRect(569 - ((T * 12 + q * 13) % 52), B2 - 73.5, 3, 2); } }
-        // Zähler: Tafeln heute
-        const bars = Math.floor((T * V) / G) * 6 + 1200;
-        x.fillStyle = 'rgba(14,11,8,.78)'; rrect(x, 652, P.B1 - 146, 140, 20, 4); x.fill(); x.strokeStyle = 'rgba(214,178,112,.35)'; x.lineWidth = 0.6; x.stroke();
-        x.fillStyle = '#a3978a'; x.font = '600 5px Inter, sans-serif'; x.textAlign = 'left'; x.fillText('HEUTE PRODUZIERT', 658, P.B1 - 133);
-        x.fillStyle = '#f3dcaa'; x.font = '600 9px "IBM Plex Mono", monospace'; x.textAlign = 'right'; x.fillText(`${bars.toLocaleString('de-CH')} Tafeln`, 786, P.B1 - 132);
+    }
+
+    // Versand mit Gabelstapler: ein Zyklus von 34 s, Anfang und Ende passen nahtlos zusammen
+    function plantShip(x, cx, B2, T) {
+        const C = 34;
+        const t = ((T % C) + C) % C;
+        const yP = B2 - 6;
+        const carton = (px, py) => { x.fillStyle = '#b48a55'; x.fillRect(px, py, 13, 9); x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(px, py + 4, 13, 1); x.fillStyle = '#7a1f2b'; x.fillRect(px + 4, py + 2, 5, 2); x.fillStyle = 'rgba(255,255,255,.15)'; x.fillRect(px, py, 13, 0.8); };
+        const pallet = (px, lift, n) => {
+            x.fillStyle = '#7a5a34'; x.fillRect(px - 24, yP - lift, 48, 4); x.fillStyle = '#5a3f22'; for (let q = 0; q < 3; q++) x.fillRect(px - 22 + q * 20, yP + 4 - lift, 5, 2.5);
+            for (let q = 0; q < n; q++) carton(px - 21 + (q % 3) * 14, yP - 9 - lift - Math.floor(q / 3) * 10);
+        };
+        // Gabelstapler (Seitenansicht, Gabel zeigt nach rechts)
+        const forklift = (fx, lift, a) => {
+            x.save(); x.globalAlpha = a; x.translate(fx, 0);
+            x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(-14, B2 + 1, 24, 2.5, 0, 0, 7); x.fill();
+            x.fillStyle = '#2b3036'; x.fillRect(1, B2 - 40, 3, 38); x.fillRect(5, B2 - 40, 1.5, 38);                 // Hubmast
+            x.fillStyle = '#9aa3ad'; x.fillRect(2, B2 - 6 - lift, 30, 2); x.fillRect(2, B2 - 14 - lift, 2.5, 10);     // Gabel
+            const bodyG = x.createLinearGradient(0, B2 - 24, 0, B2 - 4); bodyG.addColorStop(0, '#d6ad4f'); bodyG.addColorStop(1, '#9c7a2f');
+            x.fillStyle = bodyG; rrect(x, -30, B2 - 24, 31, 18, 3); x.fill();
+            x.fillStyle = '#3a3226'; rrect(x, -36, B2 - 22, 8, 16, 2); x.fill();                                         // Gegengewicht
+            x.strokeStyle = '#2b3036'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(-26, B2 - 24); x.lineTo(-24, B2 - 44); x.lineTo(-3, B2 - 44); x.lineTo(-1, B2 - 24); x.stroke(); // Schutzdach
+            x.fillStyle = '#2b3036'; x.fillRect(-26, B2 - 46, 24, 2.5);
+            x.fillStyle = '#1d2530'; x.beginPath(); x.arc(-15, B2 - 30, 4, 0, 7); x.fill(); x.fillStyle = '#e9dcc4'; x.fillRect(-19, B2 - 27, 7, 4); // Fahrer
+            for (const wx of [-24, -4]) { x.fillStyle = '#111'; x.beginPath(); x.arc(wx, B2 - 4, 4.5, 0, 7); x.fill(); x.fillStyle = '#6b737c'; x.beginPath(); x.arc(wx, B2 - 4, 1.8, 0, 7); x.fill(); }
+            x.fillStyle = (Math.floor(T * 3) % 2) ? '#ffb347' : '#6b4a12'; x.beginPath(); x.arc(-24, B2 - 47, 1.6, 0, 7); x.fill(); // Warnlicht
+            x.restore();
+        };
+        const ease = p => p * p * (3 - 2 * p);
+        const far = cx - 190;              // ausserhalb, links in der Halle
+        const dock = cx - 26;              // Gabel unter der Palette
+        if (t < 19.2) {                    // Kartons stapeln (bis 12)
+            pallet(cx, 0, Math.min(12, Math.floor(t / 1.6)));
+        } else if (t < 22.2) {             // Stapler fährt heran
+            pallet(cx, 0, 12);
+            forklift(lerp(far, dock, ease((t - 19.2) / 3)), 0, Math.min(1, (t - 19.2) / 0.8));
+        } else if (t < 23) {               // anheben
+            const l = ease((t - 22.2) / 0.8) * 5;
+            pallet(cx, l, 12); forklift(dock, l, 1);
+        } else if (t < 27) {               // mit voller Palette rückwärts weg
+            const p = ease((t - 23) / 4); const fx = lerp(dock, far, p);
+            const a = Math.min(1, (27 - t) / 0.9);
+            x.save(); x.globalAlpha = a; pallet(fx + 26, 5, 12); x.restore(); forklift(fx, 5, a);
+        } else if (t < 31) {               // bringt eine leere Palette
+            const p = ease((t - 27) / 4); const fx = lerp(far, dock, p);
+            const a = Math.min(1, (t - 27) / 0.9);
+            x.save(); x.globalAlpha = a; pallet(fx + 26, 5, 0); x.restore(); forklift(fx, 5, a);
+        } else if (t < 31.8) {             // absetzen
+            const l = (1 - ease((t - 31) / 0.8)) * 5;
+            pallet(cx, l, 0); forklift(dock, l, 1);
+        } else {                           // wegfahren
+            pallet(cx, 0, 0);
+            const p = ease((t - 31.8) / 2.2);
+            forklift(lerp(dock, far, p), 0, 1 - p);
+        }
     }
 
     // Leinwand der Fabrik einrichten (gleiche Fläche wie das Hallenbild) und die Schleife starten
@@ -1662,7 +1747,8 @@ const Player = (() => {
 
     // SVG-Ebene über der Linie: Schritt-Nummern, Namen, Flächen für die Maus
     function plantLineSVG(HH) {
-        return `<text x="${PLINE.ox + 6}" y="${HH - PLINE.Z - 4}" class="p-wall-t pst-head">PRODUKTION · VON DER BOHNE ZUR TAFEL</text>`;
+        const fK = deskTextK(HH);
+        return `<g transform="translate(${PLINE.ox + 6} ${HH - PLINE.Z - 6 - 14 * (fK - 1)}) scale(${fK.toFixed(3)})"><text class="p-wall-t pst-head">PRODUKTION · VON DER BOHNE ZUR TAFEL</text></g>`;
     }
 
     function deskLife(LAY, VH, show) {
@@ -1826,6 +1912,38 @@ const Player = (() => {
         return out;
     }
 
+    // Schrift auf der Karte immer lesbar: Faktor, mit dem Beschriftungen gegen die Verkleinerung der Karte gerechnet werden
+    function deskTextK(VH) {
+        const h = $('d-world');
+        if (!h || !h.offsetWidth || !h.offsetHeight) return 1;
+        const f = Math.min(h.offsetWidth / 800, h.offsetHeight / VH);
+        return Math.max(1, Math.min(2.6, 0.95 / f));
+    }
+    const BADGE_L = { deal: 'VERTRAG', fut: 'FUTURE', open: 'OFFEN', lost: 'VERLOREN', cut: 'GESTRICHEN' };
+    const BADGE_I = {
+        deal: '<path d="M-2.8 -4.2 h3.8 l1.8 1.8 v6.6 h-5.6z" class="bd-f"/><path d="M-1.5 -0.6 h3 M-1.5 1.4 h3"/>',
+        fut: '<rect x="-3.4" y="-0.8" width="6.8" height="5" rx="1.1" class="bd-f"/><path d="M-2 -0.8 V-2.4 a2 2 0 0 1 4 0 V-0.8" fill="none"/>',
+        open: '<circle r="3.3" fill="none" stroke-dasharray="1.6 1.4"/>',
+        lost: '<path d="M-2.8 -2.8 L2.8 2.8 M2.8 -2.8 L-2.8 2.8"/>',
+        cut: '<path d="M-2.8 -2.8 L2.8 2.8 M2.8 -2.8 L-2.8 2.8"/>',
+    };
+    // Kompakte runde Plakette (nur Symbol) – wenn wenig Platz ist
+    function badgeDot(kk) {
+        return `<circle class="bd-bg" r="10.5"/><g class="bd-ic" transform="scale(1.35)">${BADGE_I[kk] || ''}</g>`;
+    }
+    const badgeW = (kk, t) => Math.round(22 + (BADGE_L[kk] || '').length * 6.3 + 12 + `${t} t`.length * 6.1 + 10);
+    // Plakette (in Bildschirm-Pixeln gedacht, mittig um 0/0)
+    function badgeSVG(kk, t) {
+        const L = BADGE_L[kk] || '';
+        const tt = `${t} t`;
+        const w = Math.round(22 + L.length * 6.3 + 12 + tt.length * 6.1 + 10);
+        return `<rect class="bd-bg" x="${-w / 2}" y="-10" width="${w}" height="20" rx="10"/>
+            <g class="bd-ic" transform="translate(${-w / 2 + 12} 0)">${BADGE_I[kk] || ''}</g>
+            <text class="bd-l" x="${-w / 2 + 22}" y="3.4">${L}</text>
+            <line class="bd-sep" x1="${w / 2 - tt.length * 6.1 - 14}" x2="${w / 2 - tt.length * 6.1 - 14}" y1="-5" y2="5"/>
+            <text class="bd-t" x="${w / 2 - 9}" y="3.6" text-anchor="end">${tt}</text>`;
+    }
+
     function farmSVG() {
         const H = holdings();
         const VH = Math.round((800 * deskAspect()) / 40) * 40; // in Stufen, damit kleine Grössenänderungen kein neues Bild auslösen
@@ -1840,6 +1958,7 @@ const Player = (() => {
         const badge = { deal: ['📜', 'Vertrag'], fut: ['🔒', 'Future'], lost: ['🚚', 'weg'], open: ['○', 'offen'] };
         // Bei vielen Dörfern werden sie etwas kleiner
         const vs = tiles.length > 16 ? 0.82 : 1;
+        const fK = deskTextK(VH);
         // Plätze für so viele Dörfer, wie es braucht – in Lese-Reihenfolge (oben links → unten rechts)
         const occupied = LAY.villages.slice(0, tiles.length).sort((a, b) => (Math.round(a[1] / 90) - Math.round(b[1] / 90)) || a[0] - b[0]);
         const { river, road } = LAY;
@@ -1880,7 +1999,7 @@ const Player = (() => {
                 ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}`}
                 ${kk !== 'lost' && !img ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
                 ${kk === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
-                <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g>${img ? `<text class="vil-name" y="-34" text-anchor="middle">${esc(villageName(i))}</text>` : ''}</g>`;
+                <g class="vil-tag badge ${kk}" transform="translate(0 40) scale(${(fK / vs).toFixed(3)})">${badgeSVG(kk, unit)}</g>${img ? `<text class="vil-name" y="-34" text-anchor="middle">${esc(villageName(i))}</text>` : ''}</g>`;
         }).join('');
         // Felder (Kakao-Reihen) und Waldstücke als Hintergrund (nur ohne gerechnetes Bild)
         const fields = FIELDS
@@ -1910,17 +2029,17 @@ const Player = (() => {
             ${contours}${fields}${forest}
             <path d="${river}" class="river-bank"/><path d="${river}" class="river"/><path d="${river}" class="river-flow"/>
             <path d="${road}" class="road"/><path d="${road}" class="road-mid"/>`}
-            <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><text x="22" y="22" class="border-t">GRENZE ←</text>
-            <g class="port" transform="translate(735 ${(360 * k).toFixed(1)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
+            <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><g transform="translate(22 22) scale(${fK.toFixed(3)})"><text class="border-t">GRENZE ←</text></g>
+            <g class="port" transform="translate(735 ${(360 * k).toFixed(1)}) scale(${fK.toFixed(3)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
             ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="${368 * k}">🚚</text><text class="truck t2" x="420" y="${362 * k}">🚚</text><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
             ${img ? '' : `<g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>`}
             ${villages}
             ${img ? '' : `<g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>`}
             ${img ? '' : `<rect width="800" height="${VH}" fill="url(#dVig)" pointer-events="none"/>`}
             <g class="map-ticks">${ticks}</g>
-            <g class="compass" transform="translate(760 70)"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
+            <g class="compass" transform="translate(760 70) scale(${Math.min(1.6, fK).toFixed(3)})"><circle r="20"/><path d="M0 -17 L5 0 L0 17 L-5 0Z" class="cn"/><path d="M0 -17 L5 0 L-5 0Z" class="cn-n"/><text y="-23" text-anchor="middle">N</text></g>
             <g class="scalebar" transform="translate(30 ${VH - 30})"><rect width="100" height="5" fill="#e7f5df"/><rect width="50" height="5" fill="#25562a"/><rect width="100" height="5" fill="none" stroke="#e7f5df"/><text x="0" y="18">0</text><text x="100" y="18" text-anchor="end">10 km</text></g>
-            <text x="740" y="26" text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''}</text>
+            <g transform="translate(${800 - 52 * Math.min(1.6, fK)} 26) scale(${fK.toFixed(3)})"><text text-anchor="end" class="reg-t">📍 ${me.region ? esc(REGIONS[me.region].name) : ''}</text></g>
         </svg>`;
     }
 
@@ -1930,6 +2049,7 @@ const Player = (() => {
         const { unit, tiles } = tilesFor(H, false, 30);
         deskUnitNow = unit;
         const sPartners = [];
+        let fK = 1;
         ((me.deals && me.deals.signed) || []).forEach(d => { for (let t = 0; t < d.t; t += unit) sPartners.push(`Vertrag mit ${d.with} zu ${fmt(d.price)} CHF/t`); });
         const n = Math.max(1, tiles.length);
         const ar = deskAspect();
@@ -1950,6 +2070,7 @@ const Player = (() => {
         const top = 50;
         const ly = top + rows * rowH;
         const HH = Math.ceil(Math.max(800 * ar, ly + PLINE.Z + 50) / 40) * 40;
+        fK = deskTextK(HH);
         const by = HH - PLINE.Z + 10; // Wand bis hier, darunter der Hallenboden mit der Produktion
         const pipeY = Math.min(ly + 4, by - 6);
         const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
@@ -1990,10 +2111,9 @@ const Player = (() => {
                 return `<g class="silo r ${kk}${DSEL.has(i) ? ' sel' : ''}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})">
                     <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
                     ${kk === 'deal' || kk === 'fut' ? `<rect x="${(w * 0.62).toFixed(1)}" y="12" width="6" height="80" fill="url(#beanFill)"/><rect x="${(w * 0.62 + 0.6).toFixed(1)}" y="13" width="1" height="78" fill="rgba(255,255,255,.28)"/><rect x="0" y="52" width="${w}" height="9" fill="url(#${kk === 'deal' ? 'bandD' : 'bandF'})"/>` : ''}
-                    <text x="${w / 2}" y="88.5" text-anchor="middle" class="s-id">S-${String(i + 1).padStart(2, '0')}</text>
                     <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
                     ${kk === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
-                    <text x="${w / 2}" y="${140}" text-anchor="middle" class="s-t">${kk === 'deal' ? '📜 Vertrag' : kk === 'fut' ? '🔒 Future' : kk === 'cut' ? 'gestrichen' : 'offen'}</text></g>`;
+                    <g class="badge ${kk}" transform="translate(${w / 2} 138) scale(${(fK / s).toFixed(3)})">${badgeW(kk, unit) * fK > (w + gap) * s - 6 ? badgeDot(kk) : badgeSVG(kk, unit)}</g></g>`;
             }
             return `<g class="silo ${kk}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})" style="animation-delay:${i * 0.03}s"><title>${tipS}</title>
                 <ellipse cx="${w / 2 + 4}" cy="124" rx="${w / 2 + 6}" ry="6" fill="rgba(0,0,0,.4)"/>
@@ -2036,11 +2156,11 @@ const Player = (() => {
             <linearGradient id="chocFall" x1="0" x2="1"><stop offset="0" stop-color="#3a1c0a"/><stop offset=".3" stop-color="#7a4422"/><stop offset=".45" stop-color="#b47a4c"/><stop offset=".6" stop-color="#6a3a1c"/><stop offset="1" stop-color="#2e1607"/></linearGradient></defs>
             ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}
-            <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
+            <g transform="translate(400 ${Math.max(30, top - 18)}) scale(${fK.toFixed(3)})"><text text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text></g>
             <path d="M${xa.toFixed(1)} ${pipeY} H${(PLINE.ox + 70 * PLINE.sc).toFixed(1)} V${(HH - PLINE.Z + 50 * PLINE.sc).toFixed(1)}" class="pipe-flow"/>
             ${silos}
             ${plantLineSVG(HH)}
-            <text x="${PLINE.ox + 6}" y="${HH - PLINE.Z + 6}" class="pl-k">Marge ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf ${mm} % · Linie läuft mit ${Math.round((0.55 + 0.45 * (tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length))) * 100)} % – je mehr Kakao gesichert, desto schneller</text></svg>`;
+            <text x="${PLINE.ox + 6}" y="${HH - PLINE.Z + 6}" class="pl-k" style="font-size:${(9.5 * fK).toFixed(1)}px">Marge ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf ${mm} % · Linie läuft mit ${Math.round((0.55 + 0.45 * (tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length))) * 100)} % – je mehr Kakao gesichert, desto schneller</text></svg>`;
     }
 
     function deskTicket() {
@@ -2567,7 +2687,7 @@ const Player = (() => {
             <text x="${ix(-8.6)}" y="${iy(9.6)}" class="t-ins-c">ELFENBEINKÜSTE</text><text x="${ix(-2.6)}" y="${iy(9.6)}" class="t-ins-c">GHANA</text>
             <text x="${ix(-6)}" y="${iy(3.5)}" class="t-ins-sea">Golf von Guinea</text>
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
-            ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
+            ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat), 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat), 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
                 const W2 = [];
                 const BELT = [];
@@ -3094,7 +3214,7 @@ const Player = (() => {
             // Schiffe legen in Abidjan und Tema ab
             [['abj', -1], ['acc', 1]].forEach(([key, side], si) => {
                 const L = INTEL_LOCS[key];
-                const px0 = ix(L.lon); const py0 = iy(L.lat) + 4;
+                const px0 = ix(L.lon); const py0 = iy(L.lat) + 3;
                 for (let q = 0; q < 2; q++) {
                     const p = ((T * 0.05 + q * 0.5 + si * 0.25) % 1);
                     const px = px0 + side * p * 26; const py = py0 + 6 + p * 20;

@@ -2247,3 +2247,21 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 #t-map { display: flex !important; flex-direction: column; gap: 8px; }
 #t-map .t-world { flex: 1 1 62% !important; height: 100% !important; min-height: 0; width: 100%; border-radius: 8px; background: radial-gradient(120% 90% at 45% 45%, rgba(40, 50, 64, .55), rgba(10, 12, 16, .2) 75%); }
 #t-map .t-inset { flex: 0 1 38% !important; min-height: 110px; }
+
+/* ===================== Edle Status-Plaketten (Silos & Dörfer) ===================== */
+.badge .bd-bg { fill: rgba(14, 11, 8, .9) !important; stroke-width: 1 !important; stroke: rgba(233, 220, 196, .55) !important; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .55)); }
+.badge .bd-l { font-family: var(--sans); font-size: 9px !important; font-weight: 700; letter-spacing: .12em; fill: #efe5d3 !important; }
+.badge .bd-t { font-family: var(--mono); font-size: 10px !important; font-weight: 600; fill: #f3dcaa !important; }
+.badge .bd-sep { stroke: rgba(214, 178, 112, .35); stroke-width: 1; }
+.badge .bd-ic { stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.badge .bd-ic .bd-f { fill: currentColor; fill-opacity: .18; }
+.badge.fut { color: #f0cd84; } .badge.fut .bd-bg { stroke: rgba(240, 205, 132, .85) !important; } .badge.fut .bd-l { fill: #f6dfa6 !important; }
+.badge.deal { color: #9cc3f2; } .badge.deal .bd-bg { stroke: rgba(156, 195, 242, .85) !important; } .badge.deal .bd-l { fill: #cfe1f8 !important; }
+.badge.open { color: #e9dcc4; } .badge.open .bd-bg { stroke: rgba(233, 220, 196, .6) !important; stroke-dasharray: 3 2.5; }
+.badge.lost, .badge.cut { color: #f08a9a; } .badge.lost .bd-bg, .badge.cut .bd-bg { stroke: rgba(240, 138, 154, .8) !important; } .badge.lost .bd-l, .badge.cut .bd-l { fill: #f6c2ca !important; }
+.vil.sel .badge .bd-bg { stroke: #f3dcaa !important; stroke-dasharray: none; fill: rgba(60, 44, 20, .95) !important; }
+.plant-map .pst-head { font-size: 10px !important; }
+
+.plant-map .p-wall-t { paint-order: stroke; stroke: rgba(10, 8, 6, .85); stroke-width: 3px; fill: #e9dcc4; letter-spacing: .2em; }
+.badge circle.bd-bg { stroke-dasharray: none; }
+.badge.open circle.bd-bg { stroke-dasharray: 2.5 2; }
