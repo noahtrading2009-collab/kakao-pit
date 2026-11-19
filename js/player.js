@@ -2573,21 +2573,49 @@ const Player = (() => {
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 4, 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 4, 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
                 const W2 = [];
-                x.fillStyle = 'rgba(132,180,214,.26)';
+                const BELT = [];
+                // Ozean: weicher Schimmer, zur Mitte hin heller
+                const og = x.createRadialGradient(TW * 0.42, TH * 0.48, 10, TW * 0.5, TH * 0.5, TW * 0.62);
+                og.addColorStop(0, 'rgba(46,58,74,.55)');
+                og.addColorStop(0.6, 'rgba(22,28,38,.35)');
+                og.addColorStop(1, 'rgba(8,10,14,0)');
+                x.fillStyle = og;
+                x.fillRect(0, 0, TW, TH);
+                // Äquator & Wendekreise (Kakao wächst nur ca. 20° um den Äquator)
+                const bg = x.createLinearGradient(0, ty(20), 0, ty(-20));
+                bg.addColorStop(0, 'rgba(185,207,148,0)');
+                bg.addColorStop(0.5, 'rgba(185,207,148,.06)');
+                bg.addColorStop(1, 'rgba(185,207,148,0)');
+                x.fillStyle = bg;
+                x.fillRect(0, ty(20), TW, ty(-20) - ty(20));
+                x.shadowColor = 'rgba(169,196,220,.55)';
+                x.shadowBlur = 1.6;
+                x.fillStyle = 'rgba(150,186,214,.34)';
                 x.beginPath();
                 for (let lat = 72; lat >= -32; lat--) for (let lon = -165; lon <= 150; lon++) {
                     if (!isLand(lon, lat)) continue;
                     if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
-                    x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2);
+                    if (Math.abs(lat) <= 12) { BELT.push([lon, lat]); continue; }
+                    const r0 = 0.62 + ((lon * 7 + lat * 13) % 5) * 0.03;
+                    x.moveTo(tx(lon) + r0, ty(lat)); x.arc(tx(lon), ty(lat), r0, 0, Math.PI * 2);
                 }
                 x.fill();
+                x.shadowColor = 'rgba(185,207,148,.6)';
+                x.fillStyle = 'rgba(185,207,148,.5)';
+                x.beginPath();
+                for (const [lon, lat] of BELT) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
+                x.fill();
+                x.shadowBlur = 0;
                 x.fillStyle = 'rgba(217,178,111,.75)';
                 x.beginPath();
                 for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
                 x.fill();
-                x.strokeStyle = 'rgba(132,180,214,.7)';
-                x.lineWidth = 0.55;
                 x.lineJoin = 'round';
+                x.strokeStyle = 'rgba(169,196,220,.18)';
+                x.lineWidth = 1.6;
+                x.stroke(new Path2D(coastD));
+                x.strokeStyle = 'rgba(190,212,232,.75)';
+                x.lineWidth = 0.45;
                 x.stroke(new Path2D(coastD));
             })}" x="0" y="0" width="${TW}" height="${TH}"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
@@ -2775,6 +2803,231 @@ const Player = (() => {
         tfxAdd('lon', `<text y="-14" text-anchor="middle" class="fx-delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}</text>`, 2200);
     }
 
+    // ===== Terminal: lebendige Weltkarte (Schiffe, Lastwagen, Tag/Nacht, Kurse, Intel-Einsatz) =====
+    const ROUTES_W = [
+        [[-4, 4.4], [-7, 2], [-17, 11], [-19, 27], [-12, 42], [-6, 48], [4.2, 51.9]],          // Abidjan → Rotterdam
+        [[0.6, 5.0], [-1, 2.2], [-16, 9], [-18.5, 25], [-11, 40], [-5, 48.3], [4.8, 52.4]],    // Tema → Amsterdam
+        [[-4, 4.4], [-12, 2.5], [-32, 10], [-55, 26], [-70, 37], [-74, 40.6]],                // Abidjan → New York
+        [[-80, -2.2], [-82, 3], [-79.6, 9], [-76, 16], [-73, 27], [-74, 40.6]],               // Guayaquil → New York
+        [[120.5, -2], [119, -5], [117.5, 2], [114, 11], [120, 24], [121.5, 31.2]],             // Sulawesi → Shanghai
+        [[-4, 4.4], [8, -2], [12, -20], [18, -34], [40, -30], [55, -8], [52, 12], [43, 12.5]], // Abidjan → Asien (um Afrika)
+    ];
+    const TA = { on: false, raf: 0, last: 0, T: 0, ships: [], price: null, flash: 0, flashUp: true, term: null, termT: -1 };
+    function polyLen(pts) { const c = [0]; for (let i = 1; i < pts.length; i++) c.push(c[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return c; }
+    function polyAt(pts, cum, d) {
+        let i = 1;
+        while (i < cum.length - 1 && cum[i] < d) i++;
+        const t = (d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
+        return [lerp(pts[i - 1][0], pts[i][0], t), lerp(pts[i - 1][1], pts[i][1], t), Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0])];
+    }
+    function termAnimSetup() {
+        const map = $('t-map');
+        for (const [cls, sel] of [['ta-w', '.t-world'], ['ta-i', '.t-inset-svg']]) {
+            const svg = map.querySelector(sel);
+            if (!svg || svg.parentElement.querySelector(`canvas.${cls}`)) continue;
+            const cv = document.createElement('canvas');
+            cv.className = `t-anim ${cls}`;
+            svg.parentElement.insertBefore(cv, svg.nextSibling);
+            svg._anim = cv;
+        }
+        // Schiffe: Weltkarte in Kartenkoordinaten (Länge/Breite → x/y)
+        if (!TA.ships.length) {
+            ROUTES_W.forEach((R, ri) => {
+                const pts = R.map(([lo, la]) => [tx(lo), ty(la)]);
+                const cum = polyLen(pts);
+                const n = ri < 3 ? 3 : 2;
+                for (let q = 0; q < n; q++) TA.ships.push({ pts, cum, d: (cum[cum.length - 1] / n) * q + Math.random() * 20, v: 4 + Math.random() * 2.5, dir: q % 2 ? -1 : 1 });
+            });
+        }
+        if (!TA.raf) TA.raf = requestAnimationFrame(termAnimLoop);
+    }
+    // Tag/Nacht-Grenze aus Datum und Uhrzeit
+    function terminator() {
+        const now = new Date();
+        const day = (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(now.getUTCFullYear(), 0, 0)) / 864e5;
+        const dec = (-23.44 * Math.cos(((2 * Math.PI) / 365) * (day + 10)) * Math.PI) / 180;
+        const lon0 = -((now.getUTCHours() + now.getUTCMinutes() / 60 - 12) * 15);
+        const pts = [];
+        for (let lo = -165; lo <= 150; lo += 3) {
+            const la = (Math.atan(-Math.cos(((lo - lon0) * Math.PI) / 180) / Math.tan(dec)) * 180) / Math.PI;
+            pts.push([tx(lo), ty(la)]);
+        }
+        return { pts, southNight: dec > 0 };
+    }
+    function canvasFor(svg) {
+        const cv = svg._anim;
+        if (!cv) return null;
+        const r = svg.getBoundingClientRect();
+        const pr = cv.parentElement.getBoundingClientRect();
+        const dpr = Gfx.low() ? 1 : Math.min(2, window.devicePixelRatio || 1);
+        const W = Math.round(r.width * dpr);
+        const H = Math.round(r.height * dpr);
+        if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+        const css = `left:${(r.left - pr.left).toFixed(1)}px;top:${(r.top - pr.top).toFixed(1)}px;width:${r.width.toFixed(1)}px;height:${r.height.toFixed(1)}px`;
+        if (cv._css !== css) { cv._css = css; cv.style.cssText = css; }
+        const m = svg.getScreenCTM();
+        if (!m) return null;
+        const x = cv.getContext('2d');
+        // Kartenkoordinaten → Leinwand
+        x.setTransform(m.a * dpr, 0, 0, m.d * dpr, (m.e - r.left) * dpr, (m.f - r.top) * dpr);
+        x.clearRect(-1e4, -1e4, 2e4, 2e4);
+        return { x, k: 1 / m.a, z: (svg._z && svg._z.s) || 1 };
+    }
+    function termAnimLoop(now) {
+        const view = $('v-term');
+        if (!view || !view.classList.contains('active') || !me || !pub) { TA.raf = 0; TA.last = 0; return; }
+        TA.raf = requestAnimationFrame(termAnimLoop);
+        if (TA.last && now - TA.last < (Gfx.low() ? 50 : 33)) return;
+        const dt = TA.last ? Math.min(0.1, (now - TA.last) / 1000) : 0.03;
+        TA.last = now;
+        TA.T += dt;
+        const T = TA.T;
+        const map = $('t-map');
+        const world = map.querySelector('.t-world');
+        const inset = map.querySelector('.t-inset-svg');
+        // ---------- Weltkarte ----------
+        const W = world && canvasFor(world);
+        if (W) {
+            const { x, k, z } = W;
+            const s = k; // 1 Bildschirm-Pixel in Kartenmass
+            // Tag/Nacht
+            if (!Gfx.low()) {
+                if (T - TA.termT > 20 || !TA.term) { TA.term = terminator(); TA.termT = T; }
+                const { pts, southNight } = TA.term;
+                const edge = southNight ? TH + 20 : -20;
+                for (let q = 0; q < 3; q++) {
+                    x.fillStyle = `rgba(4,6,12,${q === 0 ? 0.22 : 0.07})`;
+                    x.beginPath();
+                    pts.forEach(([px, py], i) => (i ? x.lineTo(px, py + (southNight ? q * 4 : -q * 4)) : x.moveTo(px, py + (southNight ? q * 4 : -q * 4))));
+                    x.lineTo(TW + 20, edge); x.lineTo(-20, edge); x.closePath(); x.fill();
+                }
+            }
+            // Schiffe mit Kielwasser
+            for (const sh of TA.ships) {
+                const L = sh.cum[sh.cum.length - 1];
+                sh.d += sh.v * dt * sh.dir * (pub.paused ? 0.2 : 1);
+                if (sh.d > L) sh.d -= L; if (sh.d < 0) sh.d += L;
+                const [px, py, a] = polyAt(sh.pts, sh.cum, sh.d);
+                const ang = sh.dir > 0 ? a : a + Math.PI;
+                x.save(); x.translate(px, py); x.rotate(ang); x.scale(s * 1.3, s * 1.3);
+                const wk = x.createLinearGradient(-18, 0, 0, 0); wk.addColorStop(0, 'rgba(200,225,255,0)'); wk.addColorStop(1, 'rgba(200,225,255,.45)');
+                x.fillStyle = wk; x.beginPath(); x.moveTo(-18, -2.5); x.lineTo(-3, -1); x.lineTo(-3, 1); x.lineTo(-18, 2.5); x.closePath(); x.fill();
+                x.fillStyle = '#e9dcc4'; x.beginPath(); x.moveTo(5, 0); x.lineTo(2, -2); x.lineTo(-4, -2); x.lineTo(-4, 2); x.lineTo(2, 2); x.closePath(); x.fill();
+                x.fillStyle = '#b8863f'; x.fillRect(-3, -1.2, 3.5, 2.4);
+                x.restore();
+            }
+            // Live-Kurs an den Börsen London und New York
+            if (TA.price !== null && pub.price !== TA.price) { TA.flash = 1; TA.flashUp = pub.price > TA.price; }
+            TA.price = pub.price;
+            TA.flash = Math.max(0, TA.flash - dt * 1.2);
+            [['lon', 'ICE LONDON', pub.price], ['nyc', 'ICE NEW YORK', Math.round(pub.price * 1.07)]].forEach(([key, lb, pr]) => {
+                const L = INTEL_LOCS[key];
+                const px = tx(L.lon);
+                const py = ty(L.lat);
+                x.save(); x.translate(px, py); x.scale(s, s);
+                const ox = key === 'lon' ? 14 : -94;
+                const oy = -38;
+                const fl = TA.flash;
+                x.fillStyle = 'rgba(12,10,8,.86)';
+                rrect(x, ox, oy, 80, 22, 5); x.fill();
+                x.strokeStyle = fl > 0 ? (TA.flashUp ? `rgba(86,199,150,${0.4 + fl * 0.6})` : `rgba(226,104,120,${0.4 + fl * 0.6})`) : 'rgba(214,178,112,.4)';
+                x.lineWidth = 1; x.stroke();
+                x.fillStyle = '#a3978a'; x.font = '600 6.5px Inter, sans-serif'; x.textAlign = 'left'; x.fillText(lb, ox + 6, oy + 8.5);
+                x.fillStyle = fl > 0 ? (TA.flashUp ? '#7fe0b4' : '#f08a9a') : '#f3dcaa'; x.font = '600 9.5px "IBM Plex Mono", monospace'; x.fillText(fmt(pr), ox + 6, oy + 18.5);
+                x.fillStyle = TA.flashUp ? '#56c796' : '#e26878'; x.font = '600 8px Inter, sans-serif'; x.textAlign = 'right'; x.fillText(TA.flashUp ? '▲' : '▼', ox + 74, oy + 18);
+                x.strokeStyle = 'rgba(214,178,112,.35)'; x.beginPath(); x.moveTo(key === 'lon' ? 3 : -3, -3); x.lineTo(key === 'lon' ? ox : ox + 80, oy + 22); x.stroke();
+                x.restore();
+            });
+            // Intel-Einsatz: Bogen vom Fonds (New York) zum Einsatzort
+            const job = me.intel && me.intel.job;
+            if (job && job.loc !== 'nyc') {
+                const A = INTEL_LOCS.nyc;
+                const B = INTEL_LOCS[job.loc];
+                const west = WEST.includes(job.loc);
+                const ax = tx(A.lon); const ay = ty(A.lat);
+                const bx = west ? tx(-3) : tx(B.lon); const by = west ? ty(7) : ty(B.lat);
+                const cx = (ax + bx) / 2; const cy = Math.min(ay, by) - Math.abs(bx - ax) * 0.25 - 10;
+                x.save();
+                x.setLineDash([3 * s, 3 * s]); x.lineDashOffset = -T * 12 * s;
+                x.strokeStyle = 'rgba(169,196,220,.75)'; x.lineWidth = 1.2 * s;
+                x.beginPath(); x.moveTo(ax, ay); x.quadraticCurveTo(cx, cy, bx, by); x.stroke();
+                x.setLineDash([]);
+                const p = (T * 0.45) % 1; const qx = (1 - p) * (1 - p) * ax + 2 * (1 - p) * p * cx + p * p * bx; const qy = (1 - p) * (1 - p) * ay + 2 * (1 - p) * p * cy + p * p * by;
+                const g = x.createRadialGradient(qx, qy, 0, qx, qy, 5 * s); g.addColorStop(0, 'rgba(230,240,255,1)'); g.addColorStop(1, 'rgba(169,196,220,0)');
+                x.fillStyle = g; x.beginPath(); x.arc(qx, qy, 5 * s, 0, 7); x.fill();
+                // Radar am Ziel
+                const ra = T * 3;
+                x.strokeStyle = 'rgba(169,196,220,.6)'; x.lineWidth = 1 * s;
+                x.beginPath(); x.arc(bx, by, 10 * s, 0, 7); x.stroke();
+                x.fillStyle = 'rgba(169,196,220,.18)'; x.beginPath(); x.moveTo(bx, by); x.arc(bx, by, 10 * s, ra, ra + 0.9); x.closePath(); x.fill();
+                x.restore();
+            }
+            // Gerüchte: Symbol schwebt über der betroffenen Region
+            for (const r of (me.intel && me.intel.rumors) || []) {
+                const k2 = r.region ? REGION_LOC[r.region] : 'web';
+                const L = INTEL_LOCS[k2];
+                if (!L || WEST.includes(k2)) continue;
+                x.save(); x.translate(tx(L.lon), ty(L.lat) - 16 * s + Math.sin(T * 2) * 2 * s); x.scale(s, s);
+                x.font = '12px "Noto Color Emoji", sans-serif'; x.textAlign = 'center'; x.globalAlpha = 0.9; x.fillText(r.icon, 0, 0); x.restore();
+            }
+        }
+        // ---------- Ausschnitt Westafrika ----------
+        const I = inset && canvasFor(inset);
+        if (I) {
+            const { x, k } = I;
+            const s = k;
+            // Lastwagen: Plantage → Hafen
+            const truckRoutes = [
+                [[ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat)], [ix(-5.2), iy(6.4)], [ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat) + 2]],
+                [[ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat)], [ix(-0.6), iy(6.4)], [ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat) + 2]],
+            ];
+            truckRoutes.forEach((R, ri) => {
+                const cum = polyLen(R);
+                const L = cum[cum.length - 1];
+                x.strokeStyle = 'rgba(214,178,112,.28)'; x.lineWidth = 1.4 * s; x.setLineDash([2 * s, 2.5 * s]);
+                x.beginPath(); R.forEach(([px, py], i) => (i ? x.lineTo(px, py) : x.moveTo(px, py))); x.stroke(); x.setLineDash([]);
+                for (let q = 0; q < 3; q++) {
+                    const d = ((T * 9 + q * (L / 3) + ri * 7) % L);
+                    const [px, py, a] = polyAt(R, cum, d);
+                    x.save(); x.translate(px, py); x.rotate(a); x.scale(s, s);
+                    x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(-4, -1.6, 9, 4);
+                    x.fillStyle = '#c99a5b'; x.fillRect(-5, -2.2, 7, 4.4); x.fillStyle = '#e9dcc4'; x.fillRect(2, -2, 3, 4);
+                    x.restore();
+                }
+            });
+            // Schiffe legen in Abidjan und Tema ab
+            [['abj', -1], ['acc', 1]].forEach(([key, side], si) => {
+                const L = INTEL_LOCS[key];
+                const px0 = ix(L.lon); const py0 = iy(L.lat) + 4;
+                for (let q = 0; q < 2; q++) {
+                    const p = ((T * 0.05 + q * 0.5 + si * 0.25) % 1);
+                    const px = px0 + side * p * 26; const py = py0 + 6 + p * 20;
+                    x.save(); x.translate(px, py); x.rotate(Math.atan2(20, side * 26)); x.scale(s * 1.1, s * 1.1); x.globalAlpha = Math.min(1, p * 5) * (1 - p);
+                    x.fillStyle = 'rgba(200,225,255,.35)'; x.beginPath(); x.moveTo(-14, -2); x.lineTo(-3, -1); x.lineTo(-3, 1); x.lineTo(-14, 2); x.fill();
+                    x.fillStyle = '#e9dcc4'; x.beginPath(); x.moveTo(5, 0); x.lineTo(2, -2); x.lineTo(-4, -2); x.lineTo(-4, 2); x.lineTo(2, 2); x.closePath(); x.fill();
+                    x.fillStyle = '#b8863f'; x.fillRect(-3, -1.2, 3.5, 2.4);
+                    x.restore();
+                }
+            });
+            // Wetter über der Region eines laufenden Gerüchts
+            for (const r of (me.intel && me.intel.rumors) || []) {
+                const k2 = r.region ? REGION_LOC[r.region] : null;
+                if (!k2 || !WEST.includes(k2)) continue;
+                const L = INTEL_LOCS[k2];
+                const cx = ix(L.lon); const cy = iy(L.lat) - 18;
+                if (/regen|black|pilz|schimmel/i.test(r.text)) {
+                    x.fillStyle = 'rgba(200,210,225,.55)'; for (let q = 0; q < 3; q++) { x.beginPath(); x.arc(cx - 8 + q * 8, cy, 6 * s * 1.2 + 2, 0, 7); x.fill(); }
+                    x.strokeStyle = 'rgba(160,200,255,.6)'; x.lineWidth = 0.8 * s; for (let q = 0; q < 8; q++) { const p = (T * 1.5 + q / 8) % 1; x.beginPath(); x.moveTo(cx - 12 + q * 3.4, cy + 5 + p * 14); x.lineTo(cx - 13 + q * 3.4, cy + 9 + p * 14); x.stroke(); }
+                } else if (/dürre|trocken|hitze/i.test(r.text)) {
+                    const g = x.createRadialGradient(cx, cy, 1, cx, cy, 14); g.addColorStop(0, 'rgba(255,200,90,.85)'); g.addColorStop(1, 'rgba(255,170,60,0)');
+                    x.fillStyle = g; x.beginPath(); x.arc(cx, cy, 14 + Math.sin(T * 3) * 1.5, 0, 7); x.fill();
+                } else {
+                    x.save(); x.translate(cx, cy + Math.sin(T * 2) * 1.5); x.scale(s, s); x.font = '12px "Noto Color Emoji", sans-serif'; x.textAlign = 'center'; x.fillText(r.icon, 0, 4); x.restore();
+                }
+            }
+        }
+    }
+
     function renderTerm() {
         if (!me || !pub || !me.intel) return;
         if (pub.phase !== 'pre' && tut.i >= 0 && !tut.done) tutAbort();
@@ -2844,6 +3097,7 @@ const Player = (() => {
             g.classList.toggle('busy', !!(I.job && I.job.loc === k));
         });
         termFx();
+        termAnimSetup();
         const job = I.job;
         $('t-job').classList.toggle('hidden', !job);
         if (job) setHTML($('t-job'), `<span>${INTEL_TYPES[job.type].icon} ${esc(INTEL_TYPES[job.type].name)} · ${esc(INTEL_LOCS[job.loc].name)}</span><b>${job.left}s</b><i style="width:${((job.dur - job.left) / Math.max(1, job.dur)) * 100}%"></i>`);

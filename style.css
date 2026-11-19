@@ -2224,3 +2224,20 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 
 .plant-map .pl-k { font-family: var(--sans); font-size: 6.6px; fill: #b9ab92; letter-spacing: .04em; }
 .plant-map .pst-head { font-size: 8.5px !important; fill: #e9dcc4; }
+
+/* ===================== Terminal: edlere, lebendige Weltkarte ===================== */
+#t-map, #t-map .t-inset { position: relative; }
+.t-anim { position: absolute; pointer-events: none; z-index: 1; }
+#t-map .t-pin { position: relative; }
+.t-world, .t-inset-svg { position: relative; z-index: 0; }
+.t-map .t-pin .t-pl { font-family: var(--sans) !important; font-size: 8.4px; font-weight: 600; fill: #e9dcc4; letter-spacing: .03em; stroke: rgba(8, 6, 4, .9); stroke-width: 2.6px; }
+.t-map .t-pin .t-pi { font-size: 9px; opacity: .9; }
+.t-map .t-pin .t-dot { fill: #0d0a07; stroke: var(--tc); stroke-width: 1.6; filter: drop-shadow(0 0 3px rgba(169, 196, 220, .55)); }
+.t-map .t-pin.hot .t-dot { stroke: #f0cd84; filter: drop-shadow(0 0 5px rgba(240, 205, 132, .8)); }
+.t-map .t-pin.sel .t-dot { fill: var(--tc); }
+.t-world .t-grid-l line { stroke: rgba(214, 178, 112, .07) !important; }
+.t-world .t-grid-l text { fill: rgba(214, 178, 112, .35) !important; font-family: var(--mono); font-size: 5px; }
+.t-world .t-routes path { stroke: rgba(214, 178, 112, .22) !important; stroke-dasharray: 2 3; }
+.t-west rect { stroke: rgba(240, 205, 132, .55) !important; fill: rgba(240, 205, 132, .04) !important; }
+.t-inset { background: radial-gradient(500px 220px at 45% 40%, rgba(46, 58, 74, .45), rgba(10, 12, 16, .4)) !important; border-color: rgba(214, 178, 112, .2) !important; }
+.t-inset-h { color: #f0cd84 !important; letter-spacing: .22em !important; }
