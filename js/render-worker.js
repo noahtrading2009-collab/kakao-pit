@@ -1020,18 +1020,20 @@ const RenderCore = (() => {
         };
         for (const sl of L.drops) pipe(sl[0], sl[1], sl[0], L.pipeY, 6);
         if (L.xb > L.xa) pipe(L.xa, L.pipeY, L.xb, L.pipeY, 7);
-        if (L.xa > 235) pipe(235, L.pipeY, L.xa, L.pipeY, 7);
-        pipe(235, L.pipeY, 235, L.by - 30, 7);
+        const PX = L.v2 ? L.inX : 235;
+        const PY = L.v2 ? L.inY : L.by - 30;
+        if (L.xa > PX) pipe(PX, L.pipeY, L.xa, L.pipeY, 7);
+        pipe(PX, L.pipeY, PX, PY, 7);
         // Ventil mit rotem Handrad
-        const vy = (L.pipeY + L.by - 30) / 2;
+        const vy = (L.pipeY + PY) / 2;
         x.fillStyle = '#8f1d1d';
         x.beginPath();
-        x.arc(235, vy, 6, 0, 7);
+        x.arc(PX, vy, 6, 0, 7);
         x.fill();
         x.strokeStyle = '#d24a3a';
         x.lineWidth = 1.4;
         x.beginPath();
-        x.arc(235, vy, 6, 0, 7);
+        x.arc(PX, vy, 6, 0, 7);
         x.stroke();
         // 4) Silos
         for (const S of L.silos) {
@@ -1168,8 +1170,8 @@ const RenderCore = (() => {
             x.strokeRect(w / 2 - 15, 80, 30, 11);
             x.restore();
         }
-        // 4b) Schokoladen-Produktionslinie: Röster → Conche → Überzieher → Kühltunnel
-        {
+        // 4b) Schokoladen-Produktionslinie: Röster → Conche → Überzieher → Kühltunnel (alte Darstellung)
+        if (!L.v2) {
             const by0 = L.by;
             const steel = (x0, y0, w0, h0, base) => cylinderShade(x, x0, y0, w0, h0, base || [150, 158, 170]);
             // --- Röster: liegende Trommel mit Brenner, Trichter mit Bohnen, Kamin ---
@@ -1310,6 +1312,7 @@ const RenderCore = (() => {
         }
         // 5) Förderband-Gestell und Maschine (statische Teile)
         const by = L.by;
+        if (!L.v2) {
         x.fillStyle = '#1b2027';
         for (let xx = 60; xx < 760; xx += 70) { x.fillRect(xx, by + 80, 4, fy - by - 80 + 6); }
         const bg = x.createLinearGradient(0, by + 64, 0, by + 82);
@@ -1334,6 +1337,7 @@ const RenderCore = (() => {
         for (let q = 0; q < 6; q++) { x.fillStyle = '#1a1f26'; x.fillRect(430 + q * 6, by + 40, 3, 16); }
         x.fillStyle = 'rgba(255,255,255,.12)';
         x.fillRect(318, by + 2, 164, 2);
+        }
         // Nasser Boden: Spiegelungen der Lampen als weiche Lichtbahnen
         x.save();
         x.globalCompositeOperation = 'lighter';
@@ -1345,6 +1349,7 @@ const RenderCore = (() => {
             x.fillRect(lx - 9, fy, 18, H - fy);
         }
         x.restore();
+        if (!L.v2) {
         // Palette mit Jutesäcken
         const pallet = (px, py, rows) => {
             x.fillStyle = 'rgba(0,0,0,.45)';
@@ -1423,6 +1428,7 @@ const RenderCore = (() => {
         for (const wx of [fx3 + 5, fx3 + 21]) { x.fillStyle = '#111'; x.beginPath(); x.arc(wx, fy3, 4, 0, 7); x.fill(); x.fillStyle = '#555'; x.beginPath(); x.arc(wx, fy3, 1.6, 0, 7); x.fill(); }
         x.fillStyle = 'rgba(255,255,255,.25)';
         x.fillRect(fx3, fy3 - 16, 26, 1.2);
+        }
         // Wandschilder: Feuerlöscher, Notausgang, Warnschild
         x.fillStyle = '#b3201c';
         x.fillRect(14, by + 20, 6, 15);

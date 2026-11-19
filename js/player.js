@@ -1270,9 +1270,405 @@ const Player = (() => {
         if (L.last && now - L.last < (Gfx.low() ? 48 : 24)) return; // niedrig: ca. 20 Bilder/s
         const dt = L.last ? Math.min(0.1, (now - L.last) / 1000) : 0.016;
         L.last = now;
-        lifeStep(dt, now / 1000);
-        lifeDraw(L.ctx);
+        if (L.mode === 'plant') { PLINE.T += dt * PLINE.sp; plantFrame(L.ctx); } else { lifeStep(dt, now / 1000); lifeDraw(L.ctx); }
     }
+    // ===== Fabrik: der echte Weg von der Bohne zur Tafel – 13 Schritte, lebendig gezeichnet =====
+    // Hintere Reihe (links → rechts): Rohkakao wird zu Schokoladenmasse.
+    // Vordere Reihe (rechts → links): aus der Masse werden verpackte Tafeln.
+    const PST = [
+        { k: 'clean', x: 70, row: 0, name: 'Reinigen', p: 'Sieb · Magnet · Luftstrom', txt: 'Die Jutesäcke werden geleert. Siebe, Magnete und ein Luftstrom holen Steine, Fasern und Metallteile heraus.' },
+        { k: 'roast', x: 185, row: 0, name: 'Rösten', p: '120–140 °C · 20–40 min', txt: 'In der drehenden Trommel entsteht das typische Kakao-Aroma. Danach kühlen die Bohnen auf dem Kühlsieb ab.' },
+        { k: 'winnow', x: 300, row: 0, name: 'Brechen & Schälen', p: 'Schalen ≈ 12 % → Tee, Tierfutter', txt: 'Walzen brechen die Bohnen, ein Luftstrom bläst die leichten Schalen weg. Übrig bleiben die Kakao-Nibs.' },
+        { k: 'grind', x: 410, row: 0, name: 'Mahlen', p: '≈ 70 °C · Nibs enthalten 54 % Fett', txt: 'Mahlsteine zerreiben die Nibs. Die Kakaobutter schmilzt – aus Bruch wird flüssige Kakaomasse.' },
+        { k: 'mix', x: 520, row: 0, name: 'Mischen', p: 'Milchschokolade: ≈ 30 % Kakao', txt: 'Kakaomasse, Zucker, Milchpulver und extra Kakaobutter werden zu einem Teig geknetet.' },
+        { k: 'refine', x: 640, row: 0, name: 'Feinwalzen', p: '5 Walzen · feiner als 20 µm', txt: 'Fünf Walzen zerreiben Zucker- und Kakaoteilchen so fein, dass die Zunge nichts mehr spürt.' },
+        { k: 'conche', x: 726, row: 1, name: 'Conchieren', p: '50–80 °C · 6–72 Stunden', txt: 'Stundenlanges Rühren und Belüften: Säure und Bitterstoffe verfliegen, die Schokolade wird zartschmelzend.' },
+        { k: 'temper', x: 606, row: 1, name: 'Temperieren', p: '45 → 27 → 31 °C', txt: 'Erwärmen, abkühlen, leicht wieder erwärmen – so bilden sich die richtigen Kristalle. Ergebnis: Glanz und Knack.' },
+        { k: 'deposit', x: 490, row: 1, name: 'Giessen & Rütteln', p: '100 g pro Tafel', txt: 'Die Masse wird genau dosiert in Tafelformen gegossen. Rütteln treibt die Luftblasen heraus.' },
+        { k: 'cool', x: 355, row: 1, name: 'Kühlen', p: '≈ 12 °C · 20 Minuten', txt: 'Langsames Abkühlen im Kühltunnel, damit die Kristalle stabil bleiben und die Tafel glänzt.' },
+        { k: 'demould', x: 236, row: 1, name: 'Ausformen', p: 'leere Formen fahren zurück', txt: 'Die Formen werden gedreht, die Tafeln fallen heraus. Die leeren Formen laufen unten zurück zur Giessanlage.' },
+        { k: 'wrap', x: 136, row: 1, name: 'Verpacken', p: 'bis 600 Tafeln pro Minute', txt: 'Alufolie schützt vor Licht und Feuchtigkeit, darüber kommt die Banderole mit dem Markennamen.' },
+        { k: 'ship', x: 46, row: 1, name: 'Versand', p: 'Karton → Palette → Handel', txt: 'Tafeln kommen in Kartons, Kartons auf Paletten – und ab in die Läden.' },
+    ];
+    const PW = { clean: 62, roast: 96, winnow: 70, grind: 84, mix: 84, refine: 64, conche: 104, temper: 66, deposit: 84, cool: 150, demould: 66, wrap: 78, ship: 60 };
+    const PLINE = { T: 0, sp: 1, HH: 0, B1: 0, B2: 0, stat: null, statKey: '' };
+    const lerp = (a, b, t) => a + (b - a) * t;
+    function rrect(x, x0, y0, w, h, r) { x.beginPath(); x.moveTo(x0 + r, y0); x.arcTo(x0 + w, y0, x0 + w, y0 + h, r); x.arcTo(x0 + w, y0 + h, x0, y0 + h, r); x.arcTo(x0, y0 + h, x0, y0, r); x.arcTo(x0, y0, x0 + w, y0, r); x.closePath(); }
+    function steel(x, x0, y0, w, h, r = 3, tone = 1) {
+        const g = x.createLinearGradient(x0, 0, x0 + w, 0);
+        const c = v => `rgb(${Math.round(v[0] * tone)},${Math.round(v[1] * tone)},${Math.round(v[2] * tone)})`;
+        g.addColorStop(0, c([70, 76, 84]));
+        g.addColorStop(0.18, c([168, 176, 186]));
+        g.addColorStop(0.32, c([214, 220, 226]));
+        g.addColorStop(0.55, c([138, 146, 156]));
+        g.addColorStop(0.85, c([92, 99, 108]));
+        g.addColorStop(1, c([58, 63, 70]));
+        x.fillStyle = g;
+        rrect(x, x0, y0, w, h, r);
+        x.fill();
+        x.strokeStyle = 'rgba(0,0,0,.45)';
+        x.lineWidth = 0.6;
+        x.stroke();
+        x.fillStyle = 'rgba(255,255,255,.22)';
+        x.fillRect(x0 + 2, y0 + 0.6, w - 4, 0.8);
+    }
+    function enamel(x, x0, y0, w, h, col, r = 3) {
+        const g = x.createLinearGradient(0, y0, 0, y0 + h);
+        g.addColorStop(0, col[0]);
+        g.addColorStop(1, col[1]);
+        x.fillStyle = g;
+        rrect(x, x0, y0, w, h, r);
+        x.fill();
+        x.strokeStyle = 'rgba(0,0,0,.4)';
+        x.lineWidth = 0.6;
+        x.stroke();
+        x.fillStyle = 'rgba(255,255,255,.18)';
+        x.fillRect(x0 + 2, y0 + 0.7, w - 4, 0.9);
+    }
+    const shadowAt = (x, cx, yb, w) => { const g = x.createRadialGradient(cx, yb, 1, cx, yb, w / 2 + 8); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(cx, yb, w / 2 + 8, 5, 0, 0, 7); x.fill(); };
+    const legs = (x, x0, w, yt, yb) => { x.fillStyle = '#2b3036'; for (const lx of [x0 + 3, x0 + w - 6]) { x.fillRect(lx, yt, 3, yb - yt); x.fillStyle = '#3c434b'; x.fillRect(lx, yb - 1.5, 4.5, 1.5); x.fillStyle = '#2b3036'; } };
+    const panelBox = (x, px, py) => { x.fillStyle = '#14181d'; rrect(x, px, py, 16, 11, 1.5); x.fill(); x.fillStyle = '#0c2a1c'; x.fillRect(px + 2, py + 2, 12, 4); };
+    function belt(x, xa, xb, y, h = 4) {
+        const g = x.createLinearGradient(0, y, 0, y + h);
+        g.addColorStop(0, '#30353c');
+        g.addColorStop(0.5, '#15181c');
+        g.addColorStop(1, '#2a2f35');
+        x.fillStyle = g;
+        x.fillRect(xa, y, xb - xa, h);
+        x.fillStyle = '#4b525b';
+        x.fillRect(xa, y - 0.8, xb - xa, 0.8);
+        x.fillStyle = '#20252a';
+        for (let q = xa + 6; q < xb - 2; q += 22) x.fillRect(q, y + h, 1.6, 7);
+    }
+    // Statische Teile: einmal zeichnen (Maschinenkörper, Bänder, Rohre)
+    function plantStatic(x, P) {
+        const { B1, B2 } = P;
+        const W = id => PW[id];
+        const at = id => PST.find(s => s.k === id).x;
+        // --- Bänder & Rohre der hinteren Reihe ---
+        belt(x, 92, 140, B1 - 16);            // Reinigung → Röster
+        belt(x, 236, 268, B1 - 16);           // Röster → Brecher
+        belt(x, 336, 372, B1 - 16);           // Nibs → Mühle
+        belt(x, 562, 610, B1 - 16);           // Teig → Walzwerk
+        belt(x, 670, 744, B1 - 30);           // Flocken → Rutsche
+        // Rohr Mühle → Mischer (Kakaomasse)
+        x.fillStyle = '#7e8791'; x.fillRect(452, B1 - 52, 26, 5); x.fillStyle = '#c3cad2'; x.fillRect(452, B1 - 52, 26, 1.2);
+        // Rutsche hinunter zur Conche
+        steel(x, 744, B1 - 40, 10, (B2 - 70) - (B1 - 40), 2);
+        // --- vordere Reihe ---
+        belt(x, 274, 548, B2 - 18, 5);       // Formen-Band (Giessen → Kühltunnel → Ausformen)
+        belt(x, 250, 520, B2 - 6, 3);        // Rücklauf leere Formen
+        belt(x, 160, 206, B2 - 18, 4);       // Tafeln → Verpackung
+        belt(x, 70, 98, B2 - 18, 4);         // verpackte Tafeln → Versand
+        // Rohre Conche → Temperierer → Giessanlage
+        for (const [xa, xb, y] of [[640, 676, B2 - 70], [520, 572, B2 - 74]]) { x.fillStyle = '#7e8791'; x.fillRect(xa, y, xb - xa, 5); x.fillStyle = '#c3cad2'; x.fillRect(xa, y, xb - xa, 1.2); }
+
+        // ===== hintere Reihe =====
+        // 1 Reinigen: Trichter + Rüttelsieb + Ausschusskiste
+        { const cx = at('clean'); const w = W('clean'); shadowAt(x, cx, B1, w); legs(x, cx - w / 2 + 4, w - 8, B1 - 40, B1);
+          x.fillStyle = '#c9ccd0'; x.beginPath(); x.moveTo(cx - 22, B1 - 98); x.lineTo(cx + 22, B1 - 98); x.lineTo(cx + 6, B1 - 70); x.lineTo(cx - 6, B1 - 70); x.closePath(); x.fill();
+          const hg = x.createLinearGradient(cx - 22, 0, cx + 22, 0); hg.addColorStop(0, 'rgba(0,0,0,.35)'); hg.addColorStop(0.35, 'rgba(255,255,255,.25)'); hg.addColorStop(1, 'rgba(0,0,0,.4)'); x.fillStyle = hg; x.fill();
+          steel(x, cx - 5, B1 - 70, 10, 10, 1);
+          enamel(x, cx - w / 2, B1 - 56, w, 16, ['#e6e2d8', '#a9a497'], 2);
+          x.fillStyle = '#2a2f35'; x.fillRect(cx - w / 2 + 3, B1 - 54, w - 6, 2);
+          enamel(x, cx + w / 2 - 4, B1 - 22, 16, 14, ['#6b4a2c', '#3e2a17'], 1); // Kiste mit Steinen
+          x.fillStyle = '#8d8a83'; for (let q = 0; q < 5; q++) { x.beginPath(); x.arc(cx + w / 2 + q * 2.6, B1 - 21 + (q % 2), 1.2, 0, 7); x.fill(); }
+          panelBox(x, cx - w / 2 - 2, B1 - 36); }
+        // 2 Rösten: Trommel auf Gestell, Brenner, Kamin, Kühlsieb
+        { const cx = at('roast'); const w = W('roast'); shadowAt(x, cx, B1, w + 20); legs(x, cx - w / 2, w, B1 - 34, B1);
+          enamel(x, cx - w / 2, B1 - 34, w, 10, ['#7a2a1f', '#4a170f'], 2);
+          steel(x, cx - w / 2 + 4, B1 - 78, w - 26, 40, 18);
+          x.fillStyle = '#2a2f35'; x.beginPath(); x.ellipse(cx - w / 2 + 6, B1 - 58, 5, 18, 0, 0, 7); x.fill(); // Trommeltür
+          x.strokeStyle = '#b9c0c8'; x.lineWidth = 1; x.beginPath(); x.ellipse(cx - w / 2 + 6, B1 - 58, 5, 18, 0, 0, 7); x.stroke();
+          steel(x, cx + 10, B1 - 112, 9, 36, 2); x.fillStyle = '#1a1d21'; x.fillRect(cx + 10, B1 - 114, 9, 3); // Kamin
+          // Kühlsieb (rund, flach) rechts
+          x.fillStyle = '#3a4048'; x.beginPath(); x.ellipse(cx + 38, B1 - 22, 18, 6, 0, 0, 7); x.fill();
+          x.fillStyle = '#7c848e'; x.beginPath(); x.ellipse(cx + 38, B1 - 24, 18, 6, 0, 0, 7); x.fill();
+          x.fillStyle = '#4b2a14'; x.beginPath(); x.ellipse(cx + 38, B1 - 24.5, 15, 4.6, 0, 0, 7); x.fill();
+          panelBox(x, cx - w / 2 + 2, B1 - 104); }
+        // 3 Brechen & Schälen: Brecherwalzen oben, Windsichter-Schrank, Schalen-Sack
+        { const cx = at('winnow'); const w = W('winnow'); shadowAt(x, cx, B1, w + 16);
+          enamel(x, cx - w / 2, B1 - 92, w, 92, ['#e8e4da', '#9d988b'], 3);
+          for (let q = 0; q < 4; q++) { x.fillStyle = 'rgba(40,44,50,.55)'; x.fillRect(cx - w / 2 + 6, B1 - 70 + q * 12, w - 12, 1.2); }
+          x.fillStyle = '#20252b'; rrect(x, cx - 18, B1 - 104, 36, 14, 3); x.fill();
+          steel(x, cx + w / 2 - 2, B1 - 84, 22, 8, 3); // Schalen-Kanal
+          x.fillStyle = '#9b7a4f'; rrect(x, cx + w / 2 + 14, B1 - 30, 20, 30, 5); x.fill(); // Jutesack
+          x.fillStyle = 'rgba(0,0,0,.25)'; for (let q = 0; q < 6; q++) x.fillRect(cx + w / 2 + 15, B1 - 28 + q * 4.5, 18, 0.6);
+          x.fillStyle = '#20252b'; x.fillRect(cx - 8, B1 - 18, 16, 6); // Auslauf Nibs
+          panelBox(x, cx - w / 2 + 4, B1 - 86); }
+        // 4 Mahlen: runder Trog mit zwei Mahlsteinen
+        { const cx = at('grind'); const w = W('grind'); shadowAt(x, cx, B1, w + 6); legs(x, cx - w / 2 + 6, w - 12, B1 - 30, B1);
+          enamel(x, cx - w / 2 + 4, B1 - 46, w - 8, 18, ['#6d7680', '#3b4249'], 2);
+          steel(x, cx - w / 2, B1 - 72, w, 28, 8);
+          x.fillStyle = '#2a1407'; x.beginPath(); x.ellipse(cx, B1 - 72, w / 2 - 3, 7, 0, 0, 7); x.fill();
+          steel(x, cx - 3, B1 - 104, 6, 30, 2); // Antriebswelle
+          enamel(x, cx - 16, B1 - 112, 32, 10, ['#3a5b7a', '#1f3549'], 2); // Motor
+          panelBox(x, cx + w / 2 - 14, B1 - 40); }
+        // 5 Mischen: Kneter mit drei Trichtern (Zucker, Milchpulver, Kakaobutter)
+        { const cx = at('mix'); const w = W('mix'); shadowAt(x, cx, B1, w + 6); legs(x, cx - w / 2 + 4, w - 8, B1 - 30, B1);
+          steel(x, cx - w / 2, B1 - 66, w, 38, 12);
+          x.fillStyle = '#0f1216'; rrect(x, cx - 18, B1 - 58, 36, 20, 4); x.fill(); // Sichtfenster
+          [['Zucker', '#f4f1ea', -26], ['Milch', '#efe2c4', 0], ['Butter', '#e9cf85', 26]].forEach(([lb, col, dx]) => {
+              x.fillStyle = '#b8bec5'; x.beginPath(); x.moveTo(cx + dx - 10, B1 - 112); x.lineTo(cx + dx + 10, B1 - 112); x.lineTo(cx + dx + 3, B1 - 92); x.lineTo(cx + dx - 3, B1 - 92); x.closePath(); x.fill();
+              x.fillStyle = col; x.fillRect(cx + dx - 8, B1 - 111, 16, 5);
+              x.fillStyle = '#2b3036'; x.fillRect(cx + dx - 1.5, B1 - 92, 3, 26);
+              x.fillStyle = 'rgba(20,16,12,.85)'; x.font = '600 5.5px Inter, sans-serif'; x.textAlign = 'center'; x.fillText(lb.toUpperCase(), cx + dx, B1 - 114);
+          });
+          panelBox(x, cx + w / 2 - 18, B1 - 26); }
+        // 6 Feinwalzen: Ständer mit fünf Walzen
+        { const cx = at('refine'); const w = W('refine'); shadowAt(x, cx, B1, w + 10);
+          enamel(x, cx - w / 2, B1 - 100, 8, 100, ['#3a5b7a', '#1f3549'], 2); enamel(x, cx + w / 2 - 8, B1 - 100, 8, 100, ['#3a5b7a', '#1f3549'], 2);
+          for (let q = 0; q < 5; q++) steel(x, cx - w / 2 + 8, B1 - 96 + q * 16, w - 16, 13, 6.5);
+          x.fillStyle = '#2b3036'; x.fillRect(cx - w / 2 + 6, B1 - 14, w - 12, 4);
+          panelBox(x, cx + w / 2 - 2, B1 - 60); }
+
+        // Tiefe: hintere Reihe leicht abdunkeln
+        x.fillStyle = 'rgba(10,8,6,.16)';
+        x.fillRect(0, B1 - 120, 800, 120);
+
+        // ===== vordere Reihe =====
+        // 7 Conche: langer Trog mit Rührwerk
+        { const cx = at('conche'); const w = W('conche'); shadowAt(x, cx, B2, w); legs(x, cx - w / 2 + 6, w - 12, B2 - 32, B2);
+          steel(x, cx - w / 2, B2 - 76, w, 46, 20);
+          x.fillStyle = '#2a1407'; x.beginPath(); x.ellipse(cx, B2 - 74, w / 2 - 6, 6, 0, 0, 7); x.fill();
+          enamel(x, cx - 14, B2 - 96, 28, 12, ['#7a2a1f', '#4a170f'], 2); // Antrieb
+          x.fillStyle = '#14181d'; rrect(x, cx + w / 2 - 30, B2 - 52, 24, 16, 2); x.fill(); }
+        // 8 Temperieren: Schrank mit Anzeige
+        { const cx = at('temper'); const w = W('temper'); shadowAt(x, cx, B2, w);
+          enamel(x, cx - w / 2, B2 - 90, w, 90, ['#e8e4da', '#9d988b'], 3);
+          x.fillStyle = '#0d1014'; rrect(x, cx - w / 2 + 6, B2 - 82, w - 12, 34, 3); x.fill();
+          steel(x, cx - w / 2 + 10, B2 - 40, w - 20, 26, 3);
+          for (let q = 0; q < 4; q++) { x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(cx - w / 2 + 14, B2 - 36 + q * 5.5, w - 28, 1); } }
+        // 9 Giessen & Rütteln: Portal mit Dosierkopf
+        { const cx = at('deposit'); const w = W('deposit'); shadowAt(x, cx, B2, w);
+          enamel(x, cx - w / 2, B2 - 92, 8, 74, ['#3a5b7a', '#1f3549'], 2); enamel(x, cx + w / 2 - 8, B2 - 92, 8, 74, ['#3a5b7a', '#1f3549'], 2);
+          enamel(x, cx - w / 2, B2 - 98, w, 12, ['#3a5b7a', '#1f3549'], 2);
+          steel(x, cx - 26, B2 - 86, 52, 22, 4); // Trichter mit Masse
+          x.fillStyle = '#2a1407'; x.fillRect(cx - 23, B2 - 84, 46, 4);
+          enamel(x, cx - w / 2 + 6, B2 - 22, w - 12, 4, ['#59616b', '#2b3036'], 1); } // Rütteltisch
+        // 10 Kühltunnel
+        { const cx = at('cool'); const w = W('cool'); shadowAt(x, cx, B2, w);
+          enamel(x, cx - w / 2, B2 - 52, w, 40, ['#dfe6ec', '#97a3ad'], 5);
+          for (let q = 0; q < 5; q++) { x.fillStyle = '#0d1a24'; rrect(x, cx - w / 2 + 10 + q * 27, B2 - 44, 20, 12, 2); x.fill(); }
+          for (let q = 0; q < 3; q++) steel(x, cx - w / 2 + 20 + q * 48, B2 - 62, 18, 10, 2); // Kühlaggregate
+          legs(x, cx - w / 2 + 4, w - 8, B2 - 12, B2); }
+        // 11 Ausformen: Drehstation
+        { const cx = at('demould'); const w = W('demould'); shadowAt(x, cx, B2, w);
+          enamel(x, cx - w / 2, B2 - 86, 7, 70, ['#3a5b7a', '#1f3549'], 2); enamel(x, cx + w / 2 - 7, B2 - 86, 7, 70, ['#3a5b7a', '#1f3549'], 2);
+          enamel(x, cx - w / 2, B2 - 90, w, 8, ['#3a5b7a', '#1f3549'], 2);
+          x.fillStyle = '#c3cad2'; x.beginPath(); x.arc(cx, B2 - 52, 3, 0, 7); x.fill(); }
+        // 12 Verpacken: Schlauchbeutel-Maschine mit Folienrolle
+        { const cx = at('wrap'); const w = W('wrap'); shadowAt(x, cx, B2, w);
+          enamel(x, cx - w / 2, B2 - 50, w, 36, ['#e8e4da', '#9d988b'], 4);
+          x.fillStyle = '#0f1216'; rrect(x, cx - 18, B2 - 44, 36, 12, 2); x.fill();
+          legs(x, cx - w / 2 + 4, w - 8, B2 - 14, B2);
+          steel(x, cx + 8, B2 - 82, 4, 32, 1); }
+        // 13 Versand: Palette
+        { const cx = at('ship'); shadowAt(x, cx, B2, 50);
+          x.fillStyle = '#7a5a34'; x.fillRect(cx - 24, B2 - 6, 48, 4); x.fillStyle = '#5a3f22'; for (let q = 0; q < 3; q++) x.fillRect(cx - 22 + q * 20, B2 - 2, 5, 2.5); }
+    }
+
+    // Lebendige Teile: jedes Bild neu
+    function plantDyn(x, P, T) {
+        const { B1, B2 } = P;
+        const at = id => PST.find(s => s.k === id).x;
+        const stream = (xa, xb, y, gap, v, draw) => { const L = xb - xa; const n = Math.ceil(L / gap); for (let i = 0; i < n; i++) { const d = (T * v + i * gap) % L; draw(v >= 0 ? xa + d : xb - d, y, i); } };
+        const bean = (bx, by, col) => { x.fillStyle = col; x.beginPath(); x.ellipse(bx, by, 2.2, 1.4, 0.3, 0, 7); x.fill(); };
+        // --- hintere Reihe: Material wandert nach rechts ---
+        stream(92, 140, B1 - 18, 6, 9, (bx, by) => bean(bx, by, '#8a5a34'));
+        stream(236, 268, B1 - 18, 6, 9, (bx, by) => bean(bx, by, '#4a2a14'));
+        stream(336, 372, B1 - 18, 4, 9, (bx, by, i) => { x.fillStyle = i % 2 ? '#3d200c' : '#5a3216'; x.fillRect(bx - 1, by - 1.2, 2 + (i % 3), 1.6); });
+        stream(562, 610, B1 - 19, 12, 7, (bx, by) => { x.fillStyle = '#6a3b1e'; x.beginPath(); x.ellipse(bx, by, 4, 2, 0, 0, 7); x.fill(); });
+        stream(670, 744, B1 - 32, 5, 9, (bx, by, i) => { x.fillStyle = i % 2 ? '#7a4a28' : '#8b5a33'; x.fillRect(bx - 1.5, by - 1, 3, 1.2); });
+        // Kakaomasse im Rohr (laufende Striche)
+        x.fillStyle = '#5a2c10'; for (let q = 0; q < 4; q++) x.fillRect(452 + ((T * 14 + q * 7) % 26), B1 - 50.5, 3, 2);
+        // Rutsche: Flocken fallen zur Conche
+        x.fillStyle = '#8b5a33'; for (let q = 0; q < 6; q++) { const p = ((T * 0.9 + q / 6) % 1); x.fillRect(747, lerp(B1 - 36, B2 - 74, p), 3, 1.4); }
+
+        // 1 Reinigen: Bohnen fallen, Sieb rüttelt
+        { const cx = at('clean'); const j = Math.sin(T * 50) * 0.7;
+          for (let q = 0; q < 4; q++) bean(cx + (q % 2 ? 1.5 : -1.5), B1 - 70 + ((T * 40 + q * 4) % 14), '#8a5a34');
+          x.fillStyle = '#d9d2c2'; x.fillRect(cx - 26 + j, B1 - 58, 52, 2);
+          x.fillStyle = 'rgba(220,210,190,.35)'; for (let q = 0; q < 6; q++) { const p = (T * 0.6 + q / 6) % 1; x.fillRect(cx - 20 + q * 7 + j, B1 - 60 - p * 10, 0.8, 0.8); }
+          x.fillStyle = (Math.floor(T * 2) % 2) ? '#4ade80' : '#14532d'; x.fillRect(cx - 29, B1 - 33, 3, 2); }
+        // 2 Rösten: drehende Trommel, Flammen, Abluft, Kühlsieb-Arm, Temperatur
+        { const cx = at('roast'); const x0 = cx - 44; const w = 70;
+          x.save(); rrect(x, x0, B1 - 78, w, 40, 18); x.clip();
+          x.strokeStyle = 'rgba(40,44,50,.55)'; x.lineWidth = 1.4;
+          for (let q = 0; q < 6; q++) { const px = x0 + ((q * 14 + T * 10) % (w + 14)) - 7; x.beginPath(); x.moveTo(px, B1 - 78); x.lineTo(px + 6, B1 - 38); x.stroke(); }
+          x.restore();
+          for (let q = 0; q < 5; q++) { const fl = 4 + Math.sin(T * 13 + q * 1.7) * 2 + Math.sin(T * 29 + q) * 1; const fx = x0 + 10 + q * 12; const g = x.createLinearGradient(0, B1 - 34 - fl, 0, B1 - 34); g.addColorStop(0, 'rgba(255,200,80,0)'); g.addColorStop(0.5, 'rgba(255,150,40,.9)'); g.addColorStop(1, 'rgba(80,140,255,.9)'); x.fillStyle = g; x.beginPath(); x.moveTo(fx - 2.5, B1 - 34); x.quadraticCurveTo(fx, B1 - 34 - fl * 2, fx + 2.5, B1 - 34); x.fill(); }
+          for (let q = 0; q < 4; q++) { const p = (T * 0.35 + q / 4) % 1; x.fillStyle = `rgba(210,205,198,${(0.38 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx + 14.5 + p * 10, B1 - 116 - p * 26, 2.5 + p * 7, 0, 7); x.fill(); }
+          const a = T * 1.6; x.strokeStyle = '#c3cad2'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(cx + 38 - Math.cos(a) * 14, B1 - 24.5 - Math.sin(a) * 4.2); x.lineTo(cx + 38 + Math.cos(a) * 14, B1 - 24.5 + Math.sin(a) * 4.2); x.stroke();
+          x.fillStyle = '#7dffb0'; x.font = '600 4.6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${Math.round(134 + Math.sin(T * 0.7) * 3)}°C`, cx - 40, B1 - 98.5); }
+        // 3 Brechen & Schälen: Walzen drehen, Schalen fliegen in den Sack, Nibs fallen
+        { const cx = at('winnow');
+          for (const [ox, dir] of [[-8, 1], [8, -1]]) { x.fillStyle = '#6d757e'; x.beginPath(); x.arc(cx + ox, B1 - 97, 5.5, 0, 7); x.fill(); x.strokeStyle = '#c3cad2'; x.lineWidth = 0.9; for (let q = 0; q < 3; q++) { const a = T * 4 * dir + (q * Math.PI * 2) / 3; x.beginPath(); x.moveTo(cx + ox, B1 - 97); x.lineTo(cx + ox + Math.cos(a) * 5, B1 - 97 + Math.sin(a) * 5); x.stroke(); } }
+          for (let q = 0; q < 8; q++) { const p = (T * 0.7 + q / 8) % 1; const fx = lerp(cx + 55, cx + 60, p) + Math.sin(p * 9 + q) * 3; const fy = lerp(B1 - 80, B1 - 28, p) - Math.sin(p * Math.PI) * 8; x.fillStyle = `rgba(196,160,112,${(0.9 - p * 0.5).toFixed(2)})`; x.save(); x.translate(fx, fy); x.rotate(T * 6 + q); x.fillRect(-1.6, -0.6, 3.2, 1.2); x.restore(); }
+          x.fillStyle = '#4a2a12'; for (let q = 0; q < 4; q++) x.fillRect(cx - 4 + q * 2.4, B1 - 12 + ((T * 30 + q * 3) % 6), 1.4, 1.4); }
+        // 4 Mahlen: zwei Mahlsteine kreisen im Trog
+        { const cx = at('grind'); for (let q = 0; q < 2; q++) { const a = T * 1.3 + q * Math.PI; const sx = cx + Math.cos(a) * 16; const sy = B1 - 73 + Math.sin(a) * 2.4; const g = x.createRadialGradient(sx - 2, sy - 3, 1, sx, sy, 9); g.addColorStop(0, '#d6d1c7'); g.addColorStop(1, '#6f6a62'); x.fillStyle = g; x.beginPath(); x.ellipse(sx, sy - 4, 8, 6, 0, 0, 7); x.fill(); }
+          x.strokeStyle = 'rgba(160,100,60,.4)'; x.lineWidth = 0.6; x.beginPath(); x.ellipse(cx, B1 - 72, 22 + Math.sin(T * 3) * 2, 3.5, 0, 0, 7); x.stroke(); }
+        // 5 Mischen: Zutaten rieseln abwechselnd, Knethaken drehen
+        { const cx = at('mix');
+          [['#f4f1ea', -26, 0], ['#efe2c4', 0, 2.1], ['#e9cf85', 26, 4.2]].forEach(([col, dx, ph]) => { if (Math.sin(T * 0.9 + ph) < 0.2) return; x.fillStyle = col; for (let q = 0; q < 5; q++) x.fillRect(cx + dx - 0.8, B1 - 92 + ((T * 50 + q * 6) % 30) - 2, 1.6, 2); });
+          x.save(); rrect(x, cx - 18, B1 - 58, 36, 20, 4); x.clip(); x.fillStyle = '#5a3018'; x.fillRect(cx - 18, B1 - 46, 36, 8);
+          for (let q = 0; q < 2; q++) { const a = T * 2.2 + q * Math.PI; x.strokeStyle = '#aab2bb'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(cx - 8 + q * 16, B1 - 48); x.lineTo(cx - 8 + q * 16 + Math.cos(a) * 7, B1 - 48 + Math.sin(a) * 6); x.stroke(); }
+          x.restore(); }
+        // 6 Feinwalzen: Walzen drehen gegenläufig, Film wird dünner, Flocken fallen
+        { const cx = at('refine'); const w = 48;
+          for (let q = 0; q < 5; q++) { const y = B1 - 96 + q * 16; x.save(); rrect(x, cx - w / 2, y, w, 13, 6.5); x.clip(); x.fillStyle = 'rgba(30,34,40,.4)'; const off = ((q % 2 ? -1 : 1) * T * 8) % 8; for (let s = -8; s < w + 8; s += 8) x.fillRect(cx - w / 2 + s + off, y, 1.2, 13); x.restore();
+              x.fillStyle = `rgba(110,62,28,${(0.85 - q * 0.12).toFixed(2)})`; x.fillRect(cx - w / 2 + 2, y + 12, w - 4, 1.4 + (4 - q) * 0.3); }
+          x.fillStyle = '#8b5a33'; for (let q = 0; q < 5; q++) { const p = (T * 0.8 + q / 5) % 1; x.fillRect(cx + 20 + q, B1 - 18 - (1 - p) * 4, 2.4, 1); } }
+
+        // --- vordere Reihe: Formen und Tafeln wandern nach links ---
+        const V = 16;           // Bandgeschwindigkeit
+        const G = 34;           // Abstand der Formen
+        const dep = at('deposit');
+        const dem = at('demould');
+        const mould = (mx, my, full) => { x.fillStyle = '#c9d2da'; x.fillRect(mx - 12, my - 5, 24, 6); x.fillStyle = full ? '#3e1c08' : '#8f9aa6'; x.fillRect(mx - 10.5, my - 4, 21, 4); x.strokeStyle = full ? '#2a1205' : '#b4bec8'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(mx - 10.5 + q * 5.25, my - 4); x.lineTo(mx - 10.5 + q * 5.25, my); } x.stroke(); if (full) { x.fillStyle = 'rgba(255,220,180,.4)'; x.fillRect(mx - 10, my - 4, 20, 0.7); } };
+        // Formen-Band: rechts (leer) → Giessanlage (voll) → Tunnel (versteckt) → Ausformen
+        const shake = Math.sin(T * 60) * 0.6;
+        stream(dem + 30, 548, B2 - 20, G, -V, (mx, my) => {
+            if (mx > 282 && mx < 428) return; // im Tunnel
+            const full = mx < dep + 2;
+            mould(mx + (Math.abs(mx - dep) < 30 ? shake : 0), my, full);
+        });
+        // Dosierkolben + Tropfen: im Takt der ankommenden Formen
+        { const ph = ((T * V) % G) / G; const down = Math.max(0, Math.sin(ph * Math.PI * 2)) * 6;
+          for (let q = 0; q < 4; q++) { const nx = dep - 15 + q * 10; steel(x, nx - 2, B2 - 64 + down, 4, 10, 1); if (down > 3) { x.fillStyle = '#4a2410'; x.fillRect(nx - 0.8, B2 - 54 + down, 1.6, 30 - down); } } }
+        // Kühltunnel: kalter Nebel, Anzeige
+        { const cx = at('cool'); for (let q = 0; q < 6; q++) { const p = (T * 0.4 + q / 6) % 1; x.fillStyle = `rgba(210,235,255,${(0.32 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx - 50 + q * 20 + Math.sin(T + q) * 3, B2 - 64 - p * 16, 3 + p * 6, 0, 7); x.fill(); }
+          for (let q = 0; q < 5; q++) { x.fillStyle = `rgba(120,190,255,${(0.18 + 0.1 * Math.sin(T * 2 + q)).toFixed(3)})`; x.fillRect(cx - 65 + q * 27, B2 - 44, 20, 12); }
+          x.fillStyle = '#9fd6ff'; x.font = '600 5px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText('12°C', cx + 60, B2 - 46); }
+        // Ausformen: Form dreht sich, Tafel fällt
+        { const ph = ((T * V) % G) / G; const a = ph < 0.5 ? ph * 2 * Math.PI : Math.PI;
+          x.save(); x.translate(dem, B2 - 52); x.rotate(a); x.fillStyle = '#c9d2da'; x.fillRect(-12, -3, 24, 6); x.fillStyle = ph < 0.5 ? '#3e1c08' : '#8f9aa6'; x.fillRect(-10.5, -2, 21, 4); x.restore();
+          if (ph >= 0.5) { const p = (ph - 0.5) * 2; x.fillStyle = '#3e1c08'; x.fillRect(dem - 10, lerp(B2 - 48, B2 - 24, p), 20, 4); } }
+        // Rücklauf: leere Formen zurück zur Giessanlage
+        stream(260, 512, B2 - 8, G, V, (mx, my) => { x.globalAlpha = 0.85; mould(mx, my + 1, false); x.globalAlpha = 1; });
+        // Tafeln → Verpackung
+        stream(160, 206, B2 - 22, 17, -V, (bx, by) => { x.fillStyle = '#3e1c08'; x.fillRect(bx - 8, by - 1, 16, 4); x.strokeStyle = '#2a1205'; x.lineWidth = 0.5; x.beginPath(); for (let q = 1; q < 4; q++) { x.moveTo(bx - 8 + q * 4, by - 1); x.lineTo(bx - 8 + q * 4, by + 3); } x.stroke(); });
+        // Verpacken: Folienrolle dreht, Backen schliessen
+        { const cx = at('wrap'); const a = T * 5; x.fillStyle = '#d4a017'; x.beginPath(); x.arc(cx + 10, B2 - 84, 7, 0, 7); x.fill(); x.strokeStyle = '#f5d36b'; x.lineWidth = 1; x.beginPath(); x.arc(cx + 10, B2 - 84, 4.5, a, a + 2); x.stroke(); x.fillStyle = '#5a4510'; x.beginPath(); x.arc(cx + 10, B2 - 84, 1.6, 0, 7); x.fill();
+          const jaw = Math.abs(Math.sin(T * Math.PI * (V / 17))) * 3; x.fillStyle = '#aab2bb'; x.fillRect(cx - 4, B2 - 44 + jaw, 8, 3); x.fillRect(cx - 4, B2 - 35 - jaw, 8, 3);
+          x.fillStyle = '#7dffb0'; x.font = '600 4.4px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText('480/min', cx - 22, B2 - 39); }
+        stream(70, 98, B2 - 22, 14, -V, (bx, by) => { x.fillStyle = '#d4a017'; x.fillRect(bx - 7, by - 1, 14, 4); x.fillStyle = '#7a1f2b'; x.fillRect(bx - 3, by - 1, 6, 4); });
+        // Versand: Kartons stapeln sich, volle Palette fährt weg
+        { const cx = at('ship'); const per = 1.6; const n = Math.floor(T / per) % 13; for (let q = 0; q < Math.min(n, 12); q++) { const col = q % 3; const row = Math.floor(q / 3); x.fillStyle = '#b48a55'; x.fillRect(cx - 21 + col * 14, B2 - 15 - row * 10, 13, 9); x.fillStyle = 'rgba(0,0,0,.2)'; x.fillRect(cx - 21 + col * 14, B2 - 11 - row * 10, 13, 1); x.fillStyle = '#7a1f2b'; x.fillRect(cx - 17 + col * 14, B2 - 13 - row * 10, 5, 2); } }
+        // Conche: Rührarm, Aroma-Dampf, Laufzeit
+        { const cx = at('conche'); const a = T * 1.1;
+          x.strokeStyle = '#c3cad2'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(cx - Math.cos(a) * 40, B2 - 74 - Math.sin(a) * 4); x.lineTo(cx + Math.cos(a) * 40, B2 - 74 + Math.sin(a) * 4); x.stroke();
+          for (let q = 0; q < 4; q++) { const p = (T * 0.3 + q / 4) % 1; x.fillStyle = `rgba(200,170,140,${(0.3 * (1 - p)).toFixed(3)})`; x.beginPath(); x.arc(cx - 30 + q * 20 + Math.sin(T + q) * 4, B2 - 82 - p * 22, 2 + p * 6, 0, 7); x.fill(); }
+          const h = (T * 0.25) % 12; x.fillStyle = '#7dffb0'; x.font = '600 4.6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')} h`, cx + 40, B2 - 45);
+          x.strokeStyle = '#d9b26f'; x.lineWidth = 1; x.beginPath(); x.arc(cx + 40, B2 - 52, 3.5, -Math.PI / 2, -Math.PI / 2 + (h / 12) * Math.PI * 2); x.stroke(); }
+        // Temperieren: Temperaturkurve 45 → 27 → 31 °C mit laufendem Punkt
+        { const cx = at('temper'); const w = 54; const x0 = cx - w / 2; const y0 = B2 - 80; const ph = (T * 0.12) % 1;
+          const tempAt = p => (p < 0.4 ? lerp(45, 27, p / 0.4) : p < 0.6 ? 27 : lerp(27, 31, (p - 0.6) / 0.4));
+          const yOf = c => y0 + 22 - ((c - 25) / 22) * 18;
+          x.strokeStyle = 'rgba(125,255,176,.35)'; x.lineWidth = 0.8; x.beginPath(); for (let i = 0; i <= 30; i++) { const p = i / 30; const px = x0 + 3 + p * (w - 6); const py = yOf(tempAt(p)); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.stroke();
+          const cur = tempAt(ph); x.fillStyle = '#7dffb0'; x.beginPath(); x.arc(x0 + 3 + ph * (w - 6), yOf(cur), 1.4, 0, 7); x.fill();
+          x.font = '600 6px "IBM Plex Mono", monospace'; x.textAlign = 'center'; x.fillText(`${cur.toFixed(1)}°C`, cx, y0 + 31);
+          x.fillStyle = '#5a2c10'; for (let q = 0; q < 4; q++) { x.fillRect(640 + ((T * 12 + q * 9) % 36), B2 - 69.5, 3, 2); x.fillRect(520 + ((T * 12 + q * 13) % 52), B2 - 73.5, 3, 2); } }
+        // Zähler: Tafeln heute
+        const bars = Math.floor((T * V) / G) * 6 + 1200;
+        x.fillStyle = 'rgba(14,11,8,.78)'; rrect(x, 652, P.B1 - 146, 140, 20, 4); x.fill(); x.strokeStyle = 'rgba(214,178,112,.35)'; x.lineWidth = 0.6; x.stroke();
+        x.fillStyle = '#a3978a'; x.font = '600 5px Inter, sans-serif'; x.textAlign = 'left'; x.fillText('HEUTE PRODUZIERT', 658, P.B1 - 133);
+        x.fillStyle = '#f3dcaa'; x.font = '600 9px "IBM Plex Mono", monospace'; x.textAlign = 'right'; x.fillText(`${bars.toLocaleString('de-CH')} Tafeln`, 786, P.B1 - 132);
+    }
+
+    // Leinwand der Fabrik einrichten (gleiche Fläche wie das Hallenbild) und die Schleife starten
+    function plantLife(HH, show, sp) {
+        const host = $('d-world');
+        if (!host) return;
+        let cv = $('d-life');
+        if (!cv) { cv = document.createElement('canvas'); cv.id = 'd-life'; host.parentElement.insertBefore(cv, host); }
+        const L = LIFE;
+        if (!show) return;
+        L.args = null;
+        L.mode = 'plant';
+        PLINE.sp = sp;
+        PLINE.HH = HH;
+        PLINE.B1 = HH - 150;
+        PLINE.B2 = HH - 22;
+        const W = host.offsetWidth;
+        const H = host.offsetHeight;
+        const f = Math.min(W / 800, H / HH);
+        const ox = host.offsetLeft + (W - 800 * f) / 2;
+        const oy = host.offsetTop + (H - HH * f) / 2;
+        const zq = Math.min(2.5, Math.round(DZ.s * 2) / 2);
+        const rect = `p|${ox.toFixed(1)}|${oy.toFixed(1)}|${f.toFixed(4)}|${zq}|${Gfx.level()}|${HH}`;
+        if (L.rect !== rect || cv.style.display === 'none') {
+            L.rect = rect;
+            const dpr = Gfx.low() ? 1 : Math.min(1.5, window.devicePixelRatio || 1) * zq;
+            cv.width = Math.round(800 * f * dpr);
+            cv.height = Math.round(HH * f * dpr);
+            cv.style.cssText = `position:absolute;left:${ox}px;top:${oy}px;width:${800 * f}px;height:${HH * f}px;pointer-events:none;z-index:0;display:block`;
+            L.ctx = cv.getContext('2d');
+            L.scale = f * dpr;
+            // statische Maschinen einmal vorzeichnen
+            const st = document.createElement('canvas');
+            st.width = cv.width;
+            st.height = cv.height;
+            const sx = st.getContext('2d');
+            sx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
+            plantStatic(sx, PLINE);
+            PLINE.stat = st;
+            deskZoomApply();
+        }
+        L.on = true;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) { plantFrame(L.ctx); return; }
+        if (!L.raf) L.raf = requestAnimationFrame(lifeLoop);
+    }
+    function plantFrame(x) {
+        const L = LIFE;
+        const y0 = Math.floor((PLINE.HH - 300) * L.scale);
+        x.setTransform(1, 0, 0, 1, 0, 0);
+        x.clearRect(0, y0, x.canvas.width, x.canvas.height - y0);
+        if (PLINE.stat) x.drawImage(PLINE.stat, 0, y0, x.canvas.width, x.canvas.height - y0, 0, y0, x.canvas.width, x.canvas.height - y0);
+        x.setTransform(L.scale, 0, 0, L.scale, 0, 0);
+        plantDyn(x, PLINE, PLINE.T);
+    }
+
+    // Hover-Karte für eine Station
+    function stationTip(ev, el) {
+        const tip = $('d-tip');
+        const s = PST[Number(el.dataset.st)];
+        if (!tip || !s) return;
+        const key = `st|${el.dataset.st}`;
+        if (tip.dataset.k !== key) {
+            tip.dataset.k = key;
+            const H = holdings();
+            const extra = s.k === 'clean' ? `<div class="dt-r ${H.open ? 'open' : ''}">Dein Rohkakao: ${H.contract + H.futIn} t gesichert · ${H.open} t noch offen</div>` : s.k === 'ship' ? `<div class="dt-m">Marge pro Tonne: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF</div>` : '';
+            tip.innerHTML = `<div class="dt-h"><b>${PST.indexOf(s) + 1} · ${esc(s.name)}</b><span class="dt-st fut">${s.row ? 'Tafel' : 'Masse'}</span></div>
+                <div class="dt-t" style="font-size:13px">${esc(s.p)}</div>
+                <div class="dt-l">${esc(s.txt)}</div>${extra}`;
+        }
+        const pan = tip.parentElement.getBoundingClientRect();
+        tip.classList.add('on');
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        let x = ev.clientX - pan.left + 16;
+        let y = ev.clientY - pan.top - th - 12;
+        if (x + tw > pan.width - 8) x = ev.clientX - pan.left - tw - 16;
+        if (y < 6) y = ev.clientY - pan.top + 14;
+        tip.style.transform = `translate(${Math.max(6, Math.min(x, pan.width - tw - 6))}px, ${Math.max(6, Math.min(y, pan.height - th - 6))}px)`;
+    }
+
+    // SVG-Ebene über der Linie: Schritt-Nummern, Namen, Flächen für die Maus
+    function plantLineSVG(HH) {
+        const B = [HH - 150, HH - 22];
+        const items = PST.map((s, i) => {
+            const w = PW[s.k];
+            const yb = B[s.row];
+            const h = s.row ? 100 : 118;
+            return `<g class="pst" data-st="${i}"><rect class="pst-hit" x="${s.x - w / 2 - 4}" y="${yb - h}" width="${w + 8}" height="${h + 6}" rx="6"/>
+                <g transform="translate(${s.x} ${yb + 9})"><circle r="5.4" class="pst-n"/><text y="2" text-anchor="middle" class="pst-nt">${i + 1}</text><text x="8" y="2.4" class="pst-t">${esc(s.name)}</text></g></g>`;
+        }).join('');
+        return `<text x="40" y="${HH - 284}" class="p-wall-t pst-head">SCHOKOLADEN-PRODUKTION · VON DER BOHNE ZUR TAFEL</text>
+            ${items}`;
+    }
+
     function deskLife(LAY, VH, show) {
         const host = $('d-world');
         if (!host) return;
@@ -1284,6 +1680,7 @@ const Player = (() => {
         }
         const L = LIFE;
         L.args = [LAY, VH, show];
+        if (show && L.mode !== 'farm') { L.mode = 'farm'; L.rect = ''; }
         if (!show || !LAY || typeof RenderCore === 'undefined') {
             if (cv.style.display !== 'none') cv.style.display = 'none';
             L.on = false;
@@ -1547,7 +1944,7 @@ const Player = (() => {
         for (let per = 3; per <= Math.min(12, Math.max(3, n)); per++) {
             const rows = Math.ceil(n / per);
             const s = Math.min(1.7, 720 / (per * (w + gap)));
-            const hNeed = 50 + rows * 150 * s + 250;
+            const hNeed = 50 + rows * 150 * s + 350;
             const sFit = Math.min(s, s * ((800 * ar) / hNeed));
             if (!best || sFit > best.s) best = { per, rows, s: sFit };
         }
@@ -1556,8 +1953,8 @@ const Player = (() => {
         const rowH = 150 * s;
         const top = 50;
         const ly = top + rows * rowH;
-        const HH = Math.ceil(Math.max(800 * ar, ly + 240) / 40) * 40;
-        const by = HH - 130; // Produktionslinie unten
+        const HH = Math.ceil(Math.max(800 * ar, ly + 340) / 40) * 40;
+        const by = HH - 300; // Wand bis hier, darunter der Hallenboden mit der Produktion
         const pipeY = Math.min(ly + 4, by - 6);
         const cx = i => x0 + (i % per) * (w + gap) * s + (w / 2) * s;
         const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
@@ -1566,14 +1963,15 @@ const Player = (() => {
         const pxW = Gfx.low() ? Math.min(1200, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * 1.25) / 400) * 400) : Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // hoch: doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         const LDATA = {
-            HH, by, pipeY, xa, xb,
+            HH, by, pipeY, xa, xb, v2: true, inX: 70, inY: HH - 248,
             silos: tiles.map((kk, i) => ({ x: x0 + (i % per) * (w + gap) * s, y: top + Math.floor(i / per) * rowH, s, kind: 'n', i })),
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
         const img = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${Math.max(800, pxW)}`, LDATA, Math.max(800, pxW), deskRedraw) : null;
         deskBg(img);
-        deskLife(null, 0, false);
-        if (!img) return deskLoader(false);
+        if (!img) { deskLife(null, 0, false); return deskLoader(false); }
+        const secured = tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length);
+        plantLife(HH, true, 0.55 + 0.45 * secured);
         DINFO = [];
         DPOS = [];
         DVB = `0 0 800 ${HH}`;
@@ -1643,32 +2041,10 @@ const Player = (() => {
             ${img ? '' : `<rect width="800" height="${HH}" fill="url(#texConcrete)"/><rect width="800" height="${HH}" fill="url(#pWall)" opacity=".7"/><rect width="800" height="${HH}" fill="url(#pPanel)"/>
             ${lights}${vents}`}
             <text x="400" y="${Math.max(30, top - 18)}" text-anchor="middle" class="p-wall-t">KAKAO-LAGER · ${tiles.length} SILOS À ${unit} T</text>
-            ${img ? `<path d="M${xa.toFixed(1)} ${pipeY} H235 V${by - 30}" class="pipe-flow"/><text x="400" y="${by - 84}" text-anchor="middle" class="p-wall-t">SCHOKOLADEN-PRODUKTION</text>` : `<rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#texConcrete)"/><rect x="0" y="${by + 50}" width="800" height="${HH - by - 50}" fill="url(#pFloor)" opacity=".55"/>
-            <rect x="0" y="${by + 48}" width="800" height="4" fill="url(#pHaz)" opacity=".8"/>
-            ${drops}<path d="M${xa.toFixed(1)} ${pipeY} H${xb.toFixed(1)}" class="pipe-h"/>
-            <path d="M400 ${pipeY} V${by + 4}" class="pipe-h"/><path d="M${xa.toFixed(1)} ${pipeY} H400 V${by + 4}" class="pipe-flow"/>`}
+            <path d="M${xa.toFixed(1)} ${pipeY} H70 V${HH - 250}" class="pipe-flow"/>
             ${silos}
-            <g transform="translate(0 ${by})">
-                ${img ? '<defs><clipPath id="beltClip"><rect x="0" y="-20" width="570" height="120"/><rect x="745" y="-20" width="60" height="120"/></clipPath><clipPath id="clipRaw"><rect x="0" y="-20" width="505" height="120"/></clipPath><clipPath id="clipCoat"><rect x="505" y="-20" width="65" height="120"/></clipPath><clipPath id="clipWrap"><rect x="745" y="-20" width="60" height="120"/></clipPath></defs>' : ''}
-                <g ${img ? 'clip-path="url(#beltClip)"' : ''}>
-                <rect x="40" y="66" width="720" height="14" rx="7" class="belt-r"/>
-                ${Array.from({ length: 19 }, (_, i) => `<circle cx="${48 + i * 39.5}" cy="73" r="4.5" class="roller"/>`).join('')}
-                ${img ? `
-                <g clip-path="url(#clipRaw)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 50)"><rect width="34" height="16" rx="1.5" fill="#c9d2da"/><rect x="2" y="2" width="30" height="12" rx="1" fill="#9aa6b2"/><path d="M7 2 V14 M12 2 V14 M17 2 V14 M22 2 V14 M27 2 V14 M2 8 H32" stroke="#b9c4ce" stroke-width=".8"/><rect width="34" height="1.4" fill="rgba(255,255,255,.6)"/></g>`).join('')}</g></g>
-                <g clip-path="url(#clipCoat)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 50)"><rect width="34" height="16" rx="1.5" fill="#c9d2da"/><rect x="2" y="2" width="30" height="12" rx="1" fill="#3e1c08"/><path d="M7 2 V14 M12 2 V14 M17 2 V14 M22 2 V14 M27 2 V14 M2 8 H32" stroke="#2a1205" stroke-width=".9"/><path d="M3 3 H31" stroke="rgba(255,220,180,.55)" stroke-width="1.2"/><rect x="3" y="9" width="28" height="1" fill="rgba(255,210,160,.18)"/></g>`).join('')}</g></g>
-                <g clip-path="url(#clipWrap)"><g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g></g>` : `
-                <g class="d-belt">${Array.from({ length: 16 }, (_, i) => `<g transform="translate(${40 + i * 48} 48)"><rect width="34" height="18" rx="3" class="bar"/><rect x="11" width="12" height="18" fill="url(#pFoil)"/><path d="M5 2 V16 M29 2 V16" stroke="#5a2f15" stroke-width="1.2"/></g>`).join('')}</g>`}
-                </g>
-                ${img ? `<g class="enrobe">${[507, 513, 519, 525].map(sx => `<rect x="${sx - 1}" y="22" width="2.2" height="30" fill="url(#chocFall)"/><line x1="${sx}" x2="${sx}" y1="22" y2="52" class="enrobe-flow"/>`).join('')}<rect x="500" y="18" width="32" height="5" rx="1.5" fill="#2a3038"/>${[507, 513, 519, 525].map(sx => `<rect x="${sx - 1.6}" y="22" width="3.2" height="3" fill="#59636f"/>`).join('')}</g>
-                <text x="95" y="-58" text-anchor="middle" class="p-st">RÖSTER</text><text x="235" y="-46" text-anchor="middle" class="p-st">CONCHE</text><text x="516" y="-20" text-anchor="middle" class="p-st">GIESSANLAGE</text><text x="657" y="22" text-anchor="middle" class="p-st">KÜHLTUNNEL</text><text x="760" y="40" text-anchor="end" class="p-st small">VERPACKT</text><text x="705" y="98" text-anchor="middle" class="p-st small">VERSAND</text><text x="190" y="98" text-anchor="middle" class="p-st small">ROHKAKAO</text>` : ''}
-                <g class="machine-g"><rect x="320" y="4" width="160" height="58" rx="8" class="machine"/>
-                    <rect x="334" y="14" width="44" height="22" rx="3" class="m-screen"/><path d="M337 30 l6 -6 l6 3 l6 -9 l6 5 l8 -6" class="m-trace"/>
-                    <circle cx="450" cy="24" r="10" class="m-gauge"/><path d="M450 24 L456 17" class="m-needle"/>
-                    <circle cx="392" cy="20" r="3" class="m-led a"/><circle cx="402" cy="20" r="3" class="m-led b"/><circle cx="412" cy="20" r="3" class="m-led c"/>
-                    <text x="400" y="54" text-anchor="middle" class="m-t">🍫 TEMPERIERUNG</text></g>
-                <g class="d-smoke"><circle cx="${img ? 128 : 470}" cy="${img ? -78 : -6}" r="6"/><circle cx="${img ? 134 : 476}" cy="${img ? -88 : -16}" r="8"/></g>
-                <text x="40" y="${img ? 127 : 108}" class="m-k">Verarbeitungsmarge: ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf & Preise ${mm} %</text>
-            </g></svg>`;
+            ${plantLineSVG(HH)}
+            <text x="40" y="${HH - 273}" class="pl-k">Marge ${fmt(CFG.chocMargin * (me.marginMult || 1))} CHF/t · Ruf ${mm} % · Linie läuft mit ${Math.round((0.55 + 0.45 * (tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length))) * 100)} % – je mehr Kakao gesichert, desto schneller</text></svg>`;
     }
 
     function deskTicket() {
@@ -1765,7 +2141,7 @@ const Player = (() => {
         deskZoomApply();
         // Nach dem Zoomen die bewegte Ebene schärfer rechnen
         clearTimeout(lifeSharpT);
-        lifeSharpT = setTimeout(() => { if (LIFE.args) deskLife(...LIFE.args); }, 250);
+        lifeSharpT = setTimeout(() => { if (LIFE.mode === 'plant' && LIFE.on) plantLife(PLINE.HH, true, PLINE.sp); else if (LIFE.args) deskLife(...LIFE.args); }, 250);
     }
 
     function deskTipShow(ev, el) {
@@ -1860,7 +2236,8 @@ const Player = (() => {
             }
             if (!drag || !drag.moved) {
                 const el = ev.target.closest && ev.target.closest('#d-world [data-i]');
-                if (el) deskTipShow(ev, el); else deskTipHide();
+                const st = !el && ev.target.closest && ev.target.closest('#d-world [data-st]');
+                if (el) deskTipShow(ev, el); else if (st) stationTip(ev, st); else deskTipHide();
             }
         });
         window.addEventListener('pointerup', () => {

@@ -2211,3 +2211,16 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 .gfx-low .card, .gfx-low .t-panel, .gfx-low .t-top { box-shadow: 0 6px 18px rgba(0, 0, 0, .4) !important; }
 .gfx-low #d-bg, .gfx-low #d-life, .gfx-low #d-world { will-change: auto; }
 @media (max-width: 700px) { .gfx-btn { font-size: 0; gap: 0; padding: 0 9px; } .gfx-btn i { font-size: 12px; } }
+
+/* ===================== Fabrik: Prozess-Stationen ===================== */
+.plant-map .pst { cursor: help; }
+.plant-map .pst-hit { fill: transparent; stroke: transparent; transition: fill .15s, stroke .15s; }
+.plant-map .pst:hover .pst-hit { fill: rgba(243, 220, 170, .06); stroke: rgba(243, 220, 170, .55); stroke-width: 1; stroke-dasharray: 3 3; }
+.plant-map .pst-n { fill: rgba(14, 11, 8, .9); stroke: #d9b26f; stroke-width: .9; }
+.plant-map .pst-nt { font-family: var(--mono); font-size: 6.4px; font-weight: 700; fill: #f3dcaa; }
+.plant-map .pst-t { font-family: var(--sans); font-size: 7.4px; font-weight: 600; fill: #efe5d3; letter-spacing: .04em; paint-order: stroke; stroke: rgba(10, 8, 6, .85); stroke-width: 2.4px; }
+.plant-map .pst:hover .pst-t { fill: #fff; }
+.plant-map .pst-head { font-size: 10px; letter-spacing: .24em; text-anchor: start; }
+
+.plant-map .pl-k { font-family: var(--sans); font-size: 6.6px; fill: #b9ab92; letter-spacing: .04em; }
+.plant-map .pst-head { font-size: 8.5px !important; fill: #e9dcc4; }
