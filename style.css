@@ -2142,3 +2142,28 @@ label, .lbl { letter-spacing: .14em; text-transform: uppercase; font-size: 11px;
 @media (prefers-reduced-motion: reduce) { .d-load-arc, .d-load-bar i, .vil.sel .vil-ring, .silo.sel .s-hit { animation: none !important; } }
 
 .d-tip { width: min(250px, calc(100% - 12px)); }
+
+/* ===================== Karte: Effekte, Namen, Minikarte ===================== */
+.vil-name { font-family: var(--serif); font-size: 15px; font-weight: 600; fill: #fbf3e2; paint-order: stroke; stroke: rgba(12, 9, 6, .85); stroke-width: 3.5px; letter-spacing: .03em; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.d-world.zoomed .vil-name { opacity: 1; }
+.fx-delta { font-family: var(--mono); font-weight: 700; font-size: 15px; paint-order: stroke; stroke: rgba(10, 8, 6, .85); stroke-width: 3.5px; animation: fxRise 2.1s cubic-bezier(.2, .7, .2, 1) forwards; }
+.fx-delta.up { fill: #7fe0b4; }
+.fx-delta.down { fill: #f08a9a; }
+.fx-delta.fix { fill: #e9cf98; font-size: 12px; opacity: .8; }
+@keyframes fxRise { 0% { opacity: 0; transform: translateY(6px) scale(.8); } 15% { opacity: 1; transform: translateY(0) scale(1.08); } 30% { transform: translateY(-4px) scale(1); } 100% { opacity: 0; transform: translateY(-34px); } }
+.fx-burst { fill: none; stroke-width: 2.5; transform-origin: 0 0; animation: fxBurst 1.1s cubic-bezier(.2, .7, .2, 1) forwards; }
+.fx-burst.b2 { animation-delay: .18s; stroke-width: 1.5; }
+@keyframes fxBurst { from { opacity: .95; transform: scale(.4); } to { opacity: 0; transform: scale(2.3); } }
+.fx-ray { stroke-width: 2; stroke-linecap: round; transform-origin: 0 0; animation: fxRay .8s cubic-bezier(.2, .7, .2, 1) forwards; }
+@keyframes fxRay { from { opacity: 1; transform: scale(.6); } to { opacity: 0; transform: scale(1.7); } }
+.fx-lock { transform-origin: 0 0; animation: fxLock 1.9s cubic-bezier(.3, 1.6, .5, 1) forwards; }
+@keyframes fxLock { 0% { opacity: 0; transform: scale(.2); } 18% { opacity: 1; transform: scale(1.25); } 30% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(.9) translateY(-6px); } }
+.fx-sealt { font-family: var(--sans); font-size: 10px; font-weight: 700; letter-spacing: .22em; paint-order: stroke; stroke: rgba(10, 8, 6, .85); stroke-width: 3px; animation: fxRise 1.9s .15s both; }
+.dz-mini { position: absolute; left: 14px; top: 44px; z-index: 4; border-radius: 8px; overflow: hidden; border: 1px solid rgba(214, 178, 112, .4); box-shadow: 0 12px 30px rgba(0, 0, 0, .55); background: #0d0a07; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .25s, transform .25s; cursor: pointer; }
+.dz-mini.on { opacity: 1; transform: none; pointer-events: auto; }
+.dz-mini canvas { display: block; width: 100%; height: 100%; filter: saturate(.85) brightness(.9); }
+.dz-mini i { position: absolute; border: 1.5px solid #f3dcaa; border-radius: 2px; box-shadow: 0 0 0 999px rgba(8, 6, 4, .45); transition: left .2s, top .2s, width .2s, height .2s; }
+.d-world.dragging .dz-mini i { transition: none; }
+.tk-q .tk-all { flex: 1.3; font-size: 11px !important; letter-spacing: .06em; text-transform: uppercase; border-style: dashed !important; }
+.tk-q .tk-all.on { border-style: solid !important; }
+@media (prefers-reduced-motion: reduce) { .fx-delta, .fx-burst, .fx-ray, .fx-lock, .fx-sealt { animation-duration: .01s !important; } }

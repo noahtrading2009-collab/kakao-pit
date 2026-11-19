@@ -189,7 +189,7 @@ const RenderCore = (() => {
     function farm(L, pxW) {
         const W = 800;
         const H = L.VH;
-        const k = Math.min(2.6, pxW / W);
+        const k = Math.min(3.2, pxW / W);
         const PW = Math.round(W * k);
         const PH = Math.round(H * k);
         const c = canvas(PW, PH);
@@ -889,7 +889,7 @@ const RenderCore = (() => {
     function plant(L, pxW) {
         const W = 800;
         const H = L.HH;
-        const k = Math.min(2.6, pxW / W);
+        const k = Math.min(3.2, pxW / W);
         const c = canvas(W * k, H * k);
         const x = c.getContext('2d');
         const r = rng(4242);

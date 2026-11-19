@@ -1451,7 +1451,7 @@ const Player = (() => {
         const { river, road } = LAY;
         const FIELDS = LAY.fields;
         // Gerechnetes Luftbild (hohe Auflösung) – bis es fertig ist, zeigt die Vektorgrafik die Karte
-        const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
+        const pxW = Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
         const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
@@ -1460,6 +1460,8 @@ const Player = (() => {
         deskLife(LAY, VH, !!img);
         if (!img) return deskLoader(true);
         DINFO = [];
+        DPOS = occupied.map(([x, y]) => [x, y]);
+        DVB = `0 0 800 ${VH}`;
         const villages = tiles.slice(0, occupied.length).map((kk, i) => {
             const [x, y] = occupied[i];
             const trees = Array.from({ length: 7 }, (_, j) => {
@@ -1484,7 +1486,7 @@ const Player = (() => {
                 ${hut(-12, 4, 1, i)}${hut(6, -2, 1.15, i + 1)}${hut(18, 8, 0.85, i + 2)}`}
                 ${kk !== 'lost' && !img ? `<g class="hut-smoke"><circle cx="8" cy="-16" r="3"/><circle cx="11" cy="-25" r="4"/></g>` : ''}
                 ${kk === 'lost' ? '<path class="vil-x" d="M-18 -12 L18 18 M18 -12 L-18 18"/>' : ''}
-                <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g></g>`;
+                <g class="vil-tag" transform="translate(0 40)"><rect x="-38" y="-10" width="76" height="19" rx="9.5"/><text y="4" text-anchor="middle">${ico} ${lbl} · ${unit} t</text></g>${img ? `<text class="vil-name" y="-34" text-anchor="middle">${esc(villageName(i))}</text>` : ''}</g>`;
         }).join('');
         // Felder (Kakao-Reihen) und Waldstücke als Hintergrund (nur ohne gerechnetes Bild)
         const fields = FIELDS
@@ -1560,7 +1562,7 @@ const Player = (() => {
         const lastRow = tiles.map((_, i) => i).filter(i => Math.floor(i / per) === rows - 1);
         const xa = cx(lastRow[0] || 0);
         const xb = cx(lastRow[lastRow.length - 1] || 0);
-        const pxW = Math.min(2000, Math.ceil(((($('d-world') && $('d-world').getBoundingClientRect().width) || 800) * HQ()) / 400) * 400);
+        const pxW = Math.min(2560, Math.ceil(((($('d-world') && $('d-world').offsetWidth) || 800) * HQ() * 2) / 400) * 400); // doppelte Reserve fürs Hineinzoomen
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         const LDATA = {
             HH, by, pipeY, xa, xb,
@@ -1572,6 +1574,8 @@ const Player = (() => {
         deskLife(null, 0, false);
         if (!img) return deskLoader(false);
         DINFO = [];
+        DPOS = [];
+        DVB = `0 0 800 ${HH}`;
         const silos = tiles.map((kk, i) => {
             const x = x0 + (i % per) * (w + gap) * s;
             const y = top + Math.floor(i / per) * rowH;
@@ -1581,6 +1585,7 @@ const Player = (() => {
             const ladder = Array.from({ length: 9 }, (_, j) => `<line x1="${w + 2}" x2="${w + 8}" y1="${10 + j * 10}" y2="${10 + j * 10}"/>`).join('');
             const tipS = `${unit} t · ${kk === 'deal' ? (sPartners[i] || 'Per Vertrag gekauft') : kk === 'fut' ? 'Mit Futures abgesichert – Einkaufspreis fix' : kk === 'cut' ? 'Gestrichen – durch deinen Krisen-Entscheid' : 'Offen – Preis im Dezember unbekannt'}`;
             if (img) {
+                DPOS[i] = [x + (w / 2) * s, y + 40 * s];
                 DINFO[i] = {
                     name: `Silo S-${String(i + 1).padStart(2, '0')}`, kk, t: unit,
                     what: tipS.replace(/^\d+ t · /, ''),
@@ -1675,7 +1680,9 @@ const Player = (() => {
         const hedgeBtn = `<button class="${prod ? 'tk-sell' : 'tk-buy'} main" data-dt="${prod ? -1 : 1}" ${can(prod ? -1 : 1) ? '' : 'disabled'}><b>ABSICHERN</b><span>${fmt(prod ? bid : ask)}</span><small>${prod ? 'Ernte heute verkaufen' : 'Kakao heute kaufen'}</small></button>`;
         const undoBtn = `<button class="tk-undo" data-dt="${prod ? 1 : -1}" ${can(prod ? 1 : -1) ? '' : 'disabled'}><b>AUFLÖSEN</b><span>${fmt(prod ? ask : bid)}</span><small>zurücknehmen</small></button>`;
         const sel = DSEL.size ? `<div class="tk-sel"><span>◉ ${DSEL.size} ${prod ? (DSEL.size === 1 ? 'Dorf' : 'Dörfer') : 'Silo' + (DSEL.size === 1 ? '' : 's')} ausgewählt · <b>${dQty * CFG.size} t</b></span><button data-dsel="clear">Auswahl löschen</button></div>` : '';
-        return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${!DSEL.size && q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}</div>${sel}
+        const openN = DINFO.filter(d => d && d.kk === 'open').length;
+        const allOpen = openN ? `<button class="tk-all ${DSEL.size === openN ? 'on' : ''}" data-dsel="all" title="Alle offenen ${prod ? 'Dörfer' : 'Silos'} auf der Karte auswählen">alle offenen</button>` : '';
+        return `<h3>Order-Ticket</h3><div class="tk-q"><small>MENGE</small>${[1, 2, 5, 10].map(q => `<button class="${!DSEL.size && q === dQty ? 'on' : ''}" data-dq="${q}">${q * CFG.size} t</button>`).join('')}${allOpen}</div>${sel}
             <div class="tk-btns">${hedgeBtn}${undoBtn}</div>
             <div class="tk-lim">Pfand ${Math.round(CFG.marginRate * 100)} % · Gebühr ${CFG.fee} CHF pro 10 t · Was im Dezember offen ist: −${Math.round(CFG.spotPenalty * 100)} %</div>`;
     }
@@ -1693,6 +1700,7 @@ const Player = (() => {
     const villageName = i => { const l = VNAMES[me.region] || VNAMES.ivory; return l[i % l.length] + (i >= l.length ? ' II' : ''); };
 
     function deskLoader(prod) {
+        if (DZ.s !== 1) { DZ.s = 1; DZ.tx = 0; DZ.ty = 0; setTimeout(deskZoomApply, 0); }
         return `<div class="d-load ${prod ? 'farm' : 'plant'}"><div class="d-load-in">
             <svg viewBox="0 0 64 64" class="d-load-ico"><circle cx="32" cy="32" r="29" class="d-load-track"/><circle cx="32" cy="32" r="29" class="d-load-arc"/>
             ${prod ? '<path d="M32 16 c9 4 13 12 10 22 c-2 7 -8 10 -10 10 c-2 0 -8 -3 -10 -10 c-3 -10 1 -18 10 -22z M32 18 V46" class="d-load-bean"/>' : '<path d="M18 46 V28 l7 5 V24 l7 5 V20 l7 5 V46z M42 46 V22 h5 V46" class="d-load-bean"/>'}</svg>
@@ -1705,17 +1713,31 @@ const Player = (() => {
     function deskZoomApply() {
         const host = $('d-world');
         if (!host) return;
-        for (const el of [$('d-bg'), $('d-life'), host]) {
+        for (const el of [$('d-bg'), $('d-life'), host, $('d-fx')]) {
             if (!el) continue;
-            const ex = el.offsetLeft;
-            const ey = el.offsetTop;
+            const ex = el.offsetLeft ?? host.offsetLeft; // SVG-Ebene hat kein offsetLeft – liegt genau über der Karte
+            const ey = el.offsetTop ?? host.offsetTop;
             el.style.transformOrigin = '0 0';
-            el.style.transform = DZ.s === 1 ? '' : `translate(${((DZ.s - 1) * ex + DZ.tx).toFixed(2)}px, ${((DZ.s - 1) * ey + DZ.ty).toFixed(2)}px) scale(${DZ.s.toFixed(4)})`;
+            const dx = (DZ.s - 1) * ex + DZ.tx;
+            const dy = (DZ.s - 1) * ey + DZ.ty;
+            el.style.transform = DZ.s === 1 ? '' : `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${DZ.s.toFixed(4)})`;
+            // Nur die Kartenfläche zeigen – nichts ragt über Titel oder Legende
+            if (DZ.s === 1) { el.style.clipPath = ''; continue; }
+            const hx = host.offsetLeft;
+            const hy = host.offsetTop;
+            const ew = el.offsetWidth ?? host.offsetWidth;
+            const eh = el.offsetHeight ?? host.offsetHeight;
+            const L = Math.max(0, (hx - ex - dx) / DZ.s);
+            const T = Math.max(0, (hy - ey - dy) / DZ.s);
+            const R = Math.max(0, ew - (hx + host.offsetWidth - ex - dx) / DZ.s);
+            const B = Math.max(0, eh - (hy + host.offsetHeight - ey - dy) / DZ.s);
+            el.style.clipPath = `inset(${T.toFixed(1)}px ${R.toFixed(1)}px ${B.toFixed(1)}px ${L.toFixed(1)}px)`;
         }
         const pan = host.parentElement;
         pan.classList.toggle('zoomed', DZ.s > 1.001);
         const z = pan.querySelector('.dz-val');
         if (z) z.textContent = `${Math.round(DZ.s * 100)} %`;
+        if (typeof deskMini === 'function') deskMini();
     }
     function deskZoomClamp() {
         const host = $('d-world');
@@ -1853,6 +1875,141 @@ const Player = (() => {
             deskTipShow(ev, $('d-world').querySelector(`[data-i="${i}"]`) || el);
         });
         window.addEventListener('resize', () => { DZ.s = 1; DZ.tx = 0; DZ.ty = 0; deskZoomApply(); });
+        window.addEventListener('keydown', ev => {
+            if (!$('v-desk').classList.contains('active') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return;
+            if (ev.key === '+' || ev.key === '=') deskZoomTo(DZ.s * 1.4);
+            else if (ev.key === '-' || ev.key === '_') deskZoomTo(DZ.s / 1.4);
+            else if (ev.key === '0') deskZoomTo(1);
+            else if (ev.key === 'Escape' && DSEL.size) { DSEL.clear(); dQty = 2; renderDesk(); }
+            else return;
+            ev.preventDefault();
+        });
+    }
+
+    // ===== Effekt-Ebene über der Karte: Gewinne/Verluste live, Absicherungs-Siegel =====
+    let DPOS = [];
+    let DVB = '0 0 800 800';
+    const FX = { price: null, acc: 0, t: 0, kinds: null, role: '' };
+    function fxLayer() {
+        const host = $('d-world');
+        let fx = $('d-fx');
+        if (!fx) {
+            fx = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            fx.id = 'd-fx';
+            fx.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            host.parentElement.insertBefore(fx, host.nextSibling);
+        }
+        if (fx.getAttribute('viewBox') !== DVB) fx.setAttribute('viewBox', DVB);
+        const css = `position:absolute;left:${host.offsetLeft}px;top:${host.offsetTop}px;width:${host.offsetWidth}px;height:${host.offsetHeight}px;pointer-events:none;z-index:2;overflow:visible`;
+        if (fx._css !== css) { fx._css = css; fx.style.cssText = css; deskZoomApply(); }
+        return fx;
+    }
+    function fxAdd(markup, ms) {
+        const fx = fxLayer();
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.innerHTML = markup;
+        fx.appendChild(g);
+        setTimeout(() => g.remove(), ms);
+    }
+    function deskFx(tilesNow) {
+        if (!$('d-world') || $('d-world').querySelector('.d-load') || !DPOS.length) { FX.kinds = null; return; }
+        const prod = me.role === 'producer';
+        const now = performance.now();
+        if (FX.role !== me.role) { FX.role = me.role; FX.kinds = null; FX.price = null; }
+        // 1) Siegel: offen → abgesichert
+        const kinds = DINFO.map(d => d && d.kk);
+        if (FX.kinds && FX.kinds.length === kinds.length) {
+            let n = 0;
+            kinds.forEach((k, i) => {
+                if (FX.kinds[i] === 'open' && (k === 'fut' || k === 'deal') && DPOS[i]) {
+                    const [x, y] = DPOS[i];
+                    const col = k === 'fut' ? '#f3d58f' : '#9cc3f2';
+                    setTimeout(() => fxAdd(`<g transform="translate(${x} ${y})" class="fx-seal">
+                        <circle r="30" class="fx-burst" style="stroke:${col}"/><circle r="30" class="fx-burst b2" style="stroke:${col}"/>
+                        ${Array.from({ length: 10 }, (_, j) => { const a = (j / 10) * Math.PI * 2; return `<line x1="${(Math.cos(a) * 20).toFixed(1)}" y1="${(Math.sin(a) * 20).toFixed(1)}" x2="${(Math.cos(a) * 34).toFixed(1)}" y2="${(Math.sin(a) * 34).toFixed(1)}" class="fx-ray" style="stroke:${col}"/>`; }).join('')}
+                        <g class="fx-lock"><circle r="15" fill="rgba(20,14,8,.9)" stroke="${col}" stroke-width="1.5"/><text y="6" text-anchor="middle" font-size="15">${k === 'fut' ? '🔒' : '📜'}</text></g>
+                        <text y="-36" text-anchor="middle" class="fx-sealt" style="fill:${col}">${k === 'fut' ? 'ABGESICHERT' : 'VERTRAG'}</text></g>`, 1900), n++ * 110);
+                }
+            });
+            if (n) Sound.play('cash');
+        }
+        FX.kinds = kinds;
+        // 2) Live: was der Preis gerade mit den offenen Tonnen macht
+        if (pub.phase !== 'trading' || pub.paused) { FX.price = pub.price; FX.acc = 0; FX.t = now; return; }
+        if (FX.price === null) { FX.price = pub.price; FX.t = now; return; }
+        FX.acc += pub.price - FX.price;
+        FX.price = pub.price;
+        if (now - FX.t < 2600) return;
+        FX.t = now;
+        const d = Math.round(FX.acc);
+        FX.acc = 0;
+        if (!d) return;
+        const good = prod ? d > 0 : d < 0;
+        kinds.forEach((k, i) => {
+            if (k !== 'open' || !DPOS[i]) return;
+            const [x, y] = DPOS[i];
+            const v = Math.abs(d) * deskUnitNow;
+            setTimeout(() => fxAdd(`<g transform="translate(${x} ${y - 18})"><text text-anchor="middle" class="fx-delta ${good ? 'up' : 'down'}">${good ? '+' : '−'}${fmt(v)}</text></g>`, 2200), i * 40);
+        });
+        // Abgesicherte bleiben ruhig – kurz zeigen, dass sie nicht mitschwanken
+        kinds.forEach((k, i) => {
+            if ((k !== 'fut' && k !== 'deal') || !DPOS[i] || Math.random() > 0.35) return;
+            const [x, y] = DPOS[i];
+            setTimeout(() => fxAdd(`<g transform="translate(${x} ${y - 18})"><text text-anchor="middle" class="fx-delta fix">± 0</text></g>`, 2200), 200 + i * 40);
+        });
+    }
+
+    // Minikarte (beim Zoomen): wo bin ich gerade?
+    function deskMini() {
+        const pan = $('d-world') && $('d-world').parentElement;
+        if (!pan) return;
+        let m = pan.querySelector('.dz-mini');
+        if (!m) {
+            m = document.createElement('div');
+            m.className = 'dz-mini';
+            m.innerHTML = '<canvas></canvas><i></i>';
+            pan.appendChild(m);
+            m.addEventListener('click', ev => {
+                const host = $('d-world');
+                const r = m.getBoundingClientRect();
+                const fx = (ev.clientX - r.left) / r.width;
+                const fy = (ev.clientY - r.top) / r.height;
+                // Punkt der Karte in die Mitte holen
+                const cx = host.offsetLeft + fx * host.offsetWidth;
+                const cy = host.offsetTop + fy * host.offsetHeight;
+                DZ.tx = host.offsetLeft + host.offsetWidth / 2 - DZ.s * cx;
+                DZ.ty = host.offsetTop + host.offsetHeight / 2 - DZ.s * cy;
+                deskZoomClamp();
+                deskZoomApply();
+            });
+        }
+        const host = $('d-world');
+        const bg = $('d-bg');
+        if (DZ.s <= 1.001 || !bg || !bg._bmp) { m.classList.remove('on'); return; }
+        m.classList.add('on');
+        const W = host.offsetWidth;
+        const H = host.offsetHeight;
+        const mw = 150;
+        const mh = Math.round((mw * H) / W);
+        const cv = m.querySelector('canvas');
+        if (cv._src !== bg._bmp || cv.height !== mh * 2) {
+            cv._src = bg._bmp;
+            cv.width = mw * 2;
+            cv.height = mh * 2;
+            const b = bg._bmp;
+            const f = Math.min((mw * 2) / b.width, (mh * 2) / b.height);
+            const x = cv.getContext('2d');
+            x.clearRect(0, 0, cv.width, cv.height);
+            x.drawImage(b, (cv.width - b.width * f) / 2, (cv.height - b.height * f) / 2, b.width * f, b.height * f);
+        }
+        m.style.width = `${mw}px`;
+        m.style.height = `${mh}px`;
+        const ex = host.offsetLeft;
+        const ey = host.offsetTop;
+        const x0 = ((ex - DZ.tx) / DZ.s - ex) / W;
+        const y0 = ((ey - DZ.ty) / DZ.s - ey) / H;
+        const vr = m.querySelector('i');
+        vr.style.cssText = `left:${(x0 * 100).toFixed(2)}%;top:${(y0 * 100).toFixed(2)}%;width:${(100 / DZ.s).toFixed(2)}%;height:${(100 / DZ.s).toFixed(2)}%`;
     }
 
     // Fertiges Bild → nur neu zeichnen, wenn der Leitstand gerade sichtbar ist
@@ -1910,6 +2067,7 @@ const Player = (() => {
         deskSelSync();
         setHTML($('d-world'), mapHTML);
         deskZoomApply();
+        deskFx();
         $('d-world-h').innerHTML = prod ? `Deine Mitglieder <span>1 Dorf = ${deskUnitNow} t Ernte</span>` : `Kakao-Bedarf <span>1 Silo = ${deskUnitNow} t</span>`;
         setHTML($('d-legend'), `<span class="lg deal">📜 Vertrag ${H.contract} t</span><span class="lg fut">🔒 Futures ${H.futIn} t</span><span class="lg open">⚠️ offen ${H.open} t</span>${H.lost ? `<span class="lg lost">🚚 verloren ${H.lost} t</span>` : ''}${H.cut ? `<span class="lg cut">✂️ gestrichen ${H.cut} t</span>` : ''}${H.over ? `<span class="lg lost">🎲 ${H.over} t zu viel abgesichert!</span>` : ''}`);
 
@@ -1940,6 +2098,7 @@ const Player = (() => {
             if (!b || b.disabled) return;
             if (b.dataset.rp) rpAction(b.dataset.rp);
             if (b.dataset.dq) { DSEL.clear(); dQty = Number(b.dataset.dq); renderDesk(); }
+            if (b.dataset.dsel === 'all') { DINFO.forEach((d, i) => { if (d && d.kk === 'open') DSEL.add(i); }); renderDesk(); return; }
             if (b.dataset.dsel) { DSEL.clear(); dQty = 2; renderDesk(); }
             if (b.dataset.dt) {
                 const dir = Number(b.dataset.dt);
