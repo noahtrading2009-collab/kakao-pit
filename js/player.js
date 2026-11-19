@@ -2142,10 +2142,10 @@ const Player = (() => {
         const L = INTEL_LOCS[k];
         const icons = L.types.map(t => INTEL_TYPES[t].icon).join('');
         const right = side === 'l';
-        return `<g class="t-pin" data-loc="${k}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
-            <circle class="t-pulse" r="13"/><circle class="t-dot" r="5.5"/>
+        return `<g class="t-pin" data-loc="${k}" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><g class="t-pin-in">
+            <circle class="t-hit" r="16"/><circle class="t-pulse" r="13"/><circle class="t-dot" r="5.5"/>
             <text class="t-pl" x="${right ? -9 : 9}" y="-4" text-anchor="${right ? 'end' : 'start'}">${esc(label || L.name)}</text>
-            <text class="t-pi" x="${right ? -9 : 9}" y="10" text-anchor="${right ? 'end' : 'start'}">${icons}</text></g>`;
+            <text class="t-pi" x="${right ? -9 : 9}" y="10" text-anchor="${right ? 'end' : 'start'}">${icons}</text></g></g>`;
     }
 
     function buildMap() {
@@ -2209,13 +2209,186 @@ const Player = (() => {
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-150, -120, -90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
+        termMapInteract();
         $('t-map').querySelectorAll('.t-pin').forEach(g => g.addEventListener('click', () => {
+            if (g.ownerSVGElement && g.ownerSVGElement._dragged) return;
             if (tutActive() && tut.wait === 'pin') { tutPin(g.dataset.loc); return; }
             tSel = g.dataset.loc;
             Sound.play('tick');
             renderTerm();
         }));
         tMapBuilt = true;
+    }
+
+    // ===== Interaktive Weltkarte im Terminal: Zoom, Verschieben, Hover-Karten, Live-Effekte =====
+    function svgZoom(svg, W, H, max) {
+        svg._z = { s: 1, x: 0, y: 0, W, H, max };
+        const apply = () => {
+            const z = svg._z;
+            const w = W / z.s;
+            const h = H / z.s;
+            z.x = Math.max(0, Math.min(W - w, z.x));
+            z.y = Math.max(0, Math.min(H - h, z.y));
+            if (z.s <= 1.001) { z.s = 1; z.x = 0; z.y = 0; }
+            svg.setAttribute('viewBox', `${z.x.toFixed(2)} ${z.y.toFixed(2)} ${(W / z.s).toFixed(2)} ${(H / z.s).toFixed(2)}`);
+            svg.style.setProperty('--iz', (1 / Math.sqrt(z.s)).toFixed(4));
+            svg.classList.toggle('zoomed', z.s > 1.001);
+            const v = svg.parentElement && svg.closest('.t-map') && svg.closest('.t-map').querySelector(`.tz-val[data-for="${svg.dataset.zid}"]`);
+            if (v) v.textContent = `${Math.round(z.s * 100)} %`;
+        };
+        const toSvg = (cx, cy) => {
+            const m = svg.getScreenCTM();
+            if (!m) return [W / 2, H / 2];
+            const pt = new DOMPoint(cx, cy).matrixTransform(m.inverse());
+            return [pt.x, pt.y];
+        };
+        svg._zoomTo = (s, cx, cy) => {
+            const z = svg._z;
+            let px; let py;
+            if (cx === undefined) { px = z.x + W / z.s / 2; py = z.y + H / z.s / 2; } else [px, py] = toSvg(cx, cy);
+            const ns = Math.max(1, Math.min(max, s));
+            // Punkt unter der Maus bleibt stehen
+            z.x = px - (px - z.x) * (z.s / ns);
+            z.y = py - (py - z.y) * (z.s / ns);
+            z.s = ns;
+            apply();
+        };
+        svg.addEventListener('wheel', ev => { ev.preventDefault(); svg._zoomTo(svg._z.s * Math.exp(-ev.deltaY * 0.0018), ev.clientX, ev.clientY); }, { passive: false });
+        let drag = null;
+        svg.addEventListener('pointerdown', ev => { if (ev.button === 0) drag = { cx: ev.clientX, cy: ev.clientY, x: svg._z.x, y: svg._z.y, moved: false }; });
+        window.addEventListener('pointermove', ev => {
+            if (!drag || svg._z.s <= 1) return;
+            const dx = ev.clientX - drag.cx;
+            const dy = ev.clientY - drag.cy;
+            if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; svg.classList.add('dragging'); termTipHide(); }
+            if (!drag.moved) return;
+            const m = svg.getScreenCTM();
+            const k = m ? 1 / m.a : W / svg.clientWidth;
+            svg._z.x = drag.x - dx * k;
+            svg._z.y = drag.y - dy * k;
+            apply();
+        });
+        window.addEventListener('pointerup', () => {
+            if (drag && drag.moved) { svg._dragged = true; setTimeout(() => { svg._dragged = false; }, 0); svg.classList.remove('dragging'); }
+            drag = null;
+        });
+        svg.addEventListener('dblclick', ev => { ev.preventDefault(); svg._zoomTo(svg._z.s > 1.05 ? 1 : 2.5, ev.clientX, ev.clientY); });
+        apply();
+    }
+
+    function termTipShow(ev, g) {
+        const tip = $('t-tip');
+        const k = g.dataset.loc;
+        const L = INTEL_LOCS[k];
+        if (!tip || !L || !me || !me.intel) return;
+        const I = me.intel;
+        const rum = I.rumors || [];
+        const hot = rum.filter(r => r.region && REGION_LOC[r.region] === k);
+        const busy = I.job && I.job.loc === k;
+        const reps = (I.reports || []).filter(r => r.loc === k);
+        const role = { lon: 'Hier wird Kakao gehandelt (ICE London) – und gelagert.', nyc: 'Hier sitzen die grossen Fonds. Ihre Käufe bewegen den Preis.', bru: 'EU-Regeln und Nachfrage aus Europa.', sha: 'Wachsende Schokoladen-Nachfrage in Asien.', web: 'Schnell und billig – aber oft falsch.', abj: 'Grösster Kakao-Hafen der Welt.', acc: 'Zweitgrösster Exporthafen Westafrikas.' }[k] || (L.region ? `Anbaugebiet · ${REGIONS[L.region].name}` : '');
+        const key = `${k}|${hot.length}|${busy ? I.job.left : ''}|${reps.length}|${I.costs && JSON.stringify(I.costs).length}`;
+        if (tip.dataset.k !== key) {
+            tip.dataset.k = key;
+            tip.innerHTML = `<div class="dt-h"><b>${esc(L.name)}</b>${hot.length ? '<span class="dt-st hot">Gerücht</span>' : busy ? '<span class="dt-st fut">im Einsatz</span>' : ''}</div>
+                <div class="dt-l">${esc(role)}</div>
+                ${hot.map(r => `<div class="dt-r open">${r.icon} ${esc(r.text)} · noch ${r.left}s</div>`).join('')}
+                <div class="tt-src">${L.types.map(t => { const c = I.costs[t]; return `<div><span>${INTEL_TYPES[t].icon} ${esc(INTEL_TYPES[t].name)}</span><b>${fmt(c.cost)}</b><small>${c.dur}s · ${INTEL_TYPES[t].soft ? 'unsicher' : `${c.rel} %`}</small></div>`; }).join('')}</div>
+                ${busy ? `<div class="dt-m">⏳ Dein Team arbeitet hier – noch ${I.job.left}s</div>` : ''}
+                ${reps.length ? `<div class="dt-m">${reps.length} Bericht${reps.length > 1 ? 'e' : ''} von hier · zuletzt: ${esc(reps[reps.length - 1].text).slice(0, 90)}</div>` : ''}
+                <div class="dt-a">Klicken: Bericht anfordern</div>`;
+        }
+        const pan = tip.parentElement.getBoundingClientRect();
+        tip.classList.add('on');
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        let x = ev.clientX - pan.left + 16;
+        let y = ev.clientY - pan.top + 14;
+        if (x + tw > pan.width - 8) x = ev.clientX - pan.left - tw - 16;
+        if (y + th > pan.height - 8) y = ev.clientY - pan.top - th - 14;
+        tip.style.transform = `translate(${Math.max(6, Math.min(x, pan.width - tw - 6))}px, ${Math.max(6, Math.min(y, pan.height - th - 6))}px)`;
+    }
+    const termTipHide = () => { const t = $('t-tip'); if (t) { t.classList.remove('on'); t.dataset.k = ''; } };
+
+    function termMapInteract() {
+        const map = $('t-map');
+        const pan = map.parentElement;
+        const world = map.querySelector('.t-world');
+        const inset = map.querySelector('.t-inset-svg');
+        if (world) { world.dataset.zid = 'w'; svgZoom(world, TW, TH, 6); }
+        if (inset) { inset.dataset.zid = 'i'; svgZoom(inset, IW, IH, 4); }
+        if (!pan.querySelector('#t-tip')) {
+            const tip = document.createElement('div');
+            tip.id = 't-tip';
+            tip.className = 'd-tip t-tipc';
+            pan.appendChild(tip);
+            const ctl = document.createElement('div');
+            ctl.className = 'dz-ctl tz-ctl';
+            ctl.innerHTML = '<button data-z="in" title="Hineinzoomen">+</button><span class="dz-val tz-val" data-for="w">100 %</span><button data-z="out" title="Herauszoomen">−</button><button data-z="reset" title="Ganze Welt">⤢</button>';
+            pan.appendChild(ctl);
+            ctl.addEventListener('click', ev => {
+                const b = ev.target.closest('button');
+                const w = $('t-map').querySelector('.t-world');
+                if (!b || !w || !w._zoomTo) return;
+                if (b.dataset.z === 'in') w._zoomTo(w._z.s * 1.5);
+                if (b.dataset.z === 'out') w._zoomTo(w._z.s / 1.5);
+                if (b.dataset.z === 'reset') w._zoomTo(1);
+            });
+            const hint = document.createElement('div');
+            hint.className = 'dz-hint tz-hint';
+            hint.textContent = 'Mausrad: zoomen · Ziehen: verschieben · Ort: Bericht anfordern';
+            pan.appendChild(hint);
+            map.addEventListener('pointermove', ev => {
+                if (ev.buttons) return;
+                const g = ev.target.closest && ev.target.closest('.t-pin');
+                if (g) termTipShow(ev, g); else termTipHide();
+            });
+            map.addEventListener('pointerleave', termTipHide);
+        }
+    }
+
+    // Live-Effekte: Gewinn/Verlust an der Börse, neue Berichte, neue Gerüchte
+    const TFX = { unreal: null, t: 0, reps: null, rums: null };
+    function tfxAdd(k, markup, ms) {
+        const g = $('t-map').querySelector(`.t-pin[data-loc="${k}"]`);
+        if (!g || !g.ownerSVGElement) return;
+        const fx = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        fx.setAttribute('transform', `translate(${g.dataset.x} ${g.dataset.y})`);
+        fx.setAttribute('class', 't-fx');
+        fx.innerHTML = `<g class="t-pin-in">${markup}</g>`;
+        g.ownerSVGElement.appendChild(fx);
+        setTimeout(() => fx.remove(), ms);
+    }
+    function termFx() {
+        if (!me || !me.intel) return;
+        const I = me.intel;
+        const now = performance.now();
+        // neue Berichte → Signal am Ort
+        const n = (I.reports || []).length;
+        if (TFX.reps !== null && n > TFX.reps) {
+            for (const r of I.reports.slice(TFX.reps)) {
+                const col = r.clear ? (r.dir > 0 ? '#7fe0b4' : '#f08a9a') : r.soft ? '#e9cf98' : '#a3978a';
+                const lbl = r.clear ? (r.dir > 0 ? '✔ BESTÄTIGT' : '✔ DEMENTI') : r.soft ? '~ UNSICHER' : r.none ? 'PASST NICHT' : '? UNKLAR';
+                tfxAdd(r.loc, `<circle r="10" class="fx-burst" style="stroke:${col}"/><circle r="10" class="fx-burst b2" style="stroke:${col}"/><text y="-16" text-anchor="middle" class="fx-sealt t" style="fill:${col}">${lbl}</text>`, 2000);
+            }
+        }
+        TFX.reps = n;
+        // neues Gerücht → Schockwelle am betroffenen Ort
+        const ids = (I.rumors || []).map(r => r.id);
+        if (TFX.rums) for (const r of I.rumors) if (!TFX.rums.includes(r.id)) {
+            const k = r.region ? REGION_LOC[r.region] : 'web';
+            tfxAdd(k, `<circle r="8" class="t-shock"/><circle r="8" class="t-shock s2"/><circle r="8" class="t-shock s3"/>`, 2600);
+        }
+        TFX.rums = ids;
+        // offener Gewinn/Verlust → steigt an der Börse London auf
+        if (pub.phase !== 'trading' || pub.paused || !me.pos) { TFX.unreal = me.unreal; TFX.t = now; return; }
+        if (TFX.unreal === null) { TFX.unreal = me.unreal; TFX.t = now; return; }
+        if (now - TFX.t < 2600) return;
+        const d = Math.round(me.unreal - TFX.unreal);
+        TFX.unreal = me.unreal;
+        TFX.t = now;
+        if (!d) return;
+        tfxAdd('lon', `<text y="-14" text-anchor="middle" class="fx-delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}</text>`, 2200);
     }
 
     function renderTerm() {
@@ -2286,6 +2459,7 @@ const Player = (() => {
             g.classList.toggle('hot', hot.has(k));
             g.classList.toggle('busy', !!(I.job && I.job.loc === k));
         });
+        termFx();
         const job = I.job;
         $('t-job').classList.toggle('hidden', !job);
         if (job) setHTML($('t-job'), `<span>${INTEL_TYPES[job.type].icon} ${esc(INTEL_TYPES[job.type].name)} · ${esc(INTEL_LOCS[job.loc].name)}</span><b>${job.left}s</b><i style="width:${((job.dur - job.left) / Math.max(1, job.dur)) * 100}%"></i>`);
