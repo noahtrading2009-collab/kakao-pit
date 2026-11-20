@@ -489,6 +489,17 @@ const Host = (() => {
 
     // Ändert sich die Reihenfolge, gleiten die Zeilen an ihren neuen Platz (FLIP-Animation).
     // Sonst werden nur die Zahlen aktualisiert – nichts flackert.
+    let rankFlashT = 0;
+    function rankFlash(html, col) {
+        let el = $('rank-flash');
+        if (!el) { el = document.createElement('div'); el.id = 'rank-flash'; $('v-host').appendChild(el); }
+        el.style.setProperty('--rc', col);
+        el.innerHTML = `<span class="rf-ico">🏁</span><span>${html}</span>`;
+        el.className = 'on';
+        Sound.play('bell');
+        clearTimeout(rankFlashT);
+        rankFlashT = setTimeout(() => { el.className = ''; }, 3800);
+    }
     function renderRank(S) {
         const el = $('h-rank');
         const groups = BOARDS.map(B => {
@@ -510,6 +521,21 @@ const Host = (() => {
             }
             return;
         }
+        // Wer hat wen überholt? Grosse Einblendung über der Rangliste
+        const prevOrder = renderRank.order || {};
+        const nowOrder = {};
+        for (const { B, all } of groups) nowOrder[B.role] = all.map(r => r.id);
+        for (const { B, all } of groups) {
+            const was = prevOrder[B.role];
+            if (!was || !(S.phase === 'trading')) continue;
+            const lead = all[0];
+            if (lead && was[0] !== undefined && was[0] !== lead.id && all.length > 1 && performance.now() - (renderRank.flashAt || 0) > 10000) {
+                renderRank.flashAt = performance.now();
+                const lost = all.find(r => r.id === was[0]);
+                rankFlash(`${roleIcon(B.role, 22)} <b>${esc(lead.name)}</b> übernimmt die Führung${lost ? ` vor ${esc(lost.name)}` : ''}!`, ROLES[B.role].color);
+            }
+        }
+        renderRank.order = nowOrder;
         const before = new Map([...el.querySelectorAll('[data-k]')].map(n => [n.dataset.k, n.getBoundingClientRect().top]));
         el.dataset.k = key;
         el.innerHTML = groups.map(({ B, list, more, all }) => {
@@ -525,6 +551,11 @@ const Host = (() => {
             const dy = top - n.getBoundingClientRect().top;
             if (Math.abs(dy) < 2) return;
             n.animate([{ transform: `translateY(${dy}px)`, background: 'rgba(217,178,111,.25)' }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.2,1,.3,1)' });
+            const ar = document.createElement('i');
+            ar.className = `rk-move ${dy > 0 ? 'up' : 'down'}`;
+            ar.textContent = dy > 0 ? '▲' : '▼';
+            n.appendChild(ar);
+            setTimeout(() => ar.remove(), 4000);
         });
     }
 
