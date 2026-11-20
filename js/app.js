@@ -64,6 +64,24 @@ const App = (() => {
         else if (last) $('in-code').value = last.code;
         if (last) $('in-name').value = last.name;
         if (joinCode) document.body.classList.add('joining');
+        // Zwischenschritt: zuerst «Mitspielen» oder «Spiel leiten», dann das passende Formular
+        const setStep = (s, focus) => {
+            const v = $('v-start');
+            if (v.dataset.step === s) return;
+            v.dataset.step = s;
+            if (focus && s === 'join') setTimeout(() => ($('in-code').value ? $('in-name') : $('in-code')).focus(), 380);
+            if (s !== 'choose') window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+        setStep(joinCode ? 'join' : 'choose');
+        $('v-start').addEventListener('click', e => {
+            const b = e.target.closest('[data-step]');
+            if (!b) return;
+            if (typeof Sound !== 'undefined' && Sound.play) Sound.play('tick');
+            setStep(b.dataset.step, true);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && $('v-start').classList.contains('active') && $('v-start').dataset.step !== 'choose') setStep('choose');
+        });
 
         $('seg-years').querySelectorAll('[data-years]').forEach(b => b.addEventListener('click', () => {
             years = Number(b.dataset.years);
