@@ -1072,7 +1072,7 @@ const Engine = (() => {
             call: p.call ? { need: Math.round(Math.max(0, req(p) - futEq(p))), left: Math.max(0, p.call.until - G.sec) } : null,
             result: Math.round(liveResult(p)), bonus: bonus(p), hedgeQuote: hedgeQuote(p), rank, bankrupt: p.bankrupt,
             limit: ROLES[p.role].limit, bounds: bounds(p), notes: p.notes.slice(-3), liquidations: p.liquidations,
-            physical: p.physical, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
+            physical: p.physical, basePhys: p.basePhys, revenue: Math.round(p.revenue), protect: p.protect, harvestLog: p.harvestLog.slice(-3),
             orders: p.orders.map(o => ({ client: o.client, t: o.t, price: o.price })),
             deals: dealView(p),
             decision: p.decision ? { ...p.decision, left: Math.max(0, p.decision.until - G.sec) } : null,
