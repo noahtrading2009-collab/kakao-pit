@@ -2400,35 +2400,3 @@ body.joining #v-start .st-back { display: none; }
 .fc-h b { font-size: 13.5px; }
 
 .d-world:has(.f-sim) .dz-hint { bottom: auto; top: 102px; }
-
-/* ===================== Spannung: Rivalen, Erfolge, Überholmanöver ===================== */
-.rv { display: block; font-style: normal; font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: .02em; color: #e9dcc4; white-space: nowrap; margin-top: 1px; }
-.rv.up { color: #f6c2ca; }
-.rv.lead { color: #f3dcaa; }
-#p-rank .rv { display: inline; margin-left: 6px; }
-#ach-pop { position: fixed; left: 50%; top: 70px; z-index: 60; display: flex; align-items: center; gap: 14px; min-width: 320px; max-width: min(460px, 92vw); padding: 12px 18px 12px 12px; border-radius: 16px; overflow: hidden;
-    background: linear-gradient(180deg, rgba(48, 36, 22, .97), rgba(20, 15, 10, .97)); border: 1px solid rgba(243, 220, 170, .65);
-    box-shadow: inset 0 1px 0 rgba(255, 240, 210, .15), 0 24px 60px rgba(0, 0, 0, .6), 0 0 0 4px rgba(217, 178, 111, .12);
-    transform: translate(-50%, -140%); opacity: 0; pointer-events: none; transition: transform .55s cubic-bezier(.2, 1.3, .3, 1), opacity .4s; }
-#ach-pop.on { transform: translate(-50%, 0); opacity: 1; }
-#ach-pop.off { transform: translate(-50%, -40%); opacity: 0; }
-.ach-medal { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1c9, #d9b26f 55%, #8a6232); box-shadow: inset 0 -3px 6px rgba(0, 0, 0, .35), 0 6px 16px rgba(0, 0, 0, .5), 0 0 0 3px rgba(243, 220, 170, .25); animation: medal 1s cubic-bezier(.2, 1.4, .4, 1) both; }
-.ach-medal span { font-size: 26px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
-@keyframes medal { from { transform: scale(.3) rotate(-30deg); } }
-.ach-tx { display: grid; gap: 2px; text-align: left; }
-.ach-tx small { font-size: 9.5px; letter-spacing: .2em; font-weight: 700; color: var(--gold); }
-.ach-tx b { font-family: var(--serif); font-size: 21px; font-weight: 600; color: #fbf3e2; line-height: 1.1; }
-.ach-tx span { font-size: 12.5px; color: #d9cdb6; }
-.ach-shine { position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 240, 200, .25) 48%, transparent 66%); transform: translateX(-100%); animation: achShine 1.6s .35s ease both; pointer-events: none; }
-@keyframes achShine { to { transform: translateX(100%); } }
-#rank-flash { position: absolute; left: 50%; top: 92px; z-index: 40; display: flex; align-items: center; gap: 12px; padding: 12px 22px; border-radius: 999px; font-size: 22px; color: #fbf3e2;
-    background: linear-gradient(180deg, rgba(40, 30, 20, .96), rgba(16, 12, 9, .96)); border: 1px solid color-mix(in srgb, var(--rc) 70%, #f3dcaa); box-shadow: 0 20px 60px rgba(0, 0, 0, .6), 0 0 0 6px color-mix(in srgb, var(--rc) 18%, transparent);
-    transform: translate(-50%, -30px) scale(.9); opacity: 0; pointer-events: none; transition: transform .5s cubic-bezier(.2, 1.3, .3, 1), opacity .35s; }
-#rank-flash.on { transform: translate(-50%, 0) scale(1); opacity: 1; }
-#rank-flash b { font-family: var(--serif); font-weight: 600; color: #f3dcaa; }
-.rf-ico { font-size: 26px; }
-.rank-row { position: relative; }
-.rk-move { position: absolute; right: -14px; top: 50%; transform: translateY(-50%); font-style: normal; font-size: 12px; animation: rkMove 4s ease both; }
-.rk-move.up { color: #56c796; } .rk-move.down { color: #e26878; }
-@keyframes rkMove { 0% { opacity: 0; transform: translate(-6px, -50%); } 10%, 80% { opacity: 1; transform: translate(0, -50%); } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { #ach-pop, #rank-flash { transition: none; } .ach-shine, .ach-medal { animation: none; } }

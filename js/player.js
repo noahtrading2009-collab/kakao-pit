@@ -130,7 +130,6 @@ const Player = (() => {
                 }
             }
             if (pub.phase !== 'lobby') (view === 'v-term' ? renderTerm() : view === 'v-desk' ? renderDesk() : render());
-            if (pub.phase !== 'lobby') engage();
             return;
         }
         if (msg.t === 'yearEnd') {
@@ -236,7 +235,7 @@ const Player = (() => {
             lastTick = pub.secLeft;
             Sound.play('tick');
         }
-        $('p-rank').innerHTML = `<small>Platz</small>${me.rank}<small>/${me.roleCount}</small>${rivalHTML(true)}`;
+        $('p-rank').innerHTML = `<small>Platz</small>${me.rank}<small>/${me.roleCount}</small>`;
 
         const prev = Number($('p-price').dataset.v || pub.price);
         tween($('p-price'), pub.price);
@@ -740,105 +739,6 @@ const Player = (() => {
         el.className = `p-flash pk-${it.kind}`;
         el.innerHTML = text;
         newsFlash.t = setTimeout(() => el.classList.add('hidden'), 4500);
-    }
-
-    // ===== Spannung: Rivalen, Überholmanöver, Erfolge =====
-    function rivals() {
-        if (!pub || !pub.ranking || !me) return null;
-        const list = pub.ranking.filter(r => r.role === me.role).sort((a, b) => b.score - a.score);
-        const i = list.findIndex(r => r.id === me.id);
-        if (i < 0) return null;
-        const mine = list[i].score;
-        return { list, i, ahead: list[i - 1] ? { name: list[i - 1].name, gap: list[i - 1].score - mine } : null, behind: list[i + 1] ? { name: list[i + 1].name, gap: mine - list[i + 1].score } : null };
-    }
-    function rivalHTML(short) {
-        const R = rivals();
-        if (!R || R.list.length < 2) return '';
-        if (R.ahead) return `<em class="rv up" title="Abstand zum Platz vor dir">▲ ${esc(R.ahead.name.slice(0, short ? 8 : 12))} ${fmt(Math.max(1, R.ahead.gap))}</em>`;
-        return `<em class="rv lead" title="Vorsprung auf Platz 2">👑 +${fmt(Math.max(0, R.behind.gap))}</em>`;
-    }
-    const ACH = [
-        { id: 'first', icon: '🎯', t: 'Erster Schritt', d: 'Deine erste Absicherung steht.', spec: 'Dein erster Trade ist platziert.' },
-        { id: 'deal', icon: '🤝', t: 'Handschlag', d: 'Erster Liefervertrag unterschrieben.' },
-        { id: 'full', icon: '🛡️', t: 'Volle Deckung', d: 'Deine ganze Menge ist abgesichert.' },
-        { id: 'lead', icon: '👑', t: 'An der Spitze', d: 'Platz 1 in deiner Rolle.' },
-        { id: 'pass', icon: '🚀', t: 'Überholmanöver', d: 'Du hast jemanden überholt.' },
-        { id: 'comeback', icon: '🔥', t: 'Comeback', d: 'Zwei Plätze in einem Monat gutgemacht.' },
-        { id: 'sharp', icon: '🔍', t: 'Gerücht durchschaut', d: 'Ein Bericht hat ein Gerücht eindeutig geklärt.' },
-        { id: 'gold', icon: '💰', t: 'Goldener Riecher', d: 'Mehr als 10\'000 CHF offener Gewinn.', hedger: 'Dein Preis liegt 3 % besser als zu Beginn.' },
-        { id: 'nerves', icon: '🧊', t: 'Eiserne Nerven', d: 'Ein ganzes Jahr ohne Nachschuss-Forderung.' },
-    ];
-    const EG = { prevRank: null, prevIds: null, monthRank: null, month: null, got: new Set(), queue: [], showing: false, call: false, year: null, since: 0 };
-    function achKey() { return `kp-ach|${me.name}|${me.role}|${pub.p0}`; }
-    function achLoad() { try { (JSON.parse(sessionStorage.getItem(achKey())) || []).forEach(a => EG.got.add(a)); } catch (e) { /* egal */ } }
-    function achSave() { try { sessionStorage.setItem(achKey(), JSON.stringify([...EG.got])); } catch (e) { /* egal */ } }
-    function unlock(id) {
-        if (EG.got.has(id)) return;
-        EG.got.add(id);
-        achSave();
-        const a = ACH.find(x => x.id === id);
-        if (!a) return;
-        const spec = me.role === 'spec';
-        EG.queue.push({ icon: a.icon, t: a.t, d: id === 'first' && spec ? a.spec : id === 'gold' && !spec ? a.hedger : a.d });
-        achShow();
-    }
-    function achShow() {
-        if (EG.showing || !EG.queue.length) return;
-        const a = EG.queue.shift();
-        EG.showing = true;
-        let el = $('ach-pop');
-        if (!el) { el = document.createElement('div'); el.id = 'ach-pop'; document.body.appendChild(el); }
-        el.innerHTML = `<div class="ach-medal"><span>${a.icon}</span></div><div class="ach-tx"><small>ERFOLG FREIGESCHALTET · ${EG.got.size}/${ACH.length}</small><b>${esc(a.t)}</b><span>${esc(a.d)}</span></div><i class="ach-shine"></i>`;
-        el.className = 'on';
-        Sound.play('cash');
-        setTimeout(() => { el.className = 'off'; setTimeout(() => { EG.showing = false; achShow(); }, 450); }, 3600);
-    }
-    function engage() {
-        if (!me || !pub) return;
-        if (!EG.loaded) { EG.loaded = true; achLoad(); }
-        const trading = pub.phase === 'trading' || pub.phase === 'settle';
-        const R = rivals();
-        // Überholmanöver (erst nach ein paar Sekunden, damit der Start nicht alles auslöst)
-        if (R && trading) {
-            EG.since++;
-            const ids = R.list.map(r => r.id);
-            const calm = performance.now() - (EG.tT || 0) > 8000; // höchstens alle 8 s eine Meldung
-            if (EG.prevRank !== null && EG.since > 4 && R.list.length > 1 && calm && R.i !== EG.prevRank) EG.tT = performance.now();
-            if (EG.prevRank !== null && EG.since > 4 && R.list.length > 1 && (calm || R.i === EG.prevRank)) {
-                if (R.i < EG.prevRank) {
-                    const passed = EG.prevIds.slice(R.i, EG.prevRank).filter(id => id !== me.id).map(id => (R.list.find(r => r.id === id) || {}).name).filter(Boolean);
-                    toast(`🚀 Du hast ${passed.slice(0, 2).join(' & ') || 'jemanden'} überholt – jetzt Platz ${R.i + 1}!`, 'good');
-                    Sound.play('cash');
-                    unlock('pass');
-                } else if (R.i > EG.prevRank) {
-                    const by = R.list[R.i - 1];
-                    toast(`⚠️ ${by ? by.name : 'Jemand'} hat dich überholt – Platz ${R.i + 1}. Hol dir den Platz zurück!`, 'bad');
-                    Sound.play('error');
-                }
-            }
-            EG.prevRank = R.i;
-            EG.prevIds = ids;
-            if (EG.month !== pub.month) { EG.month = pub.month; EG.monthRank = R.i; }
-            if (EG.monthRank !== null && EG.monthRank - R.i >= 2) unlock('comeback');
-            if (R.i === 0 && R.list.length > 1 && EG.since > 4) unlock('lead');
-        }
-        // Erfolge
-        if (me.role === 'spec') {
-            if (me.pos) unlock('first');
-            if (me.unreal >= 10000) unlock('gold');
-            if (me.intel && me.intel.reports && me.intel.reports.some(r => r.clear)) unlock('sharp');
-        } else {
-            const H = holdings();
-            if (H.futIn > 0 || H.contract > 0) unlock('first');
-            if (H.open === 0 && H.futIn + H.contract > 0 && !H.over) unlock('full');
-            const good = me.role === 'producer' ? me.metric >= pub.p0 * 1.03 : me.metric <= pub.p0 * 0.97;
-            if (good && pub.phase === 'trading' && (pub.month > 1 || pub.secLeft < (pub.monthSec || 60) / 2)) unlock('gold');
-        }
-        if (me.deals && me.deals.signed && me.deals.signed.length) unlock('deal');
-        // Eiserne Nerven: ein Jahr ohne Nachschuss
-        if (me.call) EG.call = true;
-        if (EG.year !== pub.year) { EG.year = pub.year; EG.call = !!me.call; }
-        if (pub.phase === 'settle' && !EG.call && !me.bankrupt) unlock('nerves');
     }
 
     function toast(text, kind = '') {
@@ -2854,7 +2754,7 @@ const Player = (() => {
         $('d-metric-l').textContent = prod ? 'DEIN PREIS JETZT' : 'DEIN EINKAUF JETZT';
         const good = prod ? me.metric >= pub.p0 : me.metric <= pub.p0;
         $('d-metric').innerHTML = `<span class="${good ? 'up' : 'down'}">${fmt(me.metric)}</span>`;
-        $('d-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>${rivalHTML()}`;
+        $('d-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>`;
         $('d-month').textContent = pub.phase === 'pre' ? 'PRE-MARKET' : pub.phase === 'settle' ? 'ABRECHNUNG' : `MONAT ${pub.month}/${pub.months}${pub.years > 1 ? ` · JAHR ${pub.year}` : ''}`;
         $('d-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('d-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
@@ -3559,7 +3459,7 @@ const Player = (() => {
         $('t-price').textContent = fmt(pub.price);
         $('t-chg').innerHTML = `<span class="${ch >= 0 ? 'up' : 'down'}">${arrow(ch)}${pct(ch)}</span>`;
         $('t-pl').innerHTML = `<span class="${me.result >= 0 ? 'up' : 'down'}">${arrow(me.result)}${signed(me.result)}</span>`;
-        $('t-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>${rivalHTML()}`;
+        $('t-rank').innerHTML = `${me.rank}<small>/${me.roleCount}</small>`;
         $('t-month').textContent = pub.phase === 'pre' ? 'PRE-MARKET' : pub.phase === 'settle' ? 'ABRECHNUNG' : `MONAT ${pub.month}/${pub.months}${pub.years > 1 ? ` · JAHR ${pub.year}` : ''}`;
         $('t-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('t-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
