@@ -2539,3 +2539,29 @@ body.joining #v-start .st-back { display: none; }
 /* Symbole in Szenen-Plaketten nicht wie die Szenengrafik behandeln */
 #p-scene .ico, .sc-chip .ico { position: static !important; inset: auto !important; width: 1.08em !important; height: 1.08em !important; filter: none !important; display: inline-block !important; }
 .scene .ico { position: static !important; inset: auto !important; width: 1.08em !important; height: 1.08em !important; }
+
+/* Terminal: Atlas-Look */
+.t-cty { fill: none !important; stroke: rgba(233, 220, 196, .32) !important; stroke-width: .6 !important; stroke-dasharray: 2.5 2; }
+.t-cty.ci, .t-cty.gh { stroke: rgba(240, 205, 132, .75) !important; stroke-width: .9 !important; stroke-dasharray: none; }
+.t-sea text { font-family: var(--serif); font-style: italic; font-size: 7px; letter-spacing: .3em; fill: rgba(169, 196, 220, .42); text-transform: uppercase; pointer-events: none; }
+.t-ins-depth { stroke: rgba(140, 190, 200, .12) !important; }
+.t-ins-c { fill: rgba(243, 230, 204, .55) !important; font-family: var(--serif) !important; letter-spacing: .2em; }
+.t-ins-sea { fill: rgba(169, 196, 220, .5) !important; font-family: var(--serif) !important; font-style: italic; }
+.t-ins-belt { fill: rgba(240, 205, 132, .55) !important; font-family: var(--serif) !important; letter-spacing: .3em; }
+.t-ins-crop { stroke: rgba(240, 205, 132, .45) !important; fill: none !important; }
+#t-map .t-world { background: #0c1a22 !important; }
+
+.t-ins-crop { stroke: rgba(150, 190, 100, .14) !important; }
+
+/* Auswahl-Leiste */
+.sel-bar { position: absolute; left: 50%; bottom: 46px; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 16px; border-radius: 999px; background: var(--m-leather) 0 0 / 256px 256px, linear-gradient(180deg, rgba(40, 30, 20, .97), rgba(18, 13, 9, .97)); border: 1px solid rgba(243, 220, 170, .55); box-shadow: 0 16px 40px rgba(0, 0, 0, .6), 0 0 0 4px rgba(217, 178, 111, .1); transform: translate(-50%, 16px); opacity: 0; pointer-events: none; transition: transform .35s cubic-bezier(.2, 1.2, .3, 1), opacity .25s; white-space: nowrap; }
+.sel-bar.on { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.sb-n { font-size: 13px; color: #e9dcc4; } .sb-n b { font-family: var(--serif); font-size: 17px; color: #f3dcaa; }
+.sel-bar button[data-sb="go"] { border: 1px solid rgba(255, 236, 196, .65); border-radius: 999px; padding: 7px 16px; background: var(--m-gold); color: #23170a; font-family: var(--serif); font-weight: 700; letter-spacing: .06em; font-size: 14px; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6); }
+.sel-bar button[data-sb="go"] em { font-style: normal; font-weight: 600; opacity: .75; margin-left: 4px; font-variant-numeric: lining-nums tabular-nums; }
+.sel-bar button[data-sb="go"]:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
+.sel-bar .sb-x { border: 1px solid rgba(214, 178, 112, .35); background: transparent; color: #cdbfa6; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; }
+.d-world:has(.sel-bar.on) .f-sim { opacity: .25; pointer-events: none; }
+/* Fabrik: Szenario auf den Silos */
+.plant-map .silo.sim-down .s-hit { fill: rgba(226, 104, 120, .16) !important; stroke: rgba(226, 104, 120, .8); stroke-width: 1.5; }
+.plant-map .silo.sim-up .s-hit { fill: rgba(86, 199, 150, .14) !important; stroke: rgba(86, 199, 150, .8); stroke-width: 1.5; }

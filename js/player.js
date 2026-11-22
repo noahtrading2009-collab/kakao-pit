@@ -2181,6 +2181,18 @@ const Player = (() => {
         if (!img) { deskLife(null, 0, false); return deskLoader(false); }
         const secured = tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length);
         plantLife(HH, true, 0.55 + 0.45 * secured);
+        // Was kostet jedes Silo im Dezember? (offen: Tagespreis + Aufschlag, abgesichert: fester Preis)
+        const signedP = (me.deals && me.deals.signed) || [];
+        const cIdx = [];
+        signedP.forEach((d, ci) => { for (let t = 0; t < d.t; t += unit) cIdx.push(ci); });
+        const P0 = pub.price;
+        const PS = Math.round(P0 * (1 + DSIM / 100));
+        const lockF = me.secured || P0;
+        const pen = CFG.spotPenalty;
+        const costAt = (kk, i, P) => (kk === 'open' ? unit * P * (1 + pen) : kk === 'fut' ? unit * lockF : kk === 'deal' ? unit * ((signedP[cIdx[i]] || {}).price || lockF) : 0);
+        const simTot = { withH: 0, without: 0 };
+        tiles.forEach((kk, i) => { if (kk === 'cut') return; simTot.withH += costAt(kk, i, PS); simTot.without += unit * PS * (1 + pen); });
+        farmOverlays({ unit, P0, PS, simTot, tiles, prod: false });
         DINFO = [];
         DPOS = [];
         DVB = `0 0 800 ${HH}`;
@@ -2200,7 +2212,8 @@ const Player = (() => {
                     bars: unit * 20000,
                     risk: kk === 'open' ? `Steigt Kakao um 100 CHF/t, zahlst du hier ${fmt(unit * 100)} CHF mehr.` : kk === 'cut' ? 'Gestrichen – wird nicht mehr gebraucht.' : 'Einkaufspreis fix – egal, was der Markt macht.',
                 };
-                return `<g class="silo r ${kk}${DSEL.has(i) ? ' sel' : ''}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})">
+                const simS = DSIM && kk === 'open' ? (DSIM > 0 ? ' sim-down' : ' sim-up') : '';
+                return `<g class="silo r ${kk}${DSEL.has(i) ? ' sel' : ''}${simS}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})">
                     <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
                     ${kk === 'deal' || kk === 'fut' ? `<rect x="${(w * 0.62).toFixed(1)}" y="12" width="6" height="80" fill="url(#beanFill)"/><rect x="${(w * 0.62 + 0.6).toFixed(1)}" y="13" width="1" height="78" fill="rgba(255,255,255,.28)"/><rect x="0" y="52" width="${w}" height="9" fill="url(#${kk === 'deal' ? 'bandD' : 'bandF'})"/>` : ''}
                     <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
@@ -2424,27 +2437,29 @@ const Player = (() => {
         sim.style.display = '';
         // Erntekalender
         const M = Math.max(1, pub.months || 4);
-        const steps = ['Blüte', 'Schoten wachsen', 'Schoten reifen', 'Ernte'];
+        const prodR = o.prod !== false;
+        const steps = prodR ? ['Blüte', 'Schoten wachsen', 'Schoten reifen', 'Ernte'] : ['Bedarf planen', 'Einkaufen', 'Absichern', 'Lieferung'];
         const settle = pub.phase === 'settle';
         const st = settle ? 3 : pub.phase === 'pre' ? 0 : Math.min(3, Math.floor(((pub.month || 1) - 1) / M * 4));
         const prog = settle ? 1 : pub.phase === 'pre' ? 0 : Math.min(1, ((pub.month || 1) - 1 + (1 - (pub.secLeft || 0) / Math.max(1, pub.monthSec || 60))) / M);
         const H = holdings();
         const loss = me.basePhys && me.physical < me.basePhys ? Math.round((1 - me.physical / me.basePhys) * 100) : 0;
         const skyName = { drought: 'Dürre', blackpod: 'Black Pod (Pilz)', rain: 'Starkregen', record: 'Rekordernte' }[me.sky] || '';
-        const warn = me.skyRumor && skyName ? `<div class="fc-w rumor">⚠ Gerücht: ${skyName} – deine Ernte könnte ${me.sky === 'record' ? 'grösser' : 'kleiner'} werden. Sichere nicht mehr ab, als du sicher erntest.</div>`
+        const warn = !prodR ? (H.over ? `<div class="fc-w loss"><b>${H.over} t zu viel abgesichert</b> – mehr, als die Fabrik braucht.</div>` : H.cut ? `<div class="fc-w rumor">Bedarf um ${H.cut} t gekürzt – diese Menge brauchst du nicht mehr.</div>` : '') : me.skyRumor && skyName ? `<div class="fc-w rumor">⚠ Gerücht: ${skyName} – deine Ernte könnte ${me.sky === 'record' ? 'grösser' : 'kleiner'} werden. Sichere nicht mehr ab, als du sicher erntest.</div>`
             : loss ? `<div class="fc-w loss">${skyName ? `${skyName}: ` : ''}Ernte −${loss} % · ${me.physical} statt ${me.basePhys} t${H.over ? ` · <b>${H.over} t zu viel abgesichert!</b>` : ''}</div>` : '';
-        setHTML(cal, `<div class="fc-h"><span>ERNTEKALENDER</span><b>${settle ? 'Erntetag – die Säcke fahren zum Hafen' : steps[st]}</b></div>
+        setHTML(cal, `<div class="fc-h"><span>${prodR ? 'ERNTEKALENDER' : 'EINKAUFSPLAN'}</span><b>${settle ? (prodR ? 'Erntetag – die Säcke fahren zum Hafen' : 'Lieferung – der Kakao kommt in die Fabrik') : steps[st]}</b></div>
             <div class="fc-bar">${steps.map((s, i) => `<i class="${i < st ? 'done' : i === st ? 'now' : ''}"><em>${s}</em></i>`).join('')}<span style="left:${(prog * 100).toFixed(1)}%"></span></div>${warn}`);
         // Regler-Ergebnis
         const out = sim.querySelector('.fs-out');
         const r = sim.querySelector('.fs-r');
         if (Number(r.value) !== DSIM) r.value = DSIM;
         r.style.setProperty('--p', `${((DSIM + 30) / 60) * 100}%`);
-        const diff = o.simTot.withH - o.simTot.without;
+        // Kooperative: mehr Erlös ist gut. Fabrik: tiefere Kosten sind gut.
+        const diff = prodR ? o.simTot.withH - o.simTot.without : o.simTot.without - o.simTot.withH;
         out.innerHTML = DSIM === 0
-            ? '<span class="fs-hint">Zieh den Regler: Wie viel bringt deine Ernte, wenn Kakao im Dezember steigt oder fällt?</span>'
-            : `<div class="fs-p">Kakao <b>${fmt(o.PS)}</b> CHF/t <em class="${DSIM > 0 ? 'up' : 'down'}">${DSIM > 0 ? '+' : '−'}${Math.abs(DSIM)} %</em></div>
-               <div class="fs-row"><span>Mit deiner Absicherung</span><b>${fmt(o.simTot.withH)}</b></div>
+            ? `<span class="fs-hint">${prodR ? 'Zieh den Regler: Wie viel bringt deine Ernte, wenn Kakao im Dezember steigt oder fällt?' : 'Zieh den Regler: Was kostet dein Kakao, wenn er im Dezember steigt oder fällt?'}</span>`
+            : `<div class="fs-p">Kakao <b>${fmt(o.PS)}</b> CHF/t <em class="${(DSIM > 0) === prodR ? 'up' : 'down'}">${DSIM > 0 ? '+' : '−'}${Math.abs(DSIM)} %</em></div>
+               <div class="fs-row"><span>${prodR ? 'Erlös mit deiner Absicherung' : 'Einkauf mit deiner Absicherung'}</span><b>${fmt(o.simTot.withH)}</b></div>
                <div class="fs-row"><span>Ganz ohne Absicherung</span><b>${fmt(o.simTot.without)}</b></div>
                <div class="fs-d ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? 'Absicherung schützt dich um' : 'Absicherung kostet dich hier'} <b>${fmt(Math.abs(diff))} CHF</b></div>`;
     }
@@ -2468,6 +2483,34 @@ const Player = (() => {
         let x = ev.clientX - pan.left - tw - 16;
         let y = ev.clientY - pan.top - th / 2;
         tip.style.transform = `translate(${Math.max(6, Math.min(x, pan.width - tw - 6))}px, ${Math.max(6, Math.min(y, pan.height - th - 6))}px)`;
+    }
+
+    // Auswahl-Leiste auf der Karte: ausgewählte Dörfer/Silos direkt absichern
+    function selBar() {
+        const pan = $('d-world') && $('d-world').parentElement;
+        if (!pan || !me) return;
+        let bar = pan.querySelector('.sel-bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.className = 'sel-bar';
+            pan.appendChild(bar);
+            bar.addEventListener('click', ev => {
+                const b = ev.target.closest('button');
+                if (!b) return;
+                if (b.dataset.sb === 'go') { const t = document.querySelector('#d-ticket button.main[data-dt]'); if (t && !t.disabled) t.click(); }
+                if (b.dataset.sb === 'x') { DSEL.clear(); dQty = 2; renderDesk(); }
+            });
+            ['pointerdown', 'wheel', 'dblclick'].forEach(t => bar.addEventListener(t, ev => ev.stopPropagation()));
+        }
+        if (!DSEL.size) { bar.classList.remove('on'); return; }
+        const prod = me.role === 'producer';
+        const t = dQty * CFG.size;
+        const px = prod ? Math.round(pub.price * (1 - CFG.spread)) : Math.round(pub.price * (1 + CFG.spread));
+        const can = pub.phase === 'trading' && !pub.paused;
+        setHTML(bar, `<span class="sb-n"><b>${DSEL.size}</b> ${prod ? (DSEL.size === 1 ? 'Dorf' : 'Dörfer') : DSEL.size === 1 ? 'Silo' : 'Silos'} · ${t} t</span>
+            <button data-sb="go" ${can ? '' : 'disabled'}>${prod ? 'Ernte absichern' : 'Einkauf absichern'} <em>zu ${fmt(px)}</em></button>
+            <button data-sb="x" class="sb-x" title="Auswahl löschen">✕</button>`);
+        bar.classList.add('on');
     }
 
     function bindDeskMap() {
@@ -2772,6 +2815,7 @@ const Player = (() => {
         bindDeskMap();
         const mapHTML = prod ? farmSVG() : plantSVG();
         deskSelSync();
+        setTimeout(selBar, 0);
         setHTML($('d-world'), mapHTML);
         deskZoomApply();
         deskFx();
@@ -2856,6 +2900,106 @@ const Player = (() => {
             <text class="t-pi" x="${right ? -9 : 9}" y="10" text-anchor="${right ? 'end' : 'start'}">${icons}</text></g></g>`;
     }
 
+    // ===== Atlas-Maler: echte Kontinente mit Vegetationszonen, Wüsten, Gebirgsrelief, Schelfmeer =====
+    function atlasLand(projX, projY) {
+        const land = new Path2D();
+        for (const r of COAST_HI) {
+            let maxLat = -90;
+            for (let i = 1; i < r.length; i += 2) maxLat = Math.max(maxLat, r[i] / 2);
+            if (maxLat < -50) continue;
+            for (const shift of [0, 360, -360]) {
+                let prev = null;
+                let off = 0;
+                for (let i = 0; i < r.length; i += 2) {
+                    let lon = r[i] / 2;
+                    const lat = r[i + 1] / 2;
+                    if (prev !== null) { const d = lon + off - prev; if (d > 180) off -= 360; else if (d < -180) off += 360; }
+                    lon += off;
+                    prev = lon;
+                    const px = projX(lon + shift);
+                    const py = projY(lat);
+                    if (i) land.lineTo(px, py); else land.moveTo(px, py);
+                }
+                land.closePath();
+            }
+        }
+        return land;
+    }
+    function atlasPaint(x, W, H, projX, projY, opt = {}) {
+        const land = opt.land || atlasLand(projX, projY);
+        const rnd = RenderCore.rng(opt.seed || 77);
+        // Ozean: tiefes Petrol, zur Mitte etwas heller
+        const og = x.createLinearGradient(0, 0, 0, H);
+        og.addColorStop(0, '#0e1c25'); og.addColorStop(0.5, '#0c1a22'); og.addColorStop(1, '#09141a');
+        x.fillStyle = og; x.fillRect(0, 0, W, H);
+        const ov = x.createRadialGradient(W * 0.45, H * 0.5, 10, W * 0.5, H * 0.5, Math.max(W, H) * 0.7);
+        ov.addColorStop(0, 'rgba(60,96,110,.22)'); ov.addColorStop(1, 'rgba(0,0,0,0)');
+        x.fillStyle = ov; x.fillRect(0, 0, W, H);
+        // Schelfmeer: helles, flaches Wasser entlang der Küsten
+        x.save();
+        x.lineJoin = 'round';
+        for (const [w, a] of [[opt.shelf || 5, 0.06], [(opt.shelf || 5) * 0.55, 0.09], [(opt.shelf || 5) * 0.25, 0.12]]) {
+            x.strokeStyle = `rgba(110,170,175,${a})`; x.lineWidth = w; x.stroke(land);
+        }
+        x.restore();
+        // Land
+        x.save();
+        x.clip(land, 'evenodd');
+        const lg = x.createLinearGradient(0, projY(72), 0, projY(-40));
+        const stops = [[72, '#6c726b'], [62, '#3e4b3b'], [50, '#4a5a3d'], [40, '#5f6340'], [32, '#8a7b56'], [22, '#93805a'], [14, '#6f6c40'], [8, '#3f5631'], [2, '#2c4629'], [-6, '#2e4a2b'], [-14, '#56603a'], [-24, '#7a6f4a'], [-34, '#5a6443'], [-40, '#4d5a40']];
+        const y0 = projY(72); const y1 = projY(-40);
+        for (const [lat, c] of stops) lg.addColorStop(Math.min(1, Math.max(0, (projY(lat) - y0) / (y1 - y0))), c);
+        x.fillStyle = lg; x.fillRect(0, 0, W, H);
+        const blob = (lon, lat, rx, ry, col, a) => {
+            const cx = projX(lon); const cy = projY(lat);
+            const sx = Math.abs(projX(lon + rx) - cx); const sy = Math.abs(projY(lat + ry) - cy);
+            x.save(); x.translate(cx, cy); x.scale(1, sy / sx);
+            const g = x.createRadialGradient(0, 0, 0, 0, 0, sx);
+            g.addColorStop(0, col.replace('A', a)); g.addColorStop(0.6, col.replace('A', a * 0.7)); g.addColorStop(1, col.replace('A', 0));
+            x.fillStyle = g; x.beginPath(); x.arc(0, 0, sx, 0, Math.PI * 2); x.fill(); x.restore();
+        };
+        // Wüsten
+        for (const [lo, la, rx, ry, a] of [[8, 23, 30, 8, 0.85], [-5, 20, 12, 5, 0.6], [45, 23, 11, 8, 0.75], [57, 31, 8, 4, 0.5], [90, 40, 14, 5, 0.55], [128, -25, 14, 7, 0.7], [21, -24, 6, 5, 0.5], [-70, -24, 2.5, 8, 0.6], [62, 42, 8, 4, 0.4]]) blob(lo, la, rx, ry, 'rgba(176,150,104,A)', a);
+        // Regenwälder
+        for (const [lo, la, rx, ry, a] of [[-62, -4, 14, 7, 0.75], [20, 0, 9, 5, 0.7], [112, 0, 14, 6, 0.6], [-5, 6, 9, 2.6, 0.55], [100, 15, 8, 6, 0.4], [-88, 15, 5, 4, 0.45]]) blob(lo, la, rx, ry, 'rgba(26,52,30,A)', a);
+        // Kakao-Gürtel Westafrika leicht hervorgehoben
+        if (!opt.noBelt) blob(-4, 7, 7, 2.6, 'rgba(70,110,58,A)', 0.45);
+        // Gebirge: Grate mit Licht von Nordwesten
+        const ridges = opt.ridges || [
+            [[69, 36], [76, 35], [84, 29], [92, 28], [97, 27.5]], [[-78, 8], [-77, 0], [-76, -10], [-70, -18], [-69, -28], [-70, -36]],
+            [[-118, 60], [-114, 52], [-108, 44], [-106, 37]], [[6, 45.5], [10, 46.5], [14, 47]], [[-8, 31], [0, 33], [8, 35.5]],
+            [[59, 50], [60, 58], [62, 66]], [[37, 13], [39, 9], [40, 6]], [[44, 40], [48, 38], [56, 36], [62, 34]], [[148, -37], [151, -30], [152, -25]],
+            [[100, 37], [104, 33], [108, 34]], [[25, 42], [28, 43]], [[-4, 43], [2, 42.6]],
+        ];
+        x.lineCap = 'round'; x.lineJoin = 'round';
+        for (const R of ridges) {
+            const P = new Path2D();
+            R.forEach(([lo, la], i) => (i ? P.lineTo(projX(lo), projY(la)) : P.moveTo(projX(lo), projY(la))));
+            x.save(); x.translate(0.6, 0.7); x.strokeStyle = 'rgba(10,12,8,.35)'; x.lineWidth = opt.ridgeW || 3.2; x.stroke(P); x.restore();
+            x.strokeStyle = 'rgba(214,200,170,.22)'; x.lineWidth = (opt.ridgeW || 3.2) * 0.45; x.stroke(P);
+            x.strokeStyle = 'rgba(240,230,210,.18)'; x.lineWidth = (opt.ridgeW || 3.2) * 0.15; x.stroke(P);
+        }
+        // Relief-Körnung
+        const n = opt.grain || 9000;
+        for (let i = 0; i < n; i++) {
+            const px = rnd() * W; const py = rnd() * H; const v = rnd();
+            x.fillStyle = v < 0.5 ? `rgba(0,0,0,${(0.04 + rnd() * 0.06).toFixed(3)})` : `rgba(255,245,220,${(0.02 + rnd() * 0.04).toFixed(3)})`;
+            const gs = opt.gs || 0.5; x.fillRect(px, py, gs * (1 + rnd() * 1.6), gs * (1 + rnd() * 1.6));
+        }
+        // Licht von oben links, Schatten zur Küste
+        const sh = x.createLinearGradient(0, 0, W, H);
+        sh.addColorStop(0, 'rgba(255,240,210,.05)'); sh.addColorStop(1, 'rgba(0,0,0,.12)');
+        x.fillStyle = sh; x.fillRect(0, 0, W, H);
+        x.restore();
+        // Küstenlinie: fein graviert
+        x.save();
+        x.lineJoin = 'round';
+        x.strokeStyle = 'rgba(8,14,16,.55)'; x.lineWidth = (opt.coastW || 0.45) * 2.4; x.stroke(land);
+        x.strokeStyle = 'rgba(233,220,196,.62)'; x.lineWidth = opt.coastW || 0.45; x.stroke(land);
+        x.restore();
+        return land;
+    }
+
     function buildMap() {
         // Punkteraster 1° aus echten Natural-Earth-Daten, dazu die exakte Küstenlinie
         const rowOf = lat => LAND_HI[78 - lat];
@@ -2879,7 +3023,10 @@ const Player = (() => {
         // Ausschnitt Westafrika: Küste am Golf von Guinea, Grenze Elfenbeinküste/Ghana
         const coast = [[-30, 13], [-16, 9.5], [-12.5, 7.4], [-11.4, 6.8], [-10.4, 6.1], [-9, 4.9], [-7.5, 4.3], [-6, 4.9], [-4.6, 5.2], [-3, 5.1], [-2, 4.8], [-1, 5.1], [0, 5.6], [1, 6.1], [2, 6.3], [3, 6.4], [4.4, 6.3], [5.2, 5.6], [5.8, 4.6], [6.5, 4.3], [9, 4.2], [24, 3.6]];
         const cpts = coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${iy(la).toFixed(1)}`).join(' ');
+        const waLand = new Path2D();
+        Object.values(WA_HI).forEach(rs => rs.forEach(r => { for (let i = 0; i < r.length; i += 2) { const px = ix(r[i] / 100); const py = iy(r[i + 1] / 100); if (i) waLand.lineTo(px, py); else waLand.moveTo(px, py); } waLand.closePath(); }));
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
+            <image href="${paintImage(IW, IH, 5, x => atlasPaint(x, IW, IH, ix, iy, { land: waLand, shelf: 10, coastW: 0.7, ridges: [], grain: 9000, gs: 0.35, noBelt: true }))}" x="0" y="0" width="${IW}" height="${IH}" preserveAspectRatio="none"/>
             ${Object.entries(WA_HI).map(([k, rs]) => `<path class="t-cty ${k}" d="${rs.map(r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${ix(r[i] / 100).toFixed(1)} ${iy(r[i + 1] / 100).toFixed(1)}`; return `${d}Z`; }).join('')}"/>`).join('')}
             <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(86,199,150,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
@@ -2896,53 +3043,10 @@ const Player = (() => {
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat), 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat), 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
-                const W2 = [];
-                const BELT = [];
-                // Ozean: weicher Schimmer, zur Mitte hin heller
-                const og = x.createRadialGradient(TW * 0.42, TH * 0.48, 10, TW * 0.5, TH * 0.5, TW * 0.62);
-                og.addColorStop(0, 'rgba(46,58,74,.55)');
-                og.addColorStop(0.6, 'rgba(22,28,38,.35)');
-                og.addColorStop(1, 'rgba(8,10,14,0)');
-                x.fillStyle = og;
-                x.fillRect(0, 0, TW, TH);
-                // Äquator & Wendekreise (Kakao wächst nur ca. 20° um den Äquator)
-                const bg = x.createLinearGradient(0, ty(20), 0, ty(-20));
-                bg.addColorStop(0, 'rgba(185,207,148,0)');
-                bg.addColorStop(0.5, 'rgba(185,207,148,.06)');
-                bg.addColorStop(1, 'rgba(185,207,148,0)');
-                x.fillStyle = bg;
-                x.fillRect(0, ty(20), TW, ty(-20) - ty(20));
-                x.shadowColor = 'rgba(169,196,220,.55)';
-                x.shadowBlur = 1.6;
-                x.fillStyle = 'rgba(150,186,214,.34)';
-                x.beginPath();
-                for (let lat = 70; lat >= -36; lat--) for (let lon = -100; lon <= 135; lon++) {
-                    if (!isLand(lon, lat)) continue;
-                    if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
-                    if (Math.abs(lat) <= 12) { BELT.push([lon, lat]); continue; }
-                    const r0 = 0.62 + ((lon * 7 + lat * 13) % 5) * 0.03;
-                    x.moveTo(tx(lon) + r0, ty(lat)); x.arc(tx(lon), ty(lat), r0, 0, Math.PI * 2);
-                }
-                x.fill();
-                x.shadowColor = 'rgba(185,207,148,.6)';
-                x.fillStyle = 'rgba(185,207,148,.5)';
-                x.beginPath();
-                for (const [lon, lat] of BELT) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
-                x.fill();
-                x.shadowBlur = 0;
-                x.fillStyle = 'rgba(217,178,111,.75)';
-                x.beginPath();
-                for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
-                x.fill();
-                x.lineJoin = 'round';
-                x.strokeStyle = 'rgba(169,196,220,.18)';
-                x.lineWidth = 1.6;
-                x.stroke(new Path2D(coastD));
-                x.strokeStyle = 'rgba(190,212,232,.75)';
-                x.lineWidth = 0.45;
-                x.stroke(new Path2D(coastD));
+                atlasPaint(x, TW, TH, tx, ty, { shelf: 3.4, coastW: 0.3, ridgeW: 2.4, grain: 16000, gs: 0.22 });
             })}" x="0" y="0" width="${TW}" height="${TH}"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
+            <g class="t-sea"><text x="${tx(-38)}" y="${ty(28)}">Atlantischer Ozean</text><text x="${tx(-22)}" y="${ty(-18)}">Südatlantik</text><text x="${tx(78)}" y="${ty(-18)}">Indischer Ozean</text><text x="${tx(-92)}" y="${ty(-14)}">Pazifik</text><text x="${tx(132)}" y="${ty(14)}" text-anchor="end">Pazifik</text></g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         termMapInteract();
