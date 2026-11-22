@@ -2565,3 +2565,8 @@ body.joining #v-start .st-back { display: none; }
 /* Fabrik: Szenario auf den Silos */
 .plant-map .silo.sim-down .s-hit { fill: rgba(226, 104, 120, .16) !important; stroke: rgba(226, 104, 120, .8); stroke-width: 1.5; }
 .plant-map .silo.sim-up .s-hit { fill: rgba(86, 199, 150, .14) !important; stroke: rgba(86, 199, 150, .8); stroke-width: 1.5; }
+
+/* Westafrika-Ausschnitt wieder im ursprünglichen Stil */
+.t-cty { fill: rgba(132, 180, 214, .06) !important; stroke: rgba(132, 180, 214, .45) !important; stroke-width: .7 !important; stroke-dasharray: none !important; }
+.t-cty.ci, .t-cty.gh { fill: rgba(86, 199, 150, .07) !important; stroke: rgba(132, 180, 214, .75) !important; stroke-width: 1 !important; }
+#t-map .t-world { background: transparent !important; }

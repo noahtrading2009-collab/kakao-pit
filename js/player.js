@@ -3026,7 +3026,6 @@ const Player = (() => {
         const waLand = new Path2D();
         Object.values(WA_HI).forEach(rs => rs.forEach(r => { for (let i = 0; i < r.length; i += 2) { const px = ix(r[i] / 100); const py = iy(r[i + 1] / 100); if (i) waLand.lineTo(px, py); else waLand.moveTo(px, py); } waLand.closePath(); }));
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
-            <image href="${paintImage(IW, IH, 5, x => atlasPaint(x, IW, IH, ix, iy, { land: waLand, shelf: 10, coastW: 0.7, ridges: [], grain: 9000, gs: 0.35, noBelt: true }))}" x="0" y="0" width="${IW}" height="${IH}" preserveAspectRatio="none"/>
             ${Object.entries(WA_HI).map(([k, rs]) => `<path class="t-cty ${k}" d="${rs.map(r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${ix(r[i] / 100).toFixed(1)} ${iy(r[i + 1] / 100).toFixed(1)}`; return `${d}Z`; }).join('')}"/>`).join('')}
             <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(86,199,150,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
@@ -3043,10 +3042,50 @@ const Player = (() => {
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat), 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat), 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
-                atlasPaint(x, TW, TH, tx, ty, { shelf: 3.4, coastW: 0.3, ridgeW: 2.4, grain: 16000, gs: 0.22 });
+                const W2 = [];
+                const BELT = [];
+                const og = x.createRadialGradient(TW * 0.42, TH * 0.48, 10, TW * 0.5, TH * 0.5, TW * 0.62);
+                og.addColorStop(0, 'rgba(46,58,74,.55)');
+                og.addColorStop(0.6, 'rgba(22,28,38,.35)');
+                og.addColorStop(1, 'rgba(8,10,14,0)');
+                x.fillStyle = og;
+                x.fillRect(0, 0, TW, TH);
+                const bg = x.createLinearGradient(0, ty(20), 0, ty(-20));
+                bg.addColorStop(0, 'rgba(185,207,148,0)');
+                bg.addColorStop(0.5, 'rgba(185,207,148,.06)');
+                bg.addColorStop(1, 'rgba(185,207,148,0)');
+                x.fillStyle = bg;
+                x.fillRect(0, ty(20), TW, ty(-20) - ty(20));
+                x.shadowColor = 'rgba(169,196,220,.55)';
+                x.shadowBlur = 1.6;
+                x.fillStyle = 'rgba(150,186,214,.34)';
+                x.beginPath();
+                for (let lat = 70; lat >= -36; lat--) for (let lon = -100; lon <= 135; lon++) {
+                    if (!isLand(lon, lat)) continue;
+                    if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
+                    if (Math.abs(lat) <= 12) { BELT.push([lon, lat]); continue; }
+                    const r0 = 0.62 + ((lon * 7 + lat * 13) % 5) * 0.03;
+                    x.moveTo(tx(lon) + r0, ty(lat)); x.arc(tx(lon), ty(lat), r0, 0, Math.PI * 2);
+                }
+                x.fill();
+                x.shadowColor = 'rgba(185,207,148,.6)';
+                x.fillStyle = 'rgba(185,207,148,.5)';
+                x.beginPath();
+                for (const [lon, lat] of BELT) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
+                x.fill();
+                x.shadowBlur = 0;
+                x.fillStyle = 'rgba(217,178,111,.75)';
+                x.beginPath();
+                for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
+                x.fill();
+                x.lineJoin = 'round';
+                x.strokeStyle = 'rgba(169,196,220,.18)';
+                x.lineWidth = 1.6;
+                x.stroke(new Path2D(coastD));
+                x.strokeStyle = 'rgba(190,212,232,.75)';
+                x.lineWidth = 0.45;
             })}" x="0" y="0" width="${TW}" height="${TH}"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
-            <g class="t-sea"><text x="${tx(-38)}" y="${ty(28)}">Atlantischer Ozean</text><text x="${tx(-22)}" y="${ty(-18)}">Südatlantik</text><text x="${tx(78)}" y="${ty(-18)}">Indischer Ozean</text><text x="${tx(-92)}" y="${ty(-14)}">Pazifik</text><text x="${tx(132)}" y="${ty(14)}" text-anchor="end">Pazifik</text></g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         termMapInteract();
