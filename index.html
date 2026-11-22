@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script>
     // Neue Version online? Dann einmal frisch laden, damit kein Gerät mit alten Dateien aus dem Zwischenspeicher spielt.
-    window.KP_V='116';
+    window.KP_V='123';
     fetch('version.txt?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(v => {
         v = (v || '').trim();
         try {
@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&family=Space+Grotesk:wght@400;500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=116">
+    <link rel="stylesheet" href="style.css?v=123">
 </head>
 <body>
     <div class="bg-aurora"><i></i><i></i><i></i></div>
@@ -33,15 +33,25 @@
     <section id="v-start" class="view active">
         <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
         <div class="start-wrap">
-            <div class="hero-emblem">
-                <svg viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="gb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffcf8a"/><stop offset=".45" stop-color="#c47a4a"/><stop offset="1" stop-color="#5a2e14"/></linearGradient></defs>
-                    <circle cx="60" cy="60" r="56" fill="none" stroke="rgba(217,178,111,.35)" stroke-width="1.5" stroke-dasharray="4 6"/>
-                    <ellipse cx="60" cy="60" rx="26" ry="40" fill="url(#gb)" transform="rotate(28 60 60)"/>
-                    <path d="M48 30 C 64 52, 56 70, 72 90" stroke="#3a1a08" stroke-width="3" fill="none" stroke-linecap="round" opacity=".55"/>
-                    <path d="M14 78 L34 66 L48 72 L66 50 L82 58 L106 30" stroke="#56c796" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    <circle cx="106" cy="30" r="4.5" fill="#56c796"/></svg>
+            <div class="hero-emblem crest">
+                <svg viewBox="0 0 160 160" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="80" cy="80" r="74" stroke="rgba(217,178,111,.55)" stroke-width="1"/>
+                    <circle cx="80" cy="80" r="69" stroke="rgba(217,178,111,.3)" stroke-width=".6"/>
+                    <g stroke="rgba(217,178,111,.5)" stroke-width=".7"><path d="M151.50 80.00L154.80 80.00"/><path d="M151.11 87.47L153.20 87.69"/><path d="M149.94 94.87L151.99 95.30"/><path d="M148.00 102.09L150.00 102.74"/><path d="M145.32 109.08L147.24 109.94"/><path d="M141.92 115.75L144.78 117.40"/><path d="M137.84 122.03L139.54 123.26"/><path d="M133.13 127.84L134.70 129.25"/><path d="M127.84 133.13L129.25 134.70"/><path d="M122.03 137.84L123.26 139.54"/><path d="M115.75 141.92L117.40 144.78"/><path d="M109.08 145.32L109.94 147.24"/><path d="M102.09 148.00L102.74 150.00"/><path d="M94.87 149.94L95.30 151.99"/><path d="M87.47 151.11L87.69 153.20"/><path d="M80.00 151.50L80.00 154.80"/><path d="M72.53 151.11L72.31 153.20"/><path d="M65.13 149.94L64.70 151.99"/><path d="M57.90 148.00L57.26 150.00"/><path d="M50.92 145.32L50.06 147.24"/><path d="M44.25 141.92L42.60 144.78"/><path d="M37.97 137.84L36.74 139.54"/><path d="M32.16 133.13L30.75 134.70"/><path d="M26.86 127.84L25.30 129.25"/><path d="M22.16 122.03L20.46 123.26"/><path d="M18.08 115.75L15.22 117.40"/><path d="M14.68 109.08L12.76 109.94"/><path d="M12.00 102.09L10.00 102.74"/><path d="M10.06 94.87L8.01 95.30"/><path d="M8.89 87.47L6.80 87.69"/><path d="M8.50 80.00L5.20 80.00"/><path d="M8.89 72.53L6.80 72.31"/><path d="M10.06 65.13L8.01 64.70"/><path d="M12.00 57.90L10.00 57.26"/><path d="M14.68 50.92L12.76 50.06"/><path d="M18.08 44.25L15.22 42.60"/><path d="M22.16 37.97L20.46 36.74"/><path d="M26.87 32.16L25.30 30.75"/><path d="M32.16 26.86L30.75 25.30"/><path d="M37.97 22.15L36.74 20.46"/><path d="M44.25 18.08L42.60 15.22"/><path d="M50.92 14.68L50.06 12.76"/><path d="M57.91 12.00L57.26 10.00"/><path d="M65.14 10.06L64.70 8.01"/><path d="M72.53 8.89L72.31 6.80"/><path d="M80.00 8.50L80.00 5.20"/><path d="M87.47 8.89L87.69 6.80"/><path d="M94.87 10.06L95.30 8.01"/><path d="M102.10 12.00L102.74 10.00"/><path d="M109.08 14.68L109.94 12.76"/><path d="M115.75 18.08L117.40 15.22"/><path d="M122.03 22.16L123.26 20.46"/><path d="M127.84 26.87L129.25 25.31"/><path d="M133.14 32.16L134.70 30.75"/><path d="M137.85 37.97L139.54 36.74"/><path d="M141.92 44.25L144.78 42.60"/><path d="M145.32 50.92L147.24 50.07"/><path d="M148.00 57.91L150.00 57.26"/><path d="M149.94 65.14L151.99 64.70"/><path d="M151.11 72.53L153.20 72.31"/></g>
+                    <g stroke="#e9cf98" stroke-width="1.3">
+                        <path d="M44 112c-12-14-14-34-6-52M116 112c12-14 14-34 6-52"/><path d="M43.0 104.0c-5.0 -3 -7.0 -8 -6.0 -13 5.0 2 7.0 7 6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M39.0 90.0c-5.0 -3 -7.0 -8 -6.0 -13 5.0 2 7.0 7 6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M38.0 76.0c-5.0 -3 -7.0 -8 -6.0 -13 5.0 2 7.0 7 6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M41.0 63.0c-5.0 -3 -7.0 -8 -6.0 -13 5.0 2 7.0 7 6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M117.0 104.0c5.0 -3 7.0 -8 6.0 -13 -5.0 2 -7.0 7 -6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M121.0 90.0c5.0 -3 7.0 -8 6.0 -13 -5.0 2 -7.0 7 -6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M122.0 76.0c5.0 -3 7.0 -8 6.0 -13 -5.0 2 -7.0 7 -6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/><path d="M119.0 63.0c5.0 -3 7.0 -8 6.0 -13 -5.0 2 -7.0 7 -6.0 13z" fill="rgba(185,207,148,.22)" stroke="#c6d9a3" stroke-width=".9"/>
+                        <path d="M80 34c13 7 19 20 19 33s-6 26-19 33c-13-7-19-20-19-33s6-26 19-33z" fill="rgba(201,120,55,.28)"/>
+                        <path d="M80 35v64M71.5 42c-2.8 9.4-2.8 40.6 0 50M88.5 42c2.8 9.4 2.8 40.6 0 50" stroke-width=".9"/>
+                        <path d="M67 56h6M66.5 66h6M67 76h6M87 56h6M87.5 66h6M87 76h6" stroke-width=".6" opacity=".7"/>
+                        <path d="M80.6 34c2.6-7 9-10.4 18-10-1.4 9-8 13-18 10z" fill="rgba(185,207,148,.3)" stroke="#c6d9a3"/>
+                        <path d="M58 118l10-9 8 5 9-11 9 6 11-12" stroke="#7fe0b4" stroke-width="1.4"/>
+                        <circle cx="105" cy="97" r="2" fill="#7fe0b4" stroke="none"/>
+                        <path d="M62 126h36M70 130h20" stroke-width=".8" opacity=".7"/>
+                    </g>
+                </svg>
             </div>
             <div class="logo"><span class="logo-k">KAKAO</span><span class="logo-p">PIT</span></div>
+            <div class="logo-sub"><i></i><span>Terminbörse für Kakao · Gegründet MMXXVI</span><i></i></div>
             <p class="tagline">Das Multiplayer-Börsenspiel um Kakao-Futures.<br><b>Bauern. Fabriken. Hedgefonds.</b> Jeder mit eigenem Auftrag – live gegeneinander.</p>
             <div class="start-choice" id="start-choice">
                 <button class="sc-tile" data-step="join" style="--d:.55s">
@@ -293,17 +303,18 @@
     <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>window.mqtt || document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"><\/script>');</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="js/common.js?v=116"></script>
-    <script src="js/icons.js?v=116"></script>
-    <script src="js/geo.js?v=116"></script>
-    <script src="js/engine.js?v=116"></script>
-    <script src="js/bots.js?v=116"></script>
-    <script src="js/net.js?v=116"></script>
-    <script src="js/host.js?v=116"></script>
-    <script src="js/scenes.js?v=116"></script>
+    <script src="js/common.js?v=123"></script>
+    <script src="js/icons.js?v=123"></script>
+    <script src="js/lux.js?v=123"></script>
+    <script src="js/geo.js?v=123"></script>
+    <script src="js/engine.js?v=123"></script>
+    <script src="js/bots.js?v=123"></script>
+    <script src="js/net.js?v=123"></script>
+    <script src="js/host.js?v=123"></script>
+    <script src="js/scenes.js?v=123"></script>
     <script src="js/render-worker.js?v=64"></script>
-    <script src="js/render.js?v=116"></script>
-    <script src="js/player.js?v=116"></script>
-    <script src="js/app.js?v=116"></script>
+    <script src="js/render.js?v=123"></script>
+    <script src="js/player.js?v=123"></script>
+    <script src="js/app.js?v=123"></script>
 </body>
 </html>

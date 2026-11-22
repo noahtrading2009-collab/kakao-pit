@@ -2425,3 +2425,117 @@ body.joining #v-start .st-back { display: none; }
 .sd-eq b { font-family: var(--mono); font-size: 18px; font-weight: 600; color: #fbf3e2; }
 .sd-eq i { font-style: normal; color: var(--gold); }
 .sd.hedge small { display: block; text-align: center; color: #a3978a; font-size: 12px; line-height: 1.4; }
+
+/* =====================================================================
+   MAISON – Luxus-Ausstattung: Guilloche, gravierte Ornamente, Serifen-Ziffern
+   ===================================================================== */
+.lux-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: var(--g-rosette) center 42% / min(1400px, 140vmax) no-repeat; opacity: .55; mix-blend-mode: normal; }
+.gfx-low .lux-bg { display: none; }
+.view { z-index: 1; }
+/* Wappen auf der Startseite */
+.hero-emblem.crest { width: 132px; height: 132px; margin: 0 auto 6px; filter: drop-shadow(0 10px 30px rgba(0, 0, 0, .6)); animation: none !important; }
+.hero-emblem.crest svg { width: 100%; height: 100%; }
+.logo-sub { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 6px auto 10px; max-width: 520px; font-family: var(--serif); font-size: 13.5px; font-weight: 500; font-variant: small-caps; letter-spacing: .22em; color: #cdb88f; }
+.logo-sub i { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(217, 178, 111, .7)); position: relative; }
+.logo-sub i:last-child { background: linear-gradient(90deg, rgba(217, 178, 111, .7), transparent); }
+.logo-sub i::after { content: ""; position: absolute; top: -3px; width: 6px; height: 6px; transform: rotate(45deg); border: 1px solid rgba(217, 178, 111, .8); background: #0d0a07; }
+.logo-sub i:first-child::after { right: -3px; } .logo-sub i:last-child::after { left: -3px; }
+/* Ziffern: edel und gleich breit */
+#h-price, #d-price, #t-price, #p-price, .big-price, .settle-price, .room-code, .pod-score, .h-timer, #d-timer, #t-timer, .t-kv b, .dt-t, .sc-title { font-variant-numeric: lining-nums tabular-nums; }
+#h-price, #d-price, #t-price, #p-price, .big-price, .settle-price { font-family: var(--serif) !important; font-weight: 600 !important; letter-spacing: .01em; }
+#h-price { font-size: 1.15em; }
+/* Kopfzeilen: doppelte Goldlinie, Guilloche-Band */
+.h-top, .t-top, .d-top, .p-top { position: relative; }
+.h-top::after, .t-top::after, .d-top::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: 3px; height: 4px; opacity: 1 !important;
+    background: linear-gradient(90deg, transparent, rgba(217, 178, 111, .55), transparent) top / 100% 1px no-repeat, linear-gradient(90deg, transparent, rgba(217, 178, 111, .3), transparent) bottom / 100% 1px no-repeat !important; }
+.h-top::before, .t-top::before, .d-top::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--g-band) 0 50% / 240px 18px repeat-x; opacity: .18; pointer-events: none; mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent); }
+/* Paneel-Titel: Raute, Kapitälchen, feine Linie mit Ornament */
+#v-desk .t-panel h3, #v-term .t-panel h3, #v-host .card > h3 {
+    font-family: var(--serif) !important; font-variant: small-caps; text-transform: none !important; font-size: 15.5px !important; font-weight: 600 !important; letter-spacing: .12em !important; color: #f3e6cc !important;
+    padding-bottom: 9px !important; margin-bottom: 10px; background: linear-gradient(90deg, rgba(217, 178, 111, .55), rgba(217, 178, 111, .15) 70%, transparent) bottom / 100% 1px no-repeat !important; }
+#v-desk .t-panel h3::before, #v-term .t-panel h3::before { content: "" !important; counter-increment: none !important; width: 7px; height: 7px; padding: 0 !important; margin: 0 11px 1px 2px !important; transform: rotate(45deg); border: 1px solid var(--tc) !important; background: linear-gradient(135deg, rgba(243, 220, 170, .5), transparent) !important; border-radius: 0 !important; align-self: center; flex: none; }
+#v-desk .t-panel h3 span, #v-term .t-panel h3 span { font-family: var(--sans) !important; font-variant: normal; font-size: 11px !important; letter-spacing: .04em !important; }
+/* Paneel-Ecken: feine doppelte Winkel mit Raute */
+#v-term .t-panel::after, #v-desk .t-panel::after, #v-player .p-goal::after {
+    inset: 5px !important; --fl: rgba(217, 178, 111, .5);
+    background:
+        linear-gradient(var(--fl), var(--fl)) 0 0 / 22px 1px no-repeat, linear-gradient(var(--fl), var(--fl)) 0 0 / 1px 22px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 0 / 22px 1px no-repeat, linear-gradient(var(--fl), var(--fl)) 100% 0 / 1px 22px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 0 100% / 22px 1px no-repeat, linear-gradient(var(--fl), var(--fl)) 0 100% / 1px 22px no-repeat,
+        linear-gradient(var(--fl), var(--fl)) 100% 100% / 22px 1px no-repeat, linear-gradient(var(--fl), var(--fl)) 100% 100% / 1px 22px no-repeat !important; }
+#v-term .t-panel, #v-desk .t-panel { background:
+    radial-gradient(120% 80% at 50% 0%, rgba(217, 178, 111, .05), transparent 60%),
+    linear-gradient(180deg, rgba(28, 22, 16, .96), rgba(13, 10, 8, .97)) !important; border-color: rgba(214, 178, 112, .2) !important; }
+/* Karten (Start, Lobby, Beamer): Guilloche-Medaillon in der Ecke */
+.card { overflow: hidden; }
+.card::after { content: ""; position: absolute; right: -70px; top: -70px; width: 220px; height: 220px; background: var(--g-small) center / contain no-repeat; opacity: .35; pointer-events: none; }
+.sc-tile::after { background: var(--g-small) center / contain no-repeat, radial-gradient(closest-side, rgba(217, 178, 111, .16), transparent) !important; }
+/* Raumcode wie eine Wertmarke */
+.join-box { background: linear-gradient(180deg, rgba(36, 27, 19, .95), rgba(16, 12, 9, .96)) !important; }
+.join-box .room-code { position: relative; padding: 10px 0; margin: 10px 0 14px !important; font-family: var(--serif) !important; font-weight: 600 !important; letter-spacing: .4em !important; }
+.join-box .room-code::before, .join-box .room-code::after { content: ""; position: absolute; left: 6%; right: 6%; height: 18px; background: var(--g-band) 0 50% / 240px 18px repeat-x; opacity: .7; }
+.join-box .room-code::before { top: -10px; } .join-box .room-code::after { bottom: -10px; }
+/* Knöpfe: Goldfolie mit gravierter Kante */
+.btn-primary { box-shadow: 0 14px 34px rgba(150, 105, 45, .3), inset 0 1px 0 rgba(255, 255, 255, .65), inset 0 0 0 1px rgba(120, 80, 30, .35), inset 0 0 0 3px rgba(255, 240, 200, .18) !important; font-family: var(--serif) !important; font-size: 1.08em !important; letter-spacing: .16em !important; font-weight: 700 !important; }
+.tk-btns button, .tbtn { border-radius: 10px !important; }
+.tk-buy, .tbtn.buy, .tk-btns .tk-buy { background: linear-gradient(180deg, #2f6e55, #1c4a38) !important; border: 1px solid rgba(160, 230, 195, .45) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 0 0 3px rgba(0, 0, 0, .15), 0 10px 26px rgba(12, 50, 35, .45) !important; color: #effff7 !important; }
+.tk-sell, .tbtn.sell, .tk-btns .tk-sell { background: linear-gradient(180deg, #7e3544, #55202d) !important; border: 1px solid rgba(240, 170, 182, .45) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 3px rgba(0, 0, 0, .15), 0 10px 26px rgba(70, 18, 30, .45) !important; color: #fff3f5 !important; }
+.tk-btns button b { font-family: var(--serif); font-size: 1.15em; letter-spacing: .14em; }
+.tk-btns button span { font-family: var(--serif); font-variant-numeric: lining-nums tabular-nums; }
+.tk-q button, .seg button { font-family: var(--serif); font-variant-numeric: lining-nums; font-size: 14px; letter-spacing: .04em; }
+.tk-q button.on { background: linear-gradient(180deg, rgba(217, 178, 111, .26), rgba(217, 178, 111, .08)) !important; border-color: rgba(243, 220, 170, .7) !important; color: #fbf0d6 !important; }
+/* Tooltips & Karten-Plaketten etwas edler */
+.d-tip { border-radius: 4px 14px 4px 14px; }
+.d-tip::before { content: ""; position: absolute; inset: 4px; border: 1px solid rgba(217, 178, 111, .18); border-radius: 2px 11px 2px 11px; pointer-events: none; }
+/* Rangliste am Beamer */
+.rank-row { border-bottom: 1px solid rgba(214, 178, 112, .1); }
+.rank-row.lead .rn b, .rank-row.lead .rn { color: #fbf0d6; }
+.rk-head b { font-family: var(--serif); font-variant: small-caps; letter-spacing: .1em; font-size: 1.05em; }
+/* Endbildschirm */
+.end-head h1 { font-family: var(--serif) !important; letter-spacing: .06em; font-variant: small-caps; }
+.pod-name, .star-n { font-family: var(--serif); font-weight: 600; letter-spacing: .02em; }
+@media (prefers-reduced-motion: reduce) { .lux-bg { opacity: .4; } }
+
+/* Lobby: Raumcode passt, Rollen-Bildleisten gravurartig */
+.join-box .room-code { font-size: clamp(44px, 5.2vw, 72px) !important; letter-spacing: .22em !important; white-space: nowrap; }
+.rc-world { height: 112px !important; border-bottom: 1px solid rgba(214, 178, 112, .25); }
+.rc-world::after { height: 40% !important; background: linear-gradient(transparent, rgba(20, 15, 11, .9)) !important; }
+.rc-emb .role-ico { filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .6)); }
+.role-card h4, .lobby h4 { font-family: var(--serif); font-weight: 600; letter-spacing: .02em; }
+
+/* =====================================================================
+   MATERIALIEN – Leder, gebürstetes Champagner-Gold, Elfenbein
+   ===================================================================== */
+:root {
+    --m-gold: repeating-linear-gradient(90deg, rgba(255, 255, 255, .07) 0 1px, rgba(0, 0, 0, .03) 1px 2px, transparent 2px 4px), linear-gradient(180deg, #f7e6bb 0%, #e3c07a 38%, #c3934a 56%, #d9b26f 78%, #f0d7a0 100%);
+    --m-gold-line: linear-gradient(90deg, transparent, #b8893f 12%, #f6e2b0 50%, #b8893f 88%, transparent);
+    --up: #6cc49a; --down: #d9737f;
+}
+.card, .sc-tile, .start-card { background: var(--m-leather) 0 0 / 256px 256px, radial-gradient(120% 70% at 50% 0%, rgba(217, 178, 111, .07), transparent 60%), linear-gradient(180deg, rgba(36, 27, 19, .95), rgba(17, 13, 10, .97)) !important; }
+#v-term .t-panel, #v-desk .t-panel { background: var(--m-leather) 0 0 / 256px 256px, radial-gradient(120% 80% at 50% 0%, rgba(217, 178, 111, .055), transparent 60%), linear-gradient(180deg, rgba(30, 23, 17, .97), rgba(14, 11, 8, .98)) !important; }
+.h-top, .t-top, .d-top, .p-top { background: var(--m-leather) 0 0 / 256px 256px, linear-gradient(180deg, rgba(30, 23, 17, .98), rgba(15, 11, 8, .98)) !important; }
+.card::before, .sc-tile::before { background: var(--m-gold-line) !important; opacity: .85; }
+.btn-primary { background: var(--m-gold) !important; color: #23170a !important; text-shadow: 0 1px 0 rgba(255, 246, 225, .55) !important; }
+.btn-primary:hover:not(:disabled) { filter: brightness(1.05) contrast(1.03); }
+.tk-q button.on, .seg button.active { box-shadow: inset 0 0 0 1px rgba(243, 220, 170, .55), inset 0 -2px 0 rgba(217, 178, 111, .4) !important; }
+.ticker { background: var(--m-leather) 0 0 / 256px 256px, linear-gradient(180deg, #120d09, #0a0806) !important; border-bottom: 1px solid transparent !important; border-image: var(--m-gold-line) 1 !important; }
+.logo-p { background: linear-gradient(180deg, #fbecc4 0%, #e3c07a 40%, #b88a45 62%, #e9cd8e 100%) !important; -webkit-background-clip: text !important; background-clip: text !important; }
+.up { color: var(--up); } .down { color: var(--down); }
+
+.lux-bg { opacity: .2 !important; background-size: min(1100px, 110vmax) !important; }
+
+/* Handy: Kopfzeile, Szenen-Plaketten, Illustration */
+@media (max-width: 700px) { .p-top .gfx-btn { display: none !important; } }
+.p-role { min-width: 0; flex: 1 1 auto; }
+.p-role > span:not(.p-emb) { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.p-role b, .p-role small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-role b { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: .01em; }
+.sc-chip { display: inline-flex !important; align-items: center; gap: 6px; padding: 5px 12px 5px 9px !important; background: rgba(14, 11, 8, .78) !important; border: 1px solid rgba(214, 178, 112, .35); color: #f3e6cc !important; font-weight: 600 !important; letter-spacing: .02em; }
+.sc-chip .icw { margin: 0 !important; color: #f0cd84; }
+.sc-chip.tl + .sc-chip.tl, .sc-chip.tl ~ .sc-chip.tl { top: 44px; }
+#p-scene svg, #p-scene canvas, #p-scene img { filter: saturate(.72) sepia(.18) contrast(1.04) brightness(.96); }
+#p-scene { border-radius: 18px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(214, 178, 112, .3), 0 14px 34px rgba(0, 0, 0, .45); }
+
+/* Symbole in Szenen-Plaketten nicht wie die Szenengrafik behandeln */
+#p-scene .ico, .sc-chip .ico { position: static !important; inset: auto !important; width: 1.08em !important; height: 1.08em !important; filter: none !important; display: inline-block !important; }
+.scene .ico { position: static !important; inset: auto !important; width: 1.08em !important; height: 1.08em !important; }
