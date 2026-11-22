@@ -1252,23 +1252,57 @@ const Player = (() => {
         const S = lifeSprites();
         x.setTransform(L.scale, 0, 0, L.scale, 0, 0);
         x.clearRect(0, 0, 800, L.VH);
-        // Punkt-Stil: Reife steckt schon im Bild der Felder
+        // Kakaoschoten auf den Feldern (Reife je Monat, Wetter) – vorgerechnet, nur neu wenn sich etwas ändert
+        const ck = `${L.rect}|${L.crop ? `${L.crop.stage}|${L.crop.sky}` : ''}`;
+        if (L.fields && L.crop && L.cropKey !== ck) { L.cropKey = ck; L.cropImg = cropLayer(L); }
+        if (L.cropImg) { x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(L.cropImg, 0, 0); x.setTransform(L.scale, 0, 0, L.scale, 0, 0); }
         // Glitzern
         for (const g of L.glints) {
             const a = Math.sin((g.age / g.life) * Math.PI);
             x.fillStyle = `rgba(255,250,228,${(a * 0.85).toFixed(3)})`;
             x.fillRect(g.x - (g.w * a) / 2, g.y, g.w * a, 0.9);
         }
-        // Fahrzeuge als leuchtende Punkte (Punkt-Stil)
+        // Autos
         for (const c of L.cars) {
             const [px, py, ang] = lifeAt(Math.max(0, Math.min(L.roadLen, c.s)));
-            const ox = Math.cos(ang + Math.PI / 2) * (c.dir < 0 ? -1.6 : 1.6);
-            const oy = Math.sin(ang + Math.PI / 2) * (c.dir < 0 ? -1.6 : 1.6);
-            const col = c.cocoa ? '233,190,120' : '240,232,210';
-            const g = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, 5);
-            g.addColorStop(0, `rgba(${col},.95)`); g.addColorStop(1, `rgba(${col},0)`);
-            x.fillStyle = g; x.beginPath(); x.arc(px + ox, py + oy, 5, 0, Math.PI * 2); x.fill();
+            x.save();
+            x.translate(px, py);
+            x.rotate(ang + (c.dir < 0 ? Math.PI : 0));
+            x.translate(0, c.dir < 0 ? -1.6 : 1.6); // Rechtsverkehr
+            x.fillStyle = 'rgba(0,0,0,.38)';
+            x.fillRect(-c.len / 2 + 1, -c.wid / 2 + 1.3, c.len, c.wid);
+            x.fillStyle = c.col;
+            x.fillRect(-c.len / 2, -c.wid / 2, c.len, c.wid);
+            x.fillStyle = '#1b2530';
+            x.fillRect(c.len / 2 - (c.len > 12 ? 5 : 3.4), -c.wid / 2 + 0.6, 1.8, c.wid - 1.2);
+            if (c.len > 12) { x.fillStyle = 'rgba(120,80,40,.85)'; x.fillRect(-c.len / 2 + 1, -c.wid / 2 + 0.8, c.len - 7, c.wid - 1.6); }
+            if (c.cocoa) { x.fillStyle = '#b48a55'; for (let q = 0; q < 4; q++) for (let r2 = 0; r2 < 2; r2++) { x.beginPath(); x.ellipse(-c.len / 2 + 2.4 + q * 2.4, -1.2 + r2 * 2.4, 1.1, 0.9, 0, 0, 7); x.fill(); } }
+            x.restore();
         }
+        // Rauch
+        for (const s of L.smoke) {
+            const q = s.age / s.life;
+            const r = s.r0 + q * 7;
+            x.globalAlpha = Math.min(1, q * 6) * (1 - q) * 0.75;
+            x.drawImage(S.puff, s.x - r, s.y - r, r * 2, r * 2);
+        }
+        x.globalAlpha = 1;
+        // Wolkenschatten, dann Wolken
+        for (const c of L.clouds) { x.globalAlpha = c.a * 0.8; x.drawImage(S.shade, c.x + 70 * c.sc, c.y + 95 * c.sc, 440 * c.sc * 0.5, 220 * c.sc * 0.5); }
+        for (const c of L.clouds) { x.globalAlpha = c.a; x.drawImage(S.clouds[c.v], c.x, c.y, 440 * c.sc * 0.5, 220 * c.sc * 0.5); }
+        x.globalAlpha = 1;
+        // Vögel
+        x.strokeStyle = '#18200f';
+        x.lineWidth = 1.4;
+        x.lineCap = 'round';
+        x.beginPath();
+        for (const b of L.birds) {
+            const fl = Math.sin(b.ph) * 3;
+            x.moveTo(b.x - 6, b.y - fl);
+            x.quadraticCurveTo(b.x - 3, b.y - 2.5, b.x, b.y);
+            x.quadraticCurveTo(b.x + 3, b.y - 2.5, b.x + 6, b.y - fl);
+        }
+        x.stroke();
         // Regen
         if (L.drops.length && (L.sky === 'rain' || L.sky === 'blackpod')) {
             x.strokeStyle = 'rgba(210,225,240,.28)';
@@ -1718,7 +1752,8 @@ const Player = (() => {
             sx.setTransform(L.scale, 0, 0, L.scale, 0, 0);
             sx.translate(PLINE.ox, HH - PLINE.Z);
             sx.scale(PLINE.sc, PLINE.sc);
-            PLINE.stat = null; // Punkt-Stil: keine gezeichneten Maschinen
+            plantStatic(sx, PLINE);
+            PLINE.stat = st;
             deskZoomApply();
         }
         L.on = true;
@@ -1730,8 +1765,11 @@ const Player = (() => {
         const y0 = Math.floor((PLINE.HH - PLINE.Z - 4) * L.scale);
         x.setTransform(1, 0, 0, 1, 0, 0);
         x.clearRect(0, y0, x.canvas.width, x.canvas.height - y0);
+        if (PLINE.stat) x.drawImage(PLINE.stat, 0, y0, x.canvas.width, x.canvas.height - y0, 0, y0, x.canvas.width, x.canvas.height - y0);
         x.setTransform(L.scale, 0, 0, L.scale, 0, 0);
-        plantDotFlow(x, PLINE.T);
+        x.translate(PLINE.ox, PLINE.HH - PLINE.Z);
+        x.scale(PLINE.sc, PLINE.sc);
+        plantDyn(x, PLINE, PLINE.T);
     }
 
     // Hover-Karte für eine Station
@@ -1763,156 +1801,6 @@ const Player = (() => {
     function plantLineSVG(HH) {
         const fK = deskTextK(HH);
         return `<g transform="translate(${PLINE.ox + 6} ${HH - PLINE.Z - 6 - 14 * (fK - 1)}) scale(${fK.toFixed(3)})"><text class="p-wall-t pst-head">PRODUKTION · VON DER BOHNE ZUR TAFEL</text></g>`;
-    }
-
-    // ===== Punkt-Raster im Stil der Weltkarte (für Kooperative und Fabrik) =====
-    const DOT = { steel: 'rgba(150,186,214,', sage: 'rgba(185,207,148,', gold: 'rgba(217,178,111,', water: 'rgba(132,190,230,', warm: 'rgba(233,207,152,' };
-    const dotCache = new Map();
-    function dotCanvas(key, W, H, draw) {
-        if (dotCache.has(key)) return dotCache.get(key);
-        const host = $('d-world');
-        const k = Math.min(2.6, Math.max(1.2, ((host && host.offsetWidth) || 800) * (Gfx.low() ? 1 : HQ()) / 800));
-        const c = document.createElement('canvas');
-        c.width = Math.round(W * k);
-        c.height = Math.round(H * k);
-        const x = c.getContext('2d');
-        x.scale(k, k);
-        draw(x);
-        if (dotCache.size > 6) dotCache.delete(dotCache.keys().next().value);
-        dotCache.set(key, c);
-        return c;
-    }
-    const dotsAt = (x, pts, r, col) => { x.fillStyle = col; x.beginPath(); for (const [px, py] of pts) { x.moveTo(px + r, py); x.arc(px, py, r, 0, Math.PI * 2); } x.fill(); };
-    // Kooperative: Gelände, Felder, Fluss, Strasse, Dörfer als Punkte
-    function farmDots(LAY, VH, stage, sky) {
-        return dotCanvas(`farm|${VH}|${stage}|${sky}|${Gfx.level()}`, 800, VH, x => {
-            const g = x.createRadialGradient(400, VH * 0.45, 20, 400, VH * 0.5, Math.max(800, VH) * 0.7);
-            g.addColorStop(0, 'rgba(46,58,74,.45)'); g.addColorStop(1, 'rgba(8,10,14,0)');
-            x.fillStyle = g; x.fillRect(0, 0, 800, VH);
-            const river = RenderCore.samplePath(LAY.river, 3);
-            const road = RenderCore.samplePath(LAY.road, 3);
-            const near = (pts, px, py, d) => { const d2 = d * d; for (const [qx, qy] of pts) { const dx = qx - px; const dy = qy - py; if (dx * dx + dy * dy < d2) return true; } return false; };
-            const inField = (px, py) => LAY.fields.some(([fx, fy, fw, fh, fr]) => { const cx = fx + fw / 2; const cy = fy + fh / 2; const a = (-fr * Math.PI) / 180; const dx = px - cx; const dy = py - cy; const rx = dx * Math.cos(a) - dy * Math.sin(a); const ry = dx * Math.sin(a) + dy * Math.cos(a); return Math.abs(rx) < fw / 2 && Math.abs(ry) < fh / 2; });
-            const inVil = (px, py) => LAY.villages.some(([vx, vy]) => ((px - vx) / 40) ** 2 + ((py - vy) / 26) ** 2 < 1);
-            const cropCol = [DOT.warm + '.55)', DOT.sage + '.62)', 'rgba(205,200,120,.62)', 'rgba(226,160,80,.68)', DOT.sage + '.3)'][stage] || DOT.sage + '.6)';
-            const fieldCol = sky === 'drought' ? 'rgba(200,160,100,.55)' : sky === 'blackpod' ? 'rgba(120,130,110,.55)' : cropCol;
-            const base = []; const fld = []; const vil = []; const wet = [];
-            const S = 7;
-            for (let py = S / 2; py < VH; py += S) for (let px = S / 2 + ((py / S) % 2 ? S / 2 : 0); px < 800; px += S) {
-                if (near(river, px, py, 9)) { wet.push([px, py]); continue; }
-                if (near(road, px, py, 5)) continue;
-                if (inVil(px, py)) { vil.push([px, py]); continue; }
-                if (inField(px, py)) { fld.push([px, py]); continue; }
-                base.push([px, py]);
-            }
-            x.shadowColor = 'rgba(169,196,220,.45)'; x.shadowBlur = 1.5;
-            dotsAt(x, base, 1.15, DOT.steel + '.3)');
-            x.shadowColor = 'rgba(185,207,148,.55)';
-            dotsAt(x, fld, 1.55, fieldCol);
-            x.shadowColor = 'rgba(217,178,111,.6)';
-            dotsAt(x, vil, 1.3, DOT.gold + '.55)');
-            x.shadowColor = 'rgba(132,190,230,.7)'; x.shadowBlur = 2.5;
-            dotsAt(x, wet, 1.2, DOT.water + '.55)');
-            x.shadowBlur = 0;
-            // Fluss als leuchtende Linie, Strasse als feine Punktlinie
-            x.lineCap = 'round'; x.lineJoin = 'round';
-            const rp2 = new Path2D(LAY.river);
-            x.strokeStyle = 'rgba(132,190,230,.16)'; x.lineWidth = 10; x.stroke(rp2);
-            x.strokeStyle = 'rgba(170,210,240,.75)'; x.lineWidth = 0.9; x.stroke(rp2);
-            const rd = new Path2D(LAY.road);
-            x.setLineDash([0.1, 4.5]); x.strokeStyle = 'rgba(233,220,196,.7)'; x.lineWidth = 1.8; x.stroke(rd); x.setLineDash([]);
-            // Feldgrenzen fein
-            x.strokeStyle = 'rgba(185,207,148,.22)'; x.lineWidth = 0.6;
-            for (const [fx, fy, fw, fh, fr] of LAY.fields) { x.save(); x.translate(fx + fw / 2, fy + fh / 2); x.rotate((fr * Math.PI) / 180); x.strokeRect(-fw / 2, -fh / 2, fw, fh); x.restore(); }
-        });
-    }
-    // Fabrik: Halle als Punkt-Schema – Boden, Silos, Rohre, Produktionslinie
-    function plantDots(L, tiles) {
-        return dotCanvas(`plant|${L.HH}|${tiles.join('')}|${L.silos.length}|${L.silos[0] ? L.silos[0].s.toFixed(3) : 0}|${Gfx.level()}`, 800, L.HH, x => {
-            const HH = L.HH;
-            const g = x.createRadialGradient(400, HH * 0.4, 20, 400, HH * 0.5, Math.max(800, HH) * 0.7);
-            g.addColorStop(0, 'rgba(46,58,74,.45)'); g.addColorStop(1, 'rgba(8,10,14,0)');
-            x.fillStyle = g; x.fillRect(0, 0, 800, HH);
-            const fy = L.by + 50;
-            const wall = []; const floor = [];
-            for (let py = 4; py < HH; py += 8) for (let px = 4 + ((py / 8) % 2 ? 4 : 0); px < 800; px += 8) (py < fy ? wall : floor).push([px, py]);
-            x.shadowColor = 'rgba(169,196,220,.4)'; x.shadowBlur = 1.2;
-            dotsAt(x, wall, 0.9, DOT.steel + '.16)');
-            dotsAt(x, floor, 1.05, DOT.steel + '.26)');
-            x.shadowBlur = 0;
-            x.strokeStyle = 'rgba(190,212,232,.35)'; x.lineWidth = 0.6; x.setLineDash([2, 3]);
-            x.beginPath(); x.moveTo(0, fy); x.lineTo(800, fy); x.stroke(); x.setLineDash([]);
-            // Silos: gepunktete Umrisse, Füllung = Kakao im Silo
-            L.silos.forEach((S0, i) => {
-                const kk = tiles[i];
-                const s = S0.s; const w = 64 * s; const h = 100 * s;
-                const x0 = S0.x; const y0 = S0.y;
-                const out = [];
-                for (let t = 0; t <= 1; t += 0.06) { out.push([x0, y0 + 4 * s + t * (h - 8 * s)]); out.push([x0 + w, y0 + 4 * s + t * (h - 8 * s)]); }
-                for (let a = 0; a < Math.PI * 2; a += 0.22) out.push([x0 + w / 2 + Math.cos(a) * w / 2, y0 + 4 * s + Math.sin(a) * 6 * s]);
-                for (let t = 0; t <= 1; t += 0.12) { out.push([x0 + t * (w / 2 - 6 * s), y0 + h + t * 14 * s]); out.push([x0 + w - t * (w / 2 - 6 * s), y0 + h + t * 14 * s]); }
-                x.shadowColor = 'rgba(190,212,232,.6)'; x.shadowBlur = 1.6;
-                dotsAt(x, out, 1.05 * Math.max(0.8, s), 'rgba(200,220,240,.62)');
-                if (kk === 'deal' || kk === 'fut') {
-                    const fill = [];
-                    for (let py = y0 + 14 * s; py < y0 + h - 4 * s; py += 5.5 * s) for (let px = x0 + 6 * s; px < x0 + w - 4 * s; px += 5.5 * s) fill.push([px, py]);
-                    x.shadowColor = kk === 'fut' ? 'rgba(217,178,111,.7)' : 'rgba(156,195,242,.7)';
-                    dotsAt(x, fill, 1.1 * Math.max(0.8, s), kk === 'fut' ? DOT.gold + '.62)' : 'rgba(156,195,242,.55)');
-                }
-                x.shadowBlur = 0;
-            });
-            // Rohre zur Produktion
-            x.setLineDash([0.1, 3.2]); x.lineCap = 'round'; x.strokeStyle = 'rgba(190,212,232,.55)'; x.lineWidth = 1.4;
-            for (const [dx, dy] of L.drops) { x.beginPath(); x.moveTo(dx, dy); x.lineTo(dx, L.pipeY); x.stroke(); }
-            x.beginPath(); x.moveTo(Math.min(L.inX, L.xa), L.pipeY); x.lineTo(Math.max(L.xb, L.inX), L.pipeY); x.stroke();
-            x.beginPath(); x.moveTo(L.inX, L.pipeY); x.lineTo(L.inX, L.inY); x.stroke();
-            x.setLineDash([]);
-            // Produktionslinie: Stationen als gepunktete Kästen
-            const tX = lx => PLINE.ox + lx * PLINE.sc;
-            const tY = ly => HH - PLINE.Z + ly * PLINE.sc;
-            x.shadowColor = 'rgba(217,178,111,.55)'; x.shadowBlur = 1.4;
-            for (const st of PST) {
-                const w = PW[st.k] * PLINE.sc; const h = (st.row ? 72 : 84) * PLINE.sc;
-                const bx = tX(st.x) - w / 2; const byy = tY(st.row ? PLINE.B2 : PLINE.B1) - h;
-                const pts = [];
-                for (let t = 0; t <= 1; t += 0.08) { pts.push([bx + t * w, byy]); pts.push([bx + t * w, byy + h]); }
-                for (let t = 0.08; t < 1; t += 0.12) { pts.push([bx, byy + t * h]); pts.push([bx + w, byy + t * h]); }
-                dotsAt(x, pts, 0.95, DOT.gold + '.55)');
-            }
-            x.shadowBlur = 0;
-            // Förderweg
-            x.setLineDash([0.1, 4]); x.strokeStyle = 'rgba(233,207,152,.4)'; x.lineWidth = 1.2;
-            x.beginPath(); x.moveTo(tX(40), tY(PLINE.B1 - 16)); x.lineTo(tX(750), tY(PLINE.B1 - 16)); x.lineTo(tX(750), tY(PLINE.B2 - 18)); x.lineTo(tX(20), tY(PLINE.B2 - 18)); x.stroke();
-            x.setLineDash([]);
-        });
-    }
-    // Fluss der Ware als wandernde, leuchtende Punkte (Bohne → Masse → Tafel)
-    function plantDotFlow(x, T) {
-        const tX = lx => PLINE.ox + lx * PLINE.sc;
-        const tY = ly => PLINE.HH - PLINE.Z + ly * PLINE.sc;
-        const route = [[tX(40), tY(PLINE.B1 - 16)], [tX(750), tY(PLINE.B1 - 16)], [tX(750), tY(PLINE.B2 - 18)], [tX(20), tY(PLINE.B2 - 18)]];
-        const seg = []; let L = 0;
-        for (let i = 1; i < route.length; i++) { const d = Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]); seg.push(d); L += d; }
-        const N = 26; const gap = L / N;
-        for (let k = 0; k < N; k++) {
-            let d = (T * 22 + k * gap) % L;
-            const p0 = d / L;
-            let i = 0; while (i < seg.length - 1 && d > seg[i]) { d -= seg[i]; i++; }
-            const t = d / seg[i];
-            const px = route[i][0] + (route[i + 1][0] - route[i][0]) * t;
-            const py = route[i][1] + (route[i + 1][1] - route[i][1]) * t;
-            const col = p0 < 0.35 ? '180,130,80' : p0 < 0.62 ? '160,100,60' : '233,207,152';
-            const a = Math.min(1, p0 * 20, (1 - p0) * 20);
-            const gr = x.createRadialGradient(px, py, 0, px, py, 4.5);
-            gr.addColorStop(0, `rgba(${col},${(0.95 * a).toFixed(2)})`); gr.addColorStop(1, `rgba(${col},0)`);
-            x.fillStyle = gr; x.beginPath(); x.arc(px, py, 4.5, 0, Math.PI * 2); x.fill();
-        }
-        // Stationen pulsieren sanft
-        for (const [si, st] of PST.entries()) {
-            const a = 0.25 + 0.2 * Math.sin(T * 1.6 + si * 0.7);
-            x.fillStyle = `rgba(217,178,111,${a.toFixed(3)})`;
-            x.beginPath(); x.arc(tX(st.x), tY((st.row ? PLINE.B2 : PLINE.B1) - (st.row ? 36 : 42)), 1.6, 0, Math.PI * 2); x.fill();
-        }
     }
 
     function deskLife(LAY, VH, show) {
@@ -2132,7 +2020,7 @@ const Player = (() => {
         // Erst ein schnelles Vorschaubild (halbe Auflösung), danach das scharfe – so ist sofort etwas zu sehen
         // Alle Dorfplätze kommen ins Bild (auch Nachbardörfer) – so ändert es sich nicht, wenn sich die Tonnen ändern
         const LDATA = { VH, villages: LAY.villages, sky: me.sky, river, road, fields: FIELDS };
-        const img = farmDots(LAY, VH, pub.phase === 'settle' ? 4 : pub.phase === 'pre' ? 0 : Math.min(3, Math.floor(((pub.month || 1) - 1) / Math.max(1, pub.months || 4) * 4)), me.sky || 'sun');
+        const img = typeof Render !== 'undefined' ? Render.farm(`farm|${VH}|${Math.max(800, pxW)}|${me.sky || 'sun'}`, LDATA, Math.max(800, pxW), deskRedraw) : null;
         deskBg(img);
         const stage = pub.phase === 'settle' ? 4 : pub.phase === 'pre' ? 0 : Math.min(3, Math.floor(((pub.month || 1) - 1) / Math.max(1, pub.months || 4) * 4));
         LIFE.crop = { stage, sky: me.sky || 'sun', harvest: pub.phase === 'settle' };
@@ -2288,7 +2176,7 @@ const Player = (() => {
             drops: lastRow.map(i => [cx(i), top + (rows - 1) * rowH + 122 * s]),
         };
         farmOverlays(null);
-        const img = plantDots(LDATA, tiles);
+        const img = typeof Render !== 'undefined' ? Render.plant(`plant|${HH}|${per}|${s.toFixed(3)}|${tiles.length}|${Math.max(800, pxW)}`, LDATA, Math.max(800, pxW), deskRedraw) : null;
         deskBg(img);
         if (!img) { deskLife(null, 0, false); return deskLoader(false); }
         const secured = tiles.filter(k => k === 'deal' || k === 'fut').length / Math.max(1, tiles.length);
@@ -2327,6 +2215,7 @@ const Player = (() => {
                 const simS = DSIM && kk === 'open' ? (DSIM > 0 ? ' sim-down' : ' sim-up') : '';
                 return `<g class="silo r ${kk}${DSEL.has(i) ? ' sel' : ''}${simS}" data-i="${i}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(3)})">
                     <rect class="s-hit" x="-4" y="-12" width="${w + 16}" height="140"/>
+                    ${kk === 'deal' || kk === 'fut' ? `<rect x="${(w * 0.62).toFixed(1)}" y="12" width="6" height="80" fill="url(#beanFill)"/><rect x="${(w * 0.62 + 0.6).toFixed(1)}" y="13" width="1" height="78" fill="rgba(255,255,255,.28)"/><rect x="0" y="52" width="${w}" height="9" fill="url(#${kk === 'deal' ? 'bandD' : 'bandF'})"/>` : ''}
                     <circle cx="${w - 9}" cy="12" r="3" class="s-led ${kk}"/>
                     ${kk === 'cut' ? `<path class="vil-x" d="M8 10 L${w - 8} 92 M${w - 8} 10 L8 92"/>` : ''}
                     <g class="badge ${kk}" transform="translate(${w / 2} 138) scale(${(fK / s).toFixed(3)})">${badgeW(kk, unit) * fK > (w + gap) * s - 6 ? badgeDot(kk) : badgeSVG(kk, unit)}</g></g>`;
@@ -3137,6 +3026,7 @@ const Player = (() => {
         const waLand = new Path2D();
         Object.values(WA_HI).forEach(rs => rs.forEach(r => { for (let i = 0; i < r.length; i += 2) { const px = ix(r[i] / 100); const py = iy(r[i + 1] / 100); if (i) waLand.lineTo(px, py); else waLand.moveTo(px, py); } waLand.closePath(); }));
         const inset = `<svg viewBox="0 0 ${IW} ${IH}" class="t-inset-svg">
+            <image href="${paintImage(IW, IH, 5, x => atlasPaint(x, IW, IH, ix, iy, { land: waLand, shelf: 10, coastW: 0.7, ridges: [], grain: 9000, gs: 0.35, noBelt: true }))}" x="0" y="0" width="${IW}" height="${IH}" preserveAspectRatio="none"/>
             ${Object.entries(WA_HI).map(([k, rs]) => `<path class="t-cty ${k}" d="${rs.map(r => { let d = ''; for (let i = 0; i < r.length; i += 2) d += `${i ? 'L' : 'M'}${ix(r[i] / 100).toFixed(1)} ${iy(r[i + 1] / 100).toFixed(1)}`; return `${d}Z`; }).join('')}"/>`).join('')}
             <defs><pattern id="tCrop" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="rgba(86,199,150,.28)" stroke-width="1.5"/></pattern></defs>
             ${[1, 2, 3].map(k => `<polyline points="${coast.map(([lo, la]) => `${ix(lo).toFixed(1)},${(iy(la) + k * 9).toFixed(1)}`).join(' ')}" class="t-ins-depth"/>`).join('')}
@@ -3153,50 +3043,10 @@ const Player = (() => {
             ${pin('ci', ix(INTEL_LOCS.ci.lon), iy(INTEL_LOCS.ci.lat), 'r', 'Plantagen')}${pin('gh', ix(INTEL_LOCS.gh.lon), iy(INTEL_LOCS.gh.lat), 'r', 'Plantagen')}
             ${pin('abj', ix(INTEL_LOCS.abj.lon), iy(INTEL_LOCS.abj.lat), 'l', 'Hafen Abidjan')}${pin('acc', ix(INTEL_LOCS.acc.lon), iy(INTEL_LOCS.acc.lat), 'l', 'Accra · Tema')}</svg>`;
         $('t-map').innerHTML = `<svg viewBox="0 0 ${TW} ${TH}" class="t-world" preserveAspectRatio="xMidYMid meet"><image href="${paintImage(TW, TH, 6, x => {
-                const W2 = [];
-                const BELT = [];
-                const og = x.createRadialGradient(TW * 0.42, TH * 0.48, 10, TW * 0.5, TH * 0.5, TW * 0.62);
-                og.addColorStop(0, 'rgba(46,58,74,.55)');
-                og.addColorStop(0.6, 'rgba(22,28,38,.35)');
-                og.addColorStop(1, 'rgba(8,10,14,0)');
-                x.fillStyle = og;
-                x.fillRect(0, 0, TW, TH);
-                const bg = x.createLinearGradient(0, ty(20), 0, ty(-20));
-                bg.addColorStop(0, 'rgba(185,207,148,0)');
-                bg.addColorStop(0.5, 'rgba(185,207,148,.06)');
-                bg.addColorStop(1, 'rgba(185,207,148,0)');
-                x.fillStyle = bg;
-                x.fillRect(0, ty(20), TW, ty(-20) - ty(20));
-                x.shadowColor = 'rgba(169,196,220,.55)';
-                x.shadowBlur = 1.6;
-                x.fillStyle = 'rgba(150,186,214,.34)';
-                x.beginPath();
-                for (let lat = 70; lat >= -36; lat--) for (let lon = -100; lon <= 135; lon++) {
-                    if (!isLand(lon, lat)) continue;
-                    if (lon >= -10 && lon <= 4 && lat >= 4 && lat <= 11) { W2.push([lon, lat]); continue; }
-                    if (Math.abs(lat) <= 12) { BELT.push([lon, lat]); continue; }
-                    const r0 = 0.62 + ((lon * 7 + lat * 13) % 5) * 0.03;
-                    x.moveTo(tx(lon) + r0, ty(lat)); x.arc(tx(lon), ty(lat), r0, 0, Math.PI * 2);
-                }
-                x.fill();
-                x.shadowColor = 'rgba(185,207,148,.6)';
-                x.fillStyle = 'rgba(185,207,148,.5)';
-                x.beginPath();
-                for (const [lon, lat] of BELT) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
-                x.fill();
-                x.shadowBlur = 0;
-                x.fillStyle = 'rgba(217,178,111,.75)';
-                x.beginPath();
-                for (const [lon, lat] of W2) { x.moveTo(tx(lon) + 0.72, ty(lat)); x.arc(tx(lon), ty(lat), 0.72, 0, Math.PI * 2); }
-                x.fill();
-                x.lineJoin = 'round';
-                x.strokeStyle = 'rgba(169,196,220,.18)';
-                x.lineWidth = 1.6;
-                x.stroke(new Path2D(coastD));
-                x.strokeStyle = 'rgba(190,212,232,.75)';
-                x.lineWidth = 0.45;
+                atlasPaint(x, TW, TH, tx, ty, { shelf: 3.4, coastW: 0.3, ridgeW: 2.4, grain: 16000, gs: 0.22 });
             })}" x="0" y="0" width="${TW}" height="${TH}"/>
             <g class="t-grid-l">${[-20, 0, 20, 40, 60].map(l => `<line x1="0" x2="${TW}" y1="${ty(l)}" y2="${ty(l)}"/><text x="3" y="${ty(l) - 2}">${Math.abs(l)}°${l > 0 ? 'N' : l < 0 ? 'S' : ''}</text>`).join('')}${[-90, -60, -30, 0, 30, 60, 90, 120].map(l => `<line class="v" x1="${tx(l)}" x2="${tx(l)}" y1="0" y2="${TH}"/>`).join('')}</g>
+            <g class="t-sea"><text x="${tx(-38)}" y="${ty(28)}">Atlantischer Ozean</text><text x="${tx(-22)}" y="${ty(-18)}">Südatlantik</text><text x="${tx(78)}" y="${ty(-18)}">Indischer Ozean</text><text x="${tx(-92)}" y="${ty(-14)}">Pazifik</text><text x="${tx(132)}" y="${ty(14)}" text-anchor="end">Pazifik</text></g>
             <g class="t-routes"><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-20)} ${ty(40)} ${tx(4)} ${ty(51)}`}"/><path d="${`M${tx(-4)} ${ty(5)} Q ${tx(-40)} ${ty(30)} ${tx(-74)} ${ty(40.7)}`}"/></g>${box}${world}</svg>
             <div class="t-inset"><div class="t-inset-h">AUSSCHNITT WESTAFRIKA · 70 % der Welternte</div>${inset}</div>`;
         termMapInteract();
