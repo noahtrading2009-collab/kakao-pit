@@ -1545,7 +1545,7 @@ const Player = (() => {
           for (let q = 0; q < 4; q++) bean(cx + (q % 2 ? 1.5 : -1.5), B1 - 70 + ((T * 40 + q * 4) % 14), '#8a5a34');
           x.fillStyle = '#d9d2c2'; x.fillRect(cx - 26 + j, B1 - 58, 52, 2);
           x.fillStyle = 'rgba(220,210,190,.35)'; for (let q = 0; q < 6; q++) { const p = (T * 0.6 + q / 6) % 1; x.fillRect(cx - 20 + q * 7 + j, B1 - 60 - p * 10, 0.8, 0.8); }
-          x.fillStyle = (Math.floor(T * 2) % 2) ? '#4ade80' : '#14532d'; x.fillRect(cx - 29, B1 - 33, 3, 2); }
+          x.fillStyle = (Math.floor(T * 2) % 2) ? '#a9c98a' : '#14532d'; x.fillRect(cx - 29, B1 - 33, 3, 2); }
         // 2 Rösten: drehende Trommel, Flammen, Abluft, Kühlsieb-Arm, Temperatur
         { const cx = at('roast'); const x0 = cx - 44; const w = 70;
           x.save(); rrect(x, x0, B1 - 78, w, 40, 18); x.clip();
@@ -2122,7 +2122,7 @@ const Player = (() => {
             <line x1="12" y1="0" x2="12" y2="${VH}" class="border"/><g transform="translate(22 22) scale(${fK.toFixed(3)})"><text class="border-t">GRENZE ←</text></g>
             <g class="c-lines">${clines}</g>
             <g class="port" data-port="1" transform="translate(735 ${(360 * k).toFixed(1)}) scale(${fK.toFixed(3)})"><rect x="-30" y="-15" width="60" height="26" rx="5"/><text y="4" text-anchor="middle">⚓ Hafen</text></g>
-            ${smuggle ? `<g class="trucks"><text class="truck t1" x="560" y="${368 * k}">🚚</text><text class="truck t2" x="420" y="${362 * k}">🚚</text><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
+            ${smuggle ? `<g class="trucks"><svg class="truck t1 ico" x="548" y="${348 * k}" width="26" height="26" viewBox="0 0 24 24">${Icons.inner('truck')}</svg><svg class="truck t2 ico" x="408" y="${342 * k}" width="26" height="26" viewBox="0 0 24 24">${Icons.inner('truck')}</svg><path d="${sy('M560 360 C 400 300, 200 330, 14 300', k)}" class="smug-path"/></g>` : ''}
             ${img ? '' : `<g class="cloud-shadows"><ellipse cx="0" cy="${120 * k}" rx="140" ry="40"/><ellipse cx="-300" cy="${290 * k}" rx="180" ry="50"/></g>`}
             ${villages}
             ${img ? '' : `<g class="d-bird"><path d="M0 0 q6 -6 12 0 q6 -6 12 0"/></g><g class="d-bird b2"><path d="M0 0 q5 -5 10 0 q5 -5 10 0"/></g>`}
@@ -2235,12 +2235,12 @@ const Player = (() => {
             <defs><linearGradient id="pMetal" x1="0" x2="1"><stop offset="0" stop-color="#2a313c"/><stop offset=".25" stop-color="#4b5566"/><stop offset=".45" stop-color="#6b778a"/><stop offset=".7" stop-color="#3a4250"/><stop offset="1" stop-color="#232933"/></linearGradient>
             <linearGradient id="pGlass" x1="0" x2="1"><stop offset="0" stop-color="rgba(255,255,255,0)"/><stop offset=".2" stop-color="rgba(255,255,255,.16)"/><stop offset=".3" stop-color="rgba(255,255,255,0)"/></linearGradient>
             <linearGradient id="pFillF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf6b"/><stop offset=".15" stop-color="#d98a2b"/><stop offset="1" stop-color="#6b3a12"/></linearGradient>
-            <linearGradient id="pFillD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cc8ff"/><stop offset=".15" stop-color="#3b82f6"/><stop offset="1" stop-color="#1b3f86"/></linearGradient>
+            <linearGradient id="pFillD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9cc8ff"/><stop offset=".15" stop-color="#7fa6d6"/><stop offset="1" stop-color="#1b3f86"/></linearGradient>
             <linearGradient id="pWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10151d"/><stop offset=".7" stop-color="#1a212c"/><stop offset="1" stop-color="#0c1016"/></linearGradient>
             <linearGradient id="pBeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,230,170,.10)"/><stop offset="1" stop-color="rgba(255,230,170,0)"/></linearGradient>
             <pattern id="pPanel" width="80" height="40" patternUnits="userSpaceOnUse"><rect width="80" height="40" fill="none" stroke="rgba(255,255,255,.035)"/><circle cx="4" cy="4" r="1" fill="rgba(255,255,255,.08)"/><circle cx="76" cy="4" r="1" fill="rgba(255,255,255,.08)"/></pattern>
             <pattern id="pFloor" width="40" height="14" patternUnits="userSpaceOnUse"><rect width="40" height="14" fill="#151a22"/><path d="M0 0 H40 M0 0 V14" stroke="rgba(255,255,255,.05)"/></pattern>
-            <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#ff9f1c"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
+            <pattern id="pHaz" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#d9a66b"/><path d="M0 8 L8 0 L12 0 L4 8Z M8 8 L16 0 L16 4 L12 8Z" fill="#111"/></pattern>
             <pattern id="pFoil" width="8" height="16" patternUnits="userSpaceOnUse"><rect width="8" height="16" fill="#d4a017"/><rect width="4" height="16" fill="#f5d36b"/></pattern>
             <linearGradient id="beanFill" x1="0" x2="1"><stop offset="0" stop-color="#4a2810"/><stop offset=".5" stop-color="#a0642c"/><stop offset="1" stop-color="#3e200c"/></linearGradient>
             <linearGradient id="bandD" x1="0" x2="1"><stop offset="0" stop-color="#0c1f45"/><stop offset=".3" stop-color="#2f6fd0"/><stop offset=".42" stop-color="#7fb0f5"/><stop offset=".7" stop-color="#23529e"/><stop offset="1" stop-color="#0a1a3a"/></linearGradient>
@@ -2758,7 +2758,7 @@ const Player = (() => {
         $('d-month').textContent = pub.phase === 'pre' ? 'PRE-MARKET' : pub.phase === 'settle' ? 'ABRECHNUNG' : `MONAT ${pub.month}/${pub.months}${pub.years > 1 ? ` · JAHR ${pub.year}` : ''}`;
         $('d-timer').textContent = pub.phase === 'settle' ? '⏸' : mmss(pub.secLeft);
         $('d-timer').classList.toggle('urgent', pub.phase === 'trading' && pub.secLeft <= 10);
-        if (pub.phase === 'trading' && pub.secLeft <= 10 && pub.secLeft !== lastTick) { lastTick = pub.secLeft; Sound.play('tick'); }
+        if (pub.phase === 'trading' && pub.secLeft <= 5 && pub.secLeft !== lastTick) { lastTick = pub.secLeft; Sound.play('tick'); }
         const n = nowText();
         $('d-now').className = `t-now ${n.k}`;
         setHTML($('d-now'), n.t + (n.left !== undefined ? ` <b class="rumor-left2">${n.left}s</b>` : ''));
@@ -3392,7 +3392,7 @@ const Player = (() => {
                 const L = INTEL_LOCS[k2];
                 if (!L || WEST.includes(k2)) continue;
                 x.save(); x.translate(tx(L.lon), ty(L.lat) - 16 * s + Math.sin(T * 2) * 2 * s); x.scale(s, s);
-                x.font = '12px "Noto Color Emoji", sans-serif'; x.textAlign = 'center'; x.globalAlpha = 0.9; x.fillText(r.icon, 0, 0); x.restore();
+                const im = Icons.img(r.icon); if (im.complete) { x.globalAlpha = 0.95; x.fillStyle = 'rgba(14,11,8,.82)'; x.beginPath(); x.arc(0, -4, 9, 0, 7); x.fill(); x.strokeStyle = 'rgba(240,205,132,.7)'; x.lineWidth = 0.8; x.stroke(); x.drawImage(im, -6.5, -10.5, 13, 13); } x.restore();
             }
         }
         // ---------- Ausschnitt Westafrika ----------
@@ -3441,7 +3441,7 @@ const Player = (() => {
                     const g = x.createRadialGradient(cx, cy, 1, cx, cy, 14); g.addColorStop(0, 'rgba(255,200,90,.85)'); g.addColorStop(1, 'rgba(255,170,60,0)');
                     x.fillStyle = g; x.beginPath(); x.arc(cx, cy, 14 + Math.sin(T * 3) * 1.5, 0, 7); x.fill();
                 } else {
-                    x.save(); x.translate(cx, cy + Math.sin(T * 2) * 1.5); x.scale(s, s); x.font = '12px "Noto Color Emoji", sans-serif'; x.textAlign = 'center'; x.fillText(r.icon, 0, 4); x.restore();
+                    x.save(); x.translate(cx, cy + Math.sin(T * 2) * 1.5); x.scale(s, s); const im = Icons.img(r.icon); if (im.complete) { x.fillStyle = 'rgba(14,11,8,.82)'; x.beginPath(); x.arc(0, 0, 9, 0, 7); x.fill(); x.drawImage(im, -6.5, -6.5, 13, 13); } x.restore();
                 }
             }
         }

@@ -108,7 +108,7 @@ const Scenes = (() => {
             <linearGradient id="choc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d39a62"/><stop offset="1" stop-color="#c86a12"/></linearGradient></defs>
             <rect width="360" height="200" fill="url(#fsky)"/>
             <g class="smoke"><circle cx="292" cy="34" r="9"/><circle cx="300" cy="22" r="12"/><circle cx="312" cy="10" r="15"/></g>
-            <rect x="284" y="40" width="18" height="60" fill="#5b6576"/><rect x="284" y="46" width="18" height="5" fill="#ff9f1c"/>
+            <rect x="284" y="40" width="18" height="60" fill="#5b6576"/><rect x="284" y="46" width="18" height="5" fill="#d9a66b"/>
             <pattern id="brick" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#5a3a2e"/><path d="M0 0 H16 M0 4 H16 M8 0 V4 M0 4 V8 M16 4 V8" stroke="#3a241c" stroke-width=".8"/><rect x="1" y="1" width="6" height="2" fill="rgba(255,255,255,.04)"/></pattern>
             ${Array.from({ length: 22 }, (_, i) => `<circle cx="${(i * 67) % 360}" cy="${(i * 23) % 40 + 4}" r="${i % 4 ? 0.6 : 1}" fill="#fff" opacity="${0.3 + (i % 3) * 0.2}"/>`).join('')}
             <path d="M0 120 L30 120 L30 92 L52 92 L52 120 L88 120 L88 104 L100 104 L100 120 Z" fill="#141a24"/>
@@ -116,7 +116,7 @@ const Scenes = (() => {
             ${[0, 1, 2, 3, 4].map(i => `<path d="M${150 + i * 40 - 40} 70 L${150 + i * 40} 50 L${150 + i * 40} 70Z" fill="rgba(255,207,107,.0)"/><path d="M${150 + i * 40} 52 L${150 + i * 40} 70 L${146 + i * 40} 70 L${146 + i * 40} 54Z" fill="#9fc6e8" opacity=".7"/>`).join('')}
             <rect x="110" y="98" width="200" height="4" fill="#232a36"/>
             <rect x="110" y="100" width="200" height="66" fill="url(#brick)"/>
-            <rect x="150" y="84" width="120" height="14" rx="2" fill="#11161f" stroke="#ff9f1c" stroke-width="1"/><text x="210" y="94.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffcf8a" font-family="monospace" letter-spacing="1.5">CHOCOLATERIE</text>
+            <rect x="150" y="84" width="120" height="14" rx="2" fill="#11161f" stroke="#d9a66b" stroke-width="1"/><text x="210" y="94.5" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffcf8a" font-family="monospace" letter-spacing="1.5">CHOCOLATERIE</text>
             ${[0, 1, 2, 3, 4].map(i => `<rect x="${122 + i * 38}" y="112" width="24" height="18" rx="2" fill="#ffcf6b" class="win" style="animation-delay:${i * 0.4}s"/><path d="M${134 + i * 38} 112 V130 M${122 + i * 38} 121 H${146 + i * 38}" stroke="#2d3748" stroke-width="1.5"/><rect x="${121 + i * 38}" y="129" width="26" height="2.5" fill="#8a96a8"/>`).join('')}
             <rect x="194" y="138" width="32" height="28" fill="#2a313c"/><rect x="196" y="140" width="28" height="26" fill="#1a202c"/>${[0, 1, 2, 3, 4].map(i => `<line x1="196" x2="224" y1="${144 + i * 5}" y2="${144 + i * 5}" stroke="#2d3748"/>`).join('')}
             <path d="M80 70 H118 V100" fill="none" stroke="#8a96a8" stroke-width="5"/><path d="M80 70 H118 V100" fill="none" stroke="#c3ccd8" stroke-width="1.2" stroke-dasharray="3 5"/><circle cx="118" cy="70" r="4" fill="#5b6576"/>
@@ -131,7 +131,7 @@ const Scenes = (() => {
             <rect x="0" y="168" width="360" height="8" fill="#4a5568"/>
             <g class="belt">${Array.from({ length: bars * 2 }, (_, i) => `<rect x="${i * (360 / bars)}" y="152" width="30" height="16" rx="3" fill="#7a4320" stroke="#c98a4b" stroke-width="1"/><path d="M${i * (360 / bars) + 10} 152 V168 M${i * (360 / bars) + 20} 152 V168" stroke="#5a2f15" stroke-width="1.5"/>`).join('')}</g>
             <rect x="0" y="194" width="360" height="6" fill="url(#hz)"/>
-            <defs><pattern id="hz" width="16" height="6" patternUnits="userSpaceOnUse"><rect width="16" height="6" fill="#ff9f1c"/><path d="M0 6 L6 0 L10 0 L4 6Z M8 6 L14 0 L16 0 L16 2 L12 6Z" fill="#111"/></pattern></defs>
+            <defs><pattern id="hz" width="16" height="6" patternUnits="userSpaceOnUse"><rect width="16" height="6" fill="#d9a66b"/><path d="M0 6 L6 0 L10 0 L4 6Z M8 6 L14 0 L16 0 L16 2 L12 6Z" fill="#111"/></pattern></defs>
         </svg>`;
         return `<div class="scene plant">${svg}
             <div class="sc-chip tl">🛢️ Kakao-Silo gesichert</div>

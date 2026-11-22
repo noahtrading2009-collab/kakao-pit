@@ -371,10 +371,12 @@ const Host = (() => {
             const t = $('yo-timer');
             if (t) t.textContent = mmss(Math.max(0, S.shopLeft));
             $('h-timer').textContent = 'AUSBAU';
+            $('h-timer').classList.add('word');
             return;
         }
         $('h-months').innerHTML = Array.from({ length: S.months }, (_, i) => `<span class="${i + 1 < S.month ? 'done' : i + 1 === S.month ? 'now' : ''}">M${i + 1}</span>`).join('') + '<span class="due">DEZ</span>';
         $('h-timer').textContent = S.phase === 'settle' ? 'ABRECHNUNG' : mmss(S.secLeft);
+        $('h-timer').classList.toggle('word', S.phase === 'settle');
         renderPre(S);
         $('h-timer').classList.toggle('urgent', S.phase === 'trading' && S.secLeft <= 10);
         // Status-Pille und Monats-Fortschritt
@@ -990,16 +992,20 @@ const Host = (() => {
         // News markers on the timeline
         // Nur Meldungen aus dem laufenden Jahr – die Uhr beginnt jedes Jahr wieder bei 0.
         const feedItems = (S.feed || []).filter(n => ['rumor', 'yes', 'no', 'flash', 'alert'].includes(n.kind) && n.clock > 0 && n.year === S.year && h.some(q => q.s === n.clock));
-        c.font = '16px "Noto Color Emoji", sans-serif';
         feedItems.forEach(n => {
             const pt = h.find(q => q.s === n.clock) || h[h.length - 1];
-            c.fillText(n.icon, x(n.clock) - 8, y(pt.p) - 12);
+            const im = Icons.img(n.icon, n.kind === 'no' ? '#f6b3be' : n.kind === 'yes' ? '#9feccb' : '#f3dcaa');
+            const px = x(n.clock);
+            const py = y(pt.p) - 18;
+            c.fillStyle = 'rgba(14,11,8,.85)'; c.beginPath(); c.arc(px, py, 11, 0, Math.PI * 2); c.fill();
+            c.strokeStyle = 'rgba(214,178,112,.55)'; c.lineWidth = 1; c.stroke();
+            if (im.complete) c.drawImage(im, px - 8, py - 8, 16, 16);
         });
     }
 
     // ===== Ein- und Ausstiege der Spieler im Chart =====
     // Nur echte Spieler (keine KI), nahe Trades zusammengefasst, Kürzel nur ohne Überlappung.
-    const MARK_COLORS = ['#38bdf8', '#f472b6', '#facc15', '#4ade80', '#fb923c', '#c084fc', '#2dd4bf', '#f87171', '#a3e635', '#e879f9', '#60a5fa', '#fbbf24'];
+    const MARK_COLORS = ['#a9c4dc', '#d9a6b8', '#e9cf85', '#a9c98a', '#d9a66b', '#b9a6d6', '#8fc7b8', '#e2949f', '#c6d38a', '#d6a9cf', '#9cc3f2', '#e6c27a'];
 
     function markColor(pid) {
         const humans = Engine.G.players.filter(p => !p.bot).map(p => p.id);
@@ -1225,10 +1231,21 @@ const Host = (() => {
                 return `<div class="settle-chart">${priceSVG(pts, { w: 660, h: 170, ref: ps[0], refLabel: 'Eröffnung' })}</div>
                     <div class="settle-kv">${kv.map(([k, v, c]) => `<div><small>${k}</small><b class="${c || ''}">${v}</b></div>`).join('')}</div>`;
             })()}
-            <div class="settle-duo">
-                <div class="sd win">${best ? `<span class="sd-k">💰 Gewinner des Monats</span>${who(best)}<em>▲ ${signed(best.pl)} CHF</em>` : '<span class="sd-k">💰 Gewinner des Monats</span><small>–</small>'}</div>
-                <div class="sd lose">${worst ? `<span class="sd-k">💸 Verlierer des Monats</span>${who(worst)}<em>▼ ${signed(worst.pl)} CHF</em>` : '<span class="sd-k">💸 Verlierer des Monats</span><small>–</small>'}</div>
-            </div>
+            ${(() => {
+                // Absicherer: Futures-Buchung und Warenwert gleichen sich aus – niemand ist hier «Verlierer».
+                const dP = G.price - prev;
+                const hedgers = data.results.map(x => ({ p: Engine.byId(x.pid), pl: x.pl })).filter(x => x.p && x.p.role !== 'spec');
+                const fut = hedgers.reduce((s2, x) => s2 + x.pl, 0);
+                const ware = hedgers.reduce((s2, x) => s2 + x.p.physical * dP, 0);
+                const specs = res.filter(x => x.p.role === 'spec');
+                const top = specs[0] && specs[0].pl > 0 ? specs[0] : null;
+                return `<div class="settle-duo">
+                    <div class="sd hedge"><span class="sd-k">Absicherer · Kooperativen & Fabriken</span>
+                        <div class="sd-eq"><span>Futures</span><b class="${fut >= 0 ? 'up' : 'down'}">${signed(Math.round(fut))}</b><i>+</i><span>Ware</span><b class="${ware >= 0 ? 'up' : 'down'}">${signed(Math.round(ware))}</b><i>=</i><span>zusammen</span><b>${signed(Math.round(fut + ware))}</b></div>
+                        <small>Was die Futures verlieren, gewinnt die Ware – und umgekehrt. Genau dafür sichert man ab.</small></div>
+                    <div class="sd win"><span class="sd-k">Bester Fonds des Monats</span>${top ? `${who(top)}<em>▲ ${signed(top.pl)} CHF</em>` : '<small>Kein Fonds im Plus</small>'}</div>
+                </div>`;
+            })()}
             ${calls.length ? `<p class="bad settle-calls">📞 Margin Call: ${calls.map(p => esc(p.name)).join(', ')} – nachschiessen oder verkleinern!</p>` : '<p class="good">✔ Keine Margin Calls.</p>'}
             <p class="dim small">Gewinne und Verluste der Futures werden jetzt auf die Konten gebucht (Mark-to-Market).</p>
             ${data.month >= CFG.months ? '<p><b>Das war der letzte Monat. Jetzt ist Dezember: Lieferung und Abrechnung!</b></p>' : ''}</div>`;
@@ -1533,7 +1550,6 @@ const Host = (() => {
                 <div class="card wide"><h3>🗓️ Alle Jahre im Überblick</h3><div class="yc-grid">${yearCards(d.yearLog)}</div></div>
                 <div class="card"><h3>📈 Kursverlauf im letzten Jahr</h3><canvas id="end-chart"></canvas>
                     <h3>💡 Was wir gelernt haben</h3><ul class="lessons">${lessons(d).map(l => `<li>${l}</li>`).join('')}</ul></div>
-                <div class="card discuss"><h3>🗣️ Drei Fragen zur Nachbesprechung</h3><ol class="lessons big">${questions(d).map(q => `<li>${q}</li>`).join('')}</ol></div>
             </div>
             <div class="end-btns"><button class="btn btn-primary btn-big" onclick="location.href=location.pathname">Neues Spiel</button></div>`;
         const ec = $('end-chart');

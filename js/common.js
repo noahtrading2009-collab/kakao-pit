@@ -104,7 +104,7 @@ const Gfx = (() => {
 const HQ = () => (Gfx.low() ? Math.min(1.25, window.devicePixelRatio || 1) : Math.max(2, window.devicePixelRatio || 1));
 
 // ===== Konfetti (leichtgewichtig, ohne Bibliothek) =====
-function confetti(ms = 3500, colors = ['#d9b26f', '#56c796', '#a99bd6', '#60a5fa', '#f472b6', '#fde047']) {
+function confetti(ms = 3500, colors = ['#d9b26f', '#56c796', '#a99bd6', '#9cc3f2', '#d9a6b8', '#e9cf85']) {
     const cv = document.createElement('canvas');
     cv.className = 'confetti';
     document.body.appendChild(cv);
@@ -154,34 +154,34 @@ function confetti(ms = 3500, colors = ['#d9b26f', '#56c796', '#a99bd6', '#60a5fa
 // ===== Eigene Rollen-Embleme (SVG statt Emoji) =====
 let iconSeq = 0;
 function roleIcon(role, size = 32) {
-    const u = `ri${iconSeq++}`;
-    const s = `width="${size}" height="${size}" viewBox="0 0 64 64" class="role-ico" aria-hidden="true"`;
+    // Gravierte Medaillons: feine Goldlinien in einem doppelten Ring – wie auf einer Münze
+    iconSeq++;
+    const s = `width="${size}" height="${size}" viewBox="0 0 64 64" class="role-ico" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+    const ring = '<circle cx="32" cy="32" r="29.5" fill="rgba(22,16,11,.72)" stroke="#d9b26f" stroke-width="1.3"/><circle cx="32" cy="32" r="26" stroke="rgba(217,178,111,.4)" stroke-width=".7"/>'
+        + Array.from({ length: 24 }, (_, i) => { const a = (i / 24) * Math.PI * 2; return `<path d="M${(32 + Math.cos(a) * 27.4).toFixed(2)} ${(32 + Math.sin(a) * 27.4).toFixed(2)}L${(32 + Math.cos(a) * 28.6).toFixed(2)} ${(32 + Math.sin(a) * 28.6).toFixed(2)}" stroke="rgba(217,178,111,.45)" stroke-width=".6"/>`; }).join('');
     if (role === 'producer') {
-        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0d49a"/><stop offset=".5" stop-color="#e0822f"/><stop offset="1" stop-color="#7a3a12"/></linearGradient>
-            <linearGradient id="${u}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#86efac"/><stop offset="1" stop-color="#15803d"/></linearGradient></defs>
-            <path d="M44 8 C 56 4, 60 14, 52 20 C 48 14, 46 12, 44 8Z" fill="url(#${u}b)"/>
-            <ellipse cx="30" cy="36" rx="16" ry="24" transform="rotate(-28 30 36)" fill="url(#${u}a)"/>
-            <path d="M20 22 C 30 32, 30 44, 40 54 M26 16 C 36 28, 38 40, 46 48 M16 30 C 22 40, 24 48, 32 58" stroke="#5a2a0c" stroke-width="2" fill="none" opacity=".45" stroke-linecap="round"/>
-            <ellipse cx="24" cy="26" rx="4" ry="8" transform="rotate(-28 24 26)" fill="#fff" opacity=".3"/>
-            <path d="M42 14 L46 10" stroke="#3f6212" stroke-width="3" stroke-linecap="round"/></svg>`;
+        return `<svg ${s}>${ring}<g stroke="#f0d49a" stroke-width="1.35">
+            <path d="M31 15.5c7.2 4 10.4 10.8 10.4 17.6S38.2 46.6 31 50.5c-7.2-3.9-10.4-10.6-10.4-17.4S23.8 19.5 31 15.5z" fill="rgba(201,120,55,.3)"/>
+            <path d="M31 16.5v33M26.2 20.5c-1.6 5.2-1.6 20.2 0 25M35.8 20.5c1.6 5.2 1.6 20.2 0 25" stroke-width=".85"/>
+            <path d="M22.5 28h4M22 33h4M22.5 38h4M35.5 28h4M36 33h4M35.5 38h4" stroke-width=".55" opacity=".7"/>
+            <path d="M31.5 15.6c1.6-4.4 5.6-6.6 11.2-6.4-.8 5.6-5 8.2-11.2 6.4z" fill="rgba(185,207,148,.32)" stroke="#c6d9a3"/>
+            <path d="M33 14.2c2.6-1.8 5-2.8 7.6-3.4" stroke="#c6d9a3" stroke-width=".7"/></g></svg>`;
     }
     if (role === 'processor') {
-        return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fcd34d"/><stop offset="1" stop-color="#b45309"/></linearGradient>
-            <linearGradient id="${u}c" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b4a22"/><stop offset="1" stop-color="#3b1a08"/></linearGradient></defs>
-            <circle cx="46" cy="12" r="5" fill="#cbd5e1" opacity=".5"/><circle cx="52" cy="6" r="4" fill="#cbd5e1" opacity=".35"/>
-            <rect x="40" y="14" width="8" height="20" rx="1.5" fill="#94a3b8"/>
-            <path d="M6 58 V30 L18 22 V30 L30 22 V30 L42 22 V30 L58 30 V58 Z" fill="url(#${u}a)"/>
-            <rect x="12" y="38" width="40" height="16" rx="3" fill="url(#${u}c)"/>
-            <path d="M22 38 V54 M32 38 V54 M42 38 V54 M12 46 H52" stroke="#c98a4b" stroke-width="1.6" opacity=".7"/>
-            <path d="M46 38 a6 6 0 0 0 6 6 V38Z" fill="#b45309"/></svg>`;
+        return `<svg ${s}>${ring}<g stroke="#f0d49a" stroke-width="1.3">
+            <path d="M14.5 46V31.5l8 4.8v-4.8l8 4.8v-4.8l8 4.8V20.5h6V46z" fill="rgba(217,178,111,.16)"/>
+            <path d="M12.5 46h39M41 20.5v-3.2" />
+            <path d="M42.5 16.4c1.6-2.8 4.6-3.4 7-1.6M45 12.6c1.2-1.6 3-2 4.6-1.2" stroke-width=".8" opacity=".75"/>
+            <rect x="18.5" y="38.5" width="17" height="5.6" rx="1" fill="rgba(110,58,22,.65)"/>
+            <path d="M22.75 38.5v5.6M27 38.5v5.6M31.25 38.5v5.6M18.5 41.3h17" stroke-width=".6"/>
+            <path d="M40.5 25h1.6M40.5 29h1.6M40.5 33h1.6" stroke-width=".7"/></g></svg>`;
     }
-    return `<svg ${s}><defs><linearGradient id="${u}a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ddd6fe"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
-        <linearGradient id="${u}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1e3a8a"/></linearGradient></defs>
-        <path d="M14 44 C 22 40, 30 16, 46 8 C 42 22, 44 34, 52 44 Z" fill="url(#${u}a)"/>
-        <path d="M30 22 C 36 16, 40 13, 46 8" stroke="#fff" stroke-width="2" opacity=".5" fill="none" stroke-linecap="round"/>
-        <path d="M4 46 Q 12 40 20 46 T 36 46 T 52 46 T 64 44 V60 H4 Z" fill="url(#${u}w)"/>
-        <path d="M4 50 Q 12 44 20 50 T 36 50 T 52 50 T 64 48" stroke="#bfdbfe" stroke-width="2" fill="none" opacity=".7"/>
-        <path d="M44 30 L50 24 L54 28 L60 20" stroke="#56c796" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `<svg ${s}>${ring}<g stroke="#f0d49a" stroke-width="1.3">
+        <path d="M16.5 40.5c6-2 10-9.4 12.8-20.5 6.2 5 10.4 12.4 11.4 20.5z" fill="rgba(169,196,220,.2)"/>
+        <path d="M24.5 32c2-3 3.4-6.2 4.6-10" stroke-width=".7" opacity=".7"/>
+        <path d="M11.5 45c2.9 0 2.9-2 5.8-2s2.9 2 5.8 2 2.9-2 5.8-2 2.9 2 5.8 2 2.9-2 5.8-2 2.9 2 5.8 2 2.9-2 5.8-2" stroke="#a9c4dc"/>
+        <path d="M15 49.5c2.4 0 2.4-1.5 4.8-1.5s2.4 1.5 4.8 1.5 2.4-1.5 4.8-1.5 2.4 1.5 4.8 1.5 2.4-1.5 4.8-1.5 2.4 1.5 4.8 1.5" stroke="#a9c4dc" stroke-width=".7" opacity=".7"/>
+        <path d="M37.5 28.5l4.2-4.2 3 2.2 6.3-7.3" stroke="#7fe0b4"/><circle cx="51" cy="19.2" r="1.5" fill="#7fe0b4" stroke="none"/></g></svg>`;
 }
 
 // ===== Einfache Erklärung: Was ist ein Future und wie verdient meine Rolle Geld? =====
@@ -231,7 +231,7 @@ function roleRules(R) {
 
 const ROLES = {
     producer: {
-        name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#4ade80', physical: 100, cash: 60000, limit: 15,
+        name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#a9c98a', physical: 100, cash: 60000, limit: 15,
         goal: 'Verkaufe deine Ernte zu einem möglichst hohen Preis – bevor er fällt.',
         mission: 'Ihr erntet im Dezember <b>100 t Kakao</b>. Wer verkauft zum <b>besten Preis pro Tonne</b>?',
         hint: 'Ein Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten?',
@@ -240,7 +240,7 @@ const ROLES = {
         cannot: ['Auf steigende Preise wetten – das dürfen nur Hedgefonds'],
     },
     processor: {
-        name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#f59e0b', physical: -100, cash: 60000, limit: 15,
+        name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#d9a66b', physical: -100, cash: 60000, limit: 15,
         goal: 'Kaufe deinen Kakao zu einem möglichst tiefen Preis – bevor er steigt.',
         mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Wer kauft zum <b>tiefsten Preis pro Tonne</b> ein?',
         hint: 'Ein Gerücht drückt den Preis – jetzt kaufen oder noch warten?',
@@ -249,7 +249,7 @@ const ROLES = {
         cannot: ['Auf fallende Preise wetten – das dürfen nur Hedgefonds'],
     },
     spec: {
-        name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a99bd6', physical: 0, cash: 120000, limit: 20,
+        name: 'Hedgefonds', short: 'Fonds', icon: '🦈', color: '#a9c4dc', physical: 0, cash: 120000, limit: 20,
         goal: 'Wette auf steigende oder fallende Preise – und mach den grössten Gewinn.',
         mission: 'Ihr habt keinen Kakao. Ihr wettet auf den Preis – und übernehmt so das Risiko der anderen.',
         hint: 'Jedes Gerücht hat einen Ort. Im Terminal fragst du dort Berichte an – jeder ist nur ein Indiz.',

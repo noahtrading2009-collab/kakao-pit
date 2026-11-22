@@ -1059,7 +1059,8 @@ const Engine = (() => {
     function personal(id) {
         const p = byId(id);
         if (!p) return null;
-        const rk = ranking().filter(r => r.role === p.role);
+        // Gleiche Reihenfolge wie die Rangliste am Beamer: Kooperative = höchster Preis/t, Fabrik = tiefster Einkauf/t, Fonds = höchster Gewinn
+        const rk = ranking().filter(r => r.role === p.role).sort((a, b) => (a.bankrupt - b.bankrupt) || (p.role === 'processor' ? a.metric - b.metric : b.metric - a.metric));
         const rank = rk.findIndex(r => r.id === id) + 1;
         return {
             roleCount: rk.length, metric: metric(p), hedgeEffect: Math.round(hedgeEffect(p)), protectPrice: protectPrice(p),
