@@ -28,8 +28,8 @@ const CFG = {
     orderSec: 20,          // so lange ist ein Auftrag gültig
     minPrice: 900,
     maxPrice: 7000,
-    // Wertung: Was im Dezember nicht abgesichert ist, wird kurzfristig gehandelt – 5 % schlechter als die Börse.
-    spotPenalty: 0.05,
+    // Was im Dezember nicht abgesichert ist, muss kurzfristig gehandelt werden: Händlermarge, Transport, Eile – 2 % Kosten.
+    spotPenalty: 0.02,
     // Gerüchte: Der Markt preist den erwarteten Effekt schnell ein (Anteil, Tempo pro Sekunde).
     // Wer sofort reagiert, hat einen kleinen Vorteil – sicher ist er nie.
     rumorPriced: 0.95,
@@ -195,11 +195,11 @@ function earnHTML(role) {
                 <li>Im Dezember verkaufst du deine <b>Ernte</b>. Wie viel du bekommst, hängt vom Preis <b>dann</b> ab – und den kennt heute niemand.</li>
                 <li>Darum <b>verkaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Preis jetzt schon fest.</li>
                 <li>Egal, was danach passiert: Was du bei der Ernte verlierst, gewinnst du beim Future – und umgekehrt.</li>
-                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell verkaufen – <b>5 % unter dem Börsenpreis</b>.</li>
+                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell verkaufen – das kostet <b>2 %</b> (Händlermarge, Transport).</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📉 Preis 2\'000', '20\'000', '+5\'000', '25\'000'], ['📈 Preis 3\'000', '30\'000', '−5\'000', '25\'000']], ['Ernte bringt', 'Future', 'Du bekommst'])}
-            <p class="earn-win">🏆 Du gewinnst, wenn du zu einem <b>möglichst hohen Preis</b> absicherst. Also: Verkaufen, wenn Kakao teuer ist!</p></div>`;
+            <p class="earn-win">🏆 Gewertet wird, wie <b>nahe du am Planpreis</b> landest. Wer offen lässt und auf Glück hofft, kann weit danebenliegen – nach oben wie nach unten.</p></div>`;
     }
     if (role === 'processor') {
         return `<div class="earn"><h4>💰 So verdienst du Geld</h4>
@@ -207,11 +207,11 @@ function earnHTML(role) {
                 <li>Im Dezember musst du <b>Kakao einkaufen</b>, um Schokolade zu machen. Wie viel er kostet, weiss heute niemand.</li>
                 <li>Darum <b>kaufst du heute Futures</b> (Knopf «ABSICHERN»). Damit legst du deinen Einkaufspreis jetzt schon fest.</li>
                 <li>Wird Kakao teurer, gewinnt dein Future – das gleicht den teureren Einkauf aus.</li>
-                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell kaufen – <b>5 % über dem Börsenpreis</b>.</li>
+                <li>Was du bis Dezember <b>nicht</b> absicherst, musst du dann schnell kaufen – das kostet <b>2 %</b> (Händlermarge, Transport).</li>
             </ol>
             <div class="earn-h">Beispiel: Du sicherst 10 t zu <b>2'500</b> ab</div>
             ${ex([['📈 Preis 3\'000', '30\'000', '+5\'000', '25\'000'], ['📉 Preis 2\'000', '20\'000', '−5\'000', '25\'000']], ['Kakao kostet', 'Future', 'Du zahlst'])}
-            <p class="earn-win">🏆 Du gewinnst, wenn du zu einem <b>möglichst tiefen Preis</b> absicherst. Also: Kaufen, wenn Kakao billig ist!</p></div>`;
+            <p class="earn-win">🏆 Gewertet wird, wie <b>nahe du am Planpreis</b> landest. Eine Fabrik braucht planbare Kosten – nicht einen Glückstreffer.</p></div>`;
     }
     return `<div class="earn"><h4>💰 So verdienst du Geld</h4>
         <ol class="earn-steps">
@@ -232,7 +232,7 @@ function roleRules(R) {
 const ROLES = {
     producer: {
         name: 'Kakao-Kooperative', short: 'Kooperative', icon: '🌱', color: '#a9c98a', physical: 100, cash: 60000, limit: 15,
-        goal: 'Verkaufe deine Ernte zu einem möglichst hohen Preis – bevor er fällt.',
+        goal: 'Sichere deinen Verkaufspreis – möglichst nahe am Planpreis. Zocken ist Sache der Fonds.',
         mission: 'Ihr erntet im Dezember <b>100 t Kakao</b>. Wer verkauft zum <b>besten Preis pro Tonne</b>?',
         hint: 'Ein Gerücht treibt den Preis hoch – jetzt verkaufen oder noch warten?',
         job: 'Verkäufer', tagline: 'Schütze deine Ernte vor fallenden Preisen.',
@@ -241,7 +241,7 @@ const ROLES = {
     },
     processor: {
         name: 'Schokoladenfabrik', short: 'Fabrik', icon: '🏭', color: '#d9a66b', physical: -100, cash: 60000, limit: 15,
-        goal: 'Kaufe deinen Kakao zu einem möglichst tiefen Preis – bevor er steigt.',
+        goal: 'Sichere deinen Einkaufspreis – möglichst nahe am Planpreis. Zocken ist Sache der Fonds.',
         mission: 'Ihr braucht im Dezember <b>100 t Kakao</b>. Wer kauft zum <b>tiefsten Preis pro Tonne</b> ein?',
         hint: 'Ein Gerücht drückt den Preis – jetzt kaufen oder noch warten?',
         job: 'Einkäufer', tagline: 'Sichere deinen Einkauf, bevor Kakao teurer wird.',

@@ -759,7 +759,7 @@ const Player = (() => {
                 <li>Es gibt ${CFG.months} Handelsmonate, dann ist Dezember: Jetzt wird geliefert und abgerechnet.</li>
                 <li>Gerüchte bewegen den Preis schon, <i>bevor</i> klar ist, ob sie stimmen.</li>
                 <li>Für jede Absicherung oder Wette hinterlegst du ${Math.round(CFG.marginRate * 100)} % als Pfand bei der Börse. Läuft der Preis gegen dich, musst du nachschiessen (Margin Call).</li>
-                ${hedger ? `<li><b>Wertung:</b> Wer ${role === 'producer' ? 'zum höchsten' : 'zum tiefsten'} Preis pro Tonne ${role === 'producer' ? 'verkauft' : 'einkauft'}, gewinnt. Was im Dezember noch offen ist, wird ${Math.round(CFG.spotPenalty * 100)} % schlechter gehandelt.</li>`
+                ${hedger ? `<li><b>Wertung:</b> Wer am Ende <b>am nächsten am Planpreis</b> (Preis zu Jahresbeginn) ${role === 'producer' ? 'verkauft' : 'einkauft'}, gewinnt – Glückstreffer nach oben zählen nicht mehr als Pech nach unten. Was im Dezember noch offen ist, kostet ${Math.round(CFG.spotPenalty * 100)} % für den kurzfristigen Handel.</li>`
                     : '<li><b>Wertung:</b> Der Hedgefonds mit dem höchsten Gewinn gewinnt.</li>'}
                 <li>Pleite? Dann gibt dir die Bank einen Notkredit (${fmt(CFG.loan)} CHF, ${Math.round(CFG.loanRate * 100)} % Zins am Schluss) – du spielst weiter.</li>
             </ul>

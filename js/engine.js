@@ -1038,7 +1038,7 @@ const Engine = (() => {
     }
 
     function ranking() {
-        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), hedged: hedgedShare(p), bank: p.bank || null, level: p.level, total: Math.round(p.total), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected, rep: p.rep || 0 }))
+        return G.players.map(p => ({ id: p.id, name: p.name, role: p.role, bot: p.bot, score: Math.round(score(p)), metric: metric(p), dev: p.role === 'spec' ? 0 : Math.abs(metric(p) - G.p0), hedged: hedgedShare(p), bank: p.bank || null, level: p.level, total: Math.round(p.total), pos: p.pos, bankrupt: p.bankrupt, connected: p.connected, rep: p.rep || 0 }))
             .sort((a, b) => b.score - a.score);
     }
 
@@ -1060,7 +1060,8 @@ const Engine = (() => {
         const p = byId(id);
         if (!p) return null;
         // Gleiche Reihenfolge wie die Rangliste am Beamer: Kooperative = höchster Preis/t, Fabrik = tiefster Einkauf/t, Fonds = höchster Gewinn
-        const rk = ranking().filter(r => r.role === p.role).sort((a, b) => (a.bankrupt - b.bankrupt) || (p.role === 'processor' ? a.metric - b.metric : b.metric - a.metric));
+        // Gleiche Reihenfolge wie am Beamer: Absicherer = möglichst nahe am Planpreis, Fonds = höchster Gewinn
+        const rk = ranking().filter(r => r.role === p.role).sort((a, b) => (a.bankrupt - b.bankrupt) || (p.role === 'spec' ? b.metric - a.metric : a.dev - b.dev));
         const rank = rk.findIndex(r => r.id === id) + 1;
         return {
             roleCount: rk.length, metric: metric(p), hedgeEffect: Math.round(hedgeEffect(p)), protectPrice: protectPrice(p),
@@ -1141,8 +1142,11 @@ const Engine = (() => {
                 const base = peers.length > 1 ? avg(peers.map(x => x.result)) : 0;
                 r.points = Math.round((10 * (r.result - base)) / SCALE.spec);
             } else {
-                const base = peers.length > 1 ? avg(peers.map(x => x.metric)) : G.price;   // allein in der Rolle: Vergleich mit «gar nicht absichern»
-                r.points = Math.round((10 * (r.role === 'producer' ? r.metric - base : base - r.metric)) / SCALE[r.role]);
+                // Absicherer: Wer näher am Planpreis landet, bekommt Punkte – Glückstreffer zählen nicht.
+                r.dev = Math.abs(r.metric - G.p0);
+                const noHedge = Math.abs(G.price * (r.role === 'producer' ? 1 - CFG.spotPenalty : 1 + CFG.spotPenalty) - G.p0);
+                const base = peers.length > 1 ? avg(peers.map(x => Math.abs(x.metric - G.p0))) : noHedge;
+                r.points = Math.round((10 * (base - r.dev)) / SCALE[r.role]);
             }
         }
         const star = rows.filter(r => !r.bankrupt).sort((a, b) => b.points - a.points)[0] || null;

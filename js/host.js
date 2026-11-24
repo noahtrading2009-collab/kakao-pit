@@ -483,9 +483,11 @@ const Host = (() => {
 
     // Jede Rolle hat ihre eigene Rangliste: Bauern um den besten Verkaufspreis,
     // Fabriken um den günstigsten Einkauf, Fonds um den höchsten Gewinn.
+    // Abweichung vom Planpreis (für Kooperativen und Fabriken): je kleiner, desto besser abgesichert
+    const planDev = r => (r.dev !== undefined ? r.dev : Math.abs(r.metric - Engine.G.p0));
     const BOARDS = [
-        { role: 'producer', title: 'Bester Verkaufspreis', sort: (a, b) => b.metric - a.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric >= Engine.G.p0 ? 'up' : 'down') },
-        { role: 'processor', title: 'Günstigster Einkauf', sort: (a, b) => a.metric - b.metric, val: r => `${fmt(r.metric)}<small>/t</small>`, cls: r => (r.metric <= Engine.G.p0 ? 'up' : 'down') },
+        { role: 'producer', title: 'Am nächsten am Planpreis', sort: (a, b) => planDev(a) - planDev(b), val: r => `${fmt(r.metric)}<small>/t · ±${fmt(planDev(r))}</small>`, cls: r => (planDev(r) <= Engine.G.p0 * 0.03 ? 'up' : 'down') },
+        { role: 'processor', title: 'Am nächsten am Planpreis', sort: (a, b) => planDev(a) - planDev(b), val: r => `${fmt(r.metric)}<small>/t · ±${fmt(planDev(r))}</small>`, cls: r => (planDev(r) <= Engine.G.p0 * 0.03 ? 'up' : 'down') },
         { role: 'spec', title: 'Höchster Gewinn', sort: (a, b) => b.metric - a.metric, val: r => signed(r.metric), cls: r => (r.metric >= 0 ? 'up' : 'down') },
     ];
 
@@ -1305,14 +1307,14 @@ const Host = (() => {
         const out = [];
         const dir = d.change >= 0 ? 'gestiegen' : 'gefallen';
         out.push(`Kakao ist von ${fmt(d.p0)} auf <b>${fmt(d.final)} CHF/t</b> ${dir} (${pct(d.change)}). Für 100 t sind das <b>${signed(100 * (d.final - d.p0))} CHF</b> Unterschied.`);
-        const coops = d.rows.filter(r => r.role === 'producer').sort((a, b) => b.metric - a.metric);
+        const coops = d.rows.filter(r => r.role === 'producer').sort((a, b) => planDev(a) - planDev(b));
         if (coops.length > 1) {
             const a = coops[0];
             const z = coops[coops.length - 1];
             out.push(`🌱 Gleiche Ernte, anderer Preis: <b>${esc(a.name)}</b> hat <b>${fmt(a.metric)} CHF/t</b> erzielt, <b>${esc(z.name)}</b> nur <b>${fmt(z.metric)} CHF/t</b>. Der Unterschied liegt fast nur im <i>Zeitpunkt</i> der Absicherung (und bei der Erntemenge).`);
         } else if (coops.length) out.push(`🌱 <b>${esc(coops[0].name)}</b> hat <b>${fmt(coops[0].metric)} CHF/t</b> erzielt – der Plan war ${fmt(d.p0)}.`);
-        const facs = d.rows.filter(r => r.role === 'processor').sort((a, b) => a.metric - b.metric);
-        if (facs.length) out.push(`🏭 Günstigster Einkauf: <b>${esc(facs[0].name)}</b> mit <b>${fmt(facs[0].metric)} CHF/t</b> (inkl. Auftragsmargen)${facs.length > 1 ? `, teuerster: ${esc(facs[facs.length - 1].name)} mit ${fmt(facs[facs.length - 1].metric)} CHF/t` : ''}.`);
+        const facs = d.rows.filter(r => r.role === 'processor').sort((a, b) => planDev(a) - planDev(b));
+        if (facs.length) out.push(`🏭 Am nächsten am Plan: <b>${esc(facs[0].name)}</b> mit <b>${fmt(facs[0].metric)} CHF/t</b> (inkl. Auftragsmargen)${facs.length > 1 ? `, teuerster: ${esc(facs[facs.length - 1].name)} mit ${fmt(facs[facs.length - 1].metric)} CHF/t` : ''}.`);
         const hedgers = d.rows.filter(r => r.role !== 'spec');
         const good = hedgers.filter(r => r.hedgeQuote >= 0.6).sort((a, b) => Math.abs(b.physPL) - Math.abs(a.physPL))[0];
         if (good) out.push(`🛡️ <b>${esc(good.name)}</b> war gut abgesichert: Ohne Futures hätte das Geschäft <b>${signed(good.physPL)} CHF</b> gebracht, die Futures <b>${signed(good.futPL)} CHF</b>. Die beiden heben sich weitgehend auf – das ist Hedging.`);
